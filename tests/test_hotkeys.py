@@ -2,6 +2,7 @@ import unittest
 
 from soundflow.hotkeys import (
     GlobalHotkeys,
+    PortalGlobalHotkeys,
     canonical_hotkey,
     display_hotkey,
     parse_hotkey,
@@ -56,6 +57,50 @@ class HotkeyTests(unittest.TestCase):
         hotkey._on_press("' '")
         self.assertEqual(events, ["down"])
         hotkey._on_release("' '")
+        self.assertEqual(events, ["down", "up"])
+
+    def test_portal_ignores_repeated_activation_and_release(self):
+        events: list[str] = []
+        hotkey = PortalGlobalHotkeys(
+            "ctrl+alt+space",
+            lambda: events.append("down"),
+            lambda: events.append("up"),
+        )
+        hotkey._session_handle = "/org/freedesktop/portal/session/soundflow"
+
+        for _ in range(12):
+            hotkey._handle_shortcut_event(
+                "Activated",
+                hotkey._session_handle,
+                "push_to_talk",
+            )
+        self.assertEqual(events, ["down"])
+
+        for _ in range(3):
+            hotkey._handle_shortcut_event(
+                "Deactivated",
+                hotkey._session_handle,
+                "push_to_talk",
+            )
+        self.assertEqual(events, ["down", "up"])
+
+    def test_portal_stop_releases_an_active_shortcut_once(self):
+        events: list[str] = []
+        hotkey = PortalGlobalHotkeys(
+            "ctrl+alt+space",
+            lambda: events.append("down"),
+            lambda: events.append("up"),
+        )
+        hotkey._session_handle = "/org/freedesktop/portal/session/soundflow"
+        hotkey._handle_shortcut_event(
+            "Activated",
+            hotkey._session_handle,
+            "push_to_talk",
+        )
+
+        hotkey.stop()
+        hotkey.stop()
+
         self.assertEqual(events, ["down", "up"])
 
 

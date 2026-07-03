@@ -216,6 +216,8 @@ class PortalGlobalHotkeys:
         self._stop_event: asyncio.Event | None = None
         self._session_handle: str | None = None
         self._ready = threading.Event()
+        self._state_lock = threading.Lock()
+        self._ptt_active = False
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -228,6 +230,7 @@ class PortalGlobalHotkeys:
         self._thread.start()
 
     def stop(self) -> None:
+        self._release_active_shortcut()
         if self._loop and not self._loop.is_closed() and self._stop_event:
             self._loop.call_soon_threadsafe(self._stop_event.set)
         if self._thread and self._thread is not threading.current_thread():
@@ -237,6 +240,44 @@ class PortalGlobalHotkeys:
 
     def wait_ready(self, timeout: float) -> bool:
         return self._ready.wait(timeout)
+
+    def _handle_shortcut_event(
+        self,
+        member: str,
+        session_handle: str,
+        shortcut_id: str,
+    ) -> None:
+        if (
+            session_handle != self._session_handle
+            or shortcut_id != "push_to_talk"
+        ):
+            return
+
+        callback: Callable[[], None] | None = None
+        with self._state_lock:
+            if member == "Activated" and not self._ptt_active:
+                self._ptt_active = True
+                callback = self.on_ptt_down
+            elif member == "Deactivated" and self._ptt_active:
+                self._ptt_active = False
+                callback = self.on_ptt_up
+
+        if callback is not None:
+            LOGGER.info(
+                "Global push-to-talk %s",
+                "pressed" if member == "Activated" else "released",
+            )
+            callback()
+
+    def _release_active_shortcut(self) -> None:
+        callback: Callable[[], None] | None = None
+        with self._state_lock:
+            if self._ptt_active:
+                self._ptt_active = False
+                callback = self.on_ptt_up
+        if callback is not None:
+            LOGGER.info("Releasing active global push-to-talk during shutdown")
+            callback()
 
     def _thread_main(self) -> None:
         try:
@@ -380,10 +421,11 @@ class PortalGlobalHotkeys:
                 and message.body[0] == self._session_handle
                 and message.body[1] == "push_to_talk"
             ):
-                if message.member == "Activated":
-                    self.on_ptt_down()
-                elif message.member == "Deactivated":
-                    self.on_ptt_up()
+                self._handle_shortcut_event(
+                    message.member,
+                    message.body[0],
+                    message.body[1],
+                )
             return False
 
         bus.add_message_handler(shortcut_handler)
