@@ -1,0 +1,2 @@
+"""Dependency-light application core."""
+

@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+import argparse
+import multiprocessing
+import os
+import sys
+from pathlib import Path
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Private, offline desktop dictation")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Use a fake transcriber to test controls without a model",
+    )
+    parser.add_argument(
+        "--no-hotkeys",
+        action="store_true",
+        help="Disable global keyboard listeners for this run",
+    )
+    parser.add_argument(
+        "--background",
+        action="store_true",
+        help="Start ready for push-to-talk without opening the main window",
+    )
+    parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--self-test-audio",
+        type=Path,
+        metavar="WAV",
+        help=argparse.SUPPRESS,
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    multiprocessing.freeze_support()
+    args = build_parser().parse_args(argv)
+    if args.self_test_audio:
+        return _run_inference_self_test(args.self_test_audio)
+    try:
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        print(
+            "Soundflow's GUI dependencies are not installed.\n"
+            "Create a Python 3.11–3.13 virtual environment and run:\n"
+            "  python -m pip install -e .",
+            file=sys.stderr,
+        )
+        return 2
+
+    from soundflow.core.settings import SettingsStore
+    from soundflow.ui import MainWindow
+    from PySide6.QtCore import QTimer
+
+    os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
+    application = QApplication(["soundflow"])
+    application.setApplicationName("Soundflow")
+    application.setOrganizationName("Soundflow")
+    application.setQuitOnLastWindowClosed(False)
+
+    store = SettingsStore()
+    settings = store.load()
+    window = MainWindow(settings, store, demo_mode=args.demo, no_hotkeys=args.no_hotkeys)
+    application.aboutToQuit.connect(window.shutdown)
+    if not settings.start_minimized and not args.background:
+        window.show()
+    if args.smoke_test:
+        QTimer.singleShot(300, application.quit)
+    return application.exec()
+
+def _run_inference_self_test(path: Path) -> int:
+    import wave
+
+    from soundflow.core.settings import default_model_path
+    from soundflow.transcription import FasterWhisperTranscriber
+
+    with wave.open(str(path), "rb") as source:
+        if (
+            source.getnchannels() != 1
+            or source.getsampwidth() != 2
+            or source.getframerate() != 16_000
+        ):
+            raise ValueError("Self-test WAV must be 16 kHz, mono, signed 16-bit PCM")
+        pcm = source.readframes(source.getnframes())
+    text = FasterWhisperTranscriber(
+        default_model_path(),
+        language="en",
+        device="cpu",
+        compute_type="int8",
+    ).transcribe_pcm(pcm, 16_000)
+    print(text)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

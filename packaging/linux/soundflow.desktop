@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Soundflow
+Comment=Private offline dictation
+Exec=soundflow
+Icon=soundflow
+Categories=AudioVideo;Audio;Utility;Accessibility;
+Terminal=false
+StartupNotify=true
+
