@@ -23,10 +23,8 @@ Implemented now:
 - A demo backend for testing UI and control flow without a model
 - Windows and Linux/X11 hotkeys
 
-Wayland deliberately blocks arbitrary global keyboard capture and input injection. The MVP
-therefore keeps all click controls working but may disable global shortcuts and automatic paste
-under Wayland. A production release should replace that adapter with the XDG GlobalShortcuts and
-RemoteDesktop portals.
+Wayland deliberately blocks arbitrary global keyboard capture and input injection. Soundflow uses
+the XDG GlobalShortcuts and RemoteDesktop portals, which require one-time desktop approval.
 
 ## Requirements
 
@@ -86,11 +84,15 @@ soundflow --demo --no-hotkeys
 
 Default shortcuts:
 
-- Push-to-talk: `Ctrl+Space`
+- Push-to-talk: `Ctrl+Alt+Space`
 
 Hold the shortcut while speaking and release it to transcribe and paste at the active cursor.
 The shortcut remains active while the main window is hidden. The installer also starts Soundflow
 in the background when you sign in.
+
+On first launch, approve the global-shortcut prompt and then the keyboard-control prompt. Soundflow
+stays visible until shortcut setup succeeds. The Home indicator reports connecting, ready,
+recording, transcribing, or setup-required states and provides a retry action when needed.
 
 ## Install an offline model
 

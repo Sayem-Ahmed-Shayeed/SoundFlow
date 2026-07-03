@@ -9,6 +9,8 @@ from typing import Any
 
 
 APP_NAME = "Soundflow"
+SHORTCUT_SCHEMA_VERSION = 2
+DEFAULT_PUSH_TO_TALK = "ctrl+alt+space"
 
 
 def config_directory() -> Path:
@@ -29,6 +31,7 @@ def data_directory() -> Path:
 
 @dataclass
 class Settings:
+    shortcut_schema_version: int = SHORTCUT_SCHEMA_VERSION
     model_path: str = ""
     language: str = "auto"
     inference_device: str = "cpu"
@@ -36,7 +39,8 @@ class Settings:
     microphone: int | None = None
     global_hotkeys: bool = True
     toggle_hotkey: str = "ctrl+d"
-    push_to_talk_hotkey: str = "ctrl+space"
+    push_to_talk_hotkey: str = DEFAULT_PUSH_TO_TALK
+    hotkey_authorized: bool = False
     insert_hotkey: str = "ctrl+i"
     silence_threshold: float = 0.012
     silence_duration_ms: int = 700
@@ -47,25 +51,23 @@ class Settings:
     remote_desktop_restore_token: str = ""
 
     def normalized(self) -> "Settings":
+        from soundflow.hotkeys import canonical_hotkey
+
+        self.shortcut_schema_version = SHORTCUT_SCHEMA_VERSION
         self.language = self.language.strip() or "auto"
         self.inference_device = (
             self.inference_device if self.inference_device in {"cpu", "cuda"} else "cpu"
         )
         self.compute_type = "int8"
-        legacy_shortcuts = {
-            "ctrl+alt+d": "ctrl+d",
-            "ctrl+alt+space": "ctrl+space",
-            "ctrl+alt+i": "ctrl+i",
-        }
-        self.toggle_hotkey = legacy_shortcuts.get(
-            self.toggle_hotkey.lower(), self.toggle_hotkey.lower()
-        )
-        self.push_to_talk_hotkey = legacy_shortcuts.get(
-            self.push_to_talk_hotkey.lower(), self.push_to_talk_hotkey.lower()
-        )
-        self.insert_hotkey = legacy_shortcuts.get(
-            self.insert_hotkey.lower(), self.insert_hotkey.lower()
-        )
+        self.toggle_hotkey = self.toggle_hotkey.lower()
+        self.insert_hotkey = self.insert_hotkey.lower()
+        try:
+            self.push_to_talk_hotkey = canonical_hotkey(
+                self.push_to_talk_hotkey
+            )
+        except ValueError:
+            self.push_to_talk_hotkey = DEFAULT_PUSH_TO_TALK
+            self.hotkey_authorized = False
         self.silence_threshold = min(max(float(self.silence_threshold), 0.001), 0.5)
         self.silence_duration_ms = min(max(int(self.silence_duration_ms), 200), 3000)
         self.min_speech_ms = min(max(int(self.min_speech_ms), 100), 3000)
@@ -87,7 +89,17 @@ class SettingsStore:
                 for key, value in payload.items()
                 if key in Settings.__dataclass_fields__
             }
-            return Settings(**known).normalized()
+            settings = Settings(**known)
+            stored_schema = int(payload.get("shortcut_schema_version", 0))
+            migrated = stored_schema < SHORTCUT_SCHEMA_VERSION
+            if migrated:
+                settings.push_to_talk_hotkey = DEFAULT_PUSH_TO_TALK
+                settings.hotkey_authorized = False
+                settings.shortcut_schema_version = SHORTCUT_SCHEMA_VERSION
+            settings.normalized()
+            if migrated:
+                self.save(settings)
+            return settings
         except (OSError, ValueError, TypeError):
             return Settings()
 

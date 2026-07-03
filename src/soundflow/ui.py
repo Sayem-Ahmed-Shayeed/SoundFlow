@@ -54,7 +54,13 @@ from soundflow.core.export import ExportError, export_transcript
 from soundflow.core.segmenter import SegmenterConfig
 from soundflow.core.settings import Settings, SettingsStore, default_model_path
 from soundflow.core.state import DictationState, DictationStateMachine, StateChange
-from soundflow.hotkeys import HotkeyError, create_global_hotkeys
+from soundflow.hotkeys import (
+    HotkeyError,
+    canonical_hotkey,
+    create_global_hotkeys,
+    display_hotkey,
+    hotkey_parts,
+)
 from soundflow.injector import InjectionError, create_text_injector
 from soundflow.transcription import (
     DemoTranscriber,
@@ -73,6 +79,8 @@ class UiBridge(QObject):
     restore_token_ready = Signal(str)
     hotkey_ready = Signal(str)
     hotkey_error = Signal(str)
+    injector_ready = Signal()
+    injector_error = Signal(str)
 
 
 def preferred_font(candidates: tuple[str, ...]) -> str:
@@ -142,11 +150,15 @@ class ActionButton(QPushButton):
 
 
 class ShortcutPicker(QWidget):
-    MODIFIERS = (
+    MODIFIER_CHORDS = (
         ("Ctrl", "ctrl"),
         ("Alt", "alt"),
         ("Shift", "shift"),
         ("Super", "cmd"),
+        ("Ctrl + Alt", "ctrl+alt"),
+        ("Ctrl + Shift", "ctrl+shift"),
+        ("Alt + Shift", "alt+shift"),
+        ("Ctrl + Super", "ctrl+cmd"),
     )
     KEYS = (
         ("Space", "space"),
@@ -166,13 +178,13 @@ class ShortcutPicker(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
-        self.modifier = QComboBox()
+        self.modifiers = QComboBox()
         self.key = QComboBox()
-        for label, token in self.MODIFIERS:
-            self.modifier.addItem(label, token)
+        for label, token in self.MODIFIER_CHORDS:
+            self.modifiers.addItem(label, token)
         for label, token in self.KEYS:
             self.key.addItem(label, token)
-        layout.addWidget(self.modifier)
+        layout.addWidget(self.modifiers)
         plus = QLabel("+")
         plus.setObjectName("shortcutPlus")
         plus.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -182,22 +194,29 @@ class ShortcutPicker(QWidget):
         self.set_shortcut(value)
 
     def set_shortcut(self, value: str) -> None:
-        parts = [part.strip().lower() for part in value.split("+") if part.strip()]
-        modifier = next(
-            (part for part in parts if part in {token for _, token in self.MODIFIERS}),
-            "ctrl",
+        try:
+            parts = hotkey_parts(value)
+        except ValueError:
+            parts = hotkey_parts("ctrl+alt+space")
+        modifier_set = set(parts[:-1])
+        modifiers = next(
+            (
+                token
+                for _, token in self.MODIFIER_CHORDS
+                if set(token.split("+")) == modifier_set
+            ),
+            "ctrl+alt",
         )
-        key = next(
-            (part for part in reversed(parts) if part in {token for _, token in self.KEYS}),
-            "space",
-        )
-        modifier_index = self.modifier.findData(modifier)
+        key = parts[-1]
+        modifier_index = self.modifiers.findData(modifiers)
         key_index = self.key.findData(key)
-        self.modifier.setCurrentIndex(max(0, modifier_index))
+        self.modifiers.setCurrentIndex(max(0, modifier_index))
         self.key.setCurrentIndex(max(0, key_index))
 
     def shortcut(self) -> str:
-        return f"{self.modifier.currentData()}+{self.key.currentData()}"
+        return canonical_hotkey(
+            f"{self.modifiers.currentData()}+{self.key.currentData()}"
+        )
 
 
 class WaveformWidget(QWidget):
@@ -342,6 +361,7 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings · Soundflow")
         self.setMinimumSize(660, 590)
         self.settings = settings
+        self.original_shortcut = settings.push_to_talk_hotkey
         title = QLabel("Settings")
         title.setObjectName("dialogTitle")
         intro = QLabel("Tune recognition, shortcuts, and the way Soundflow behaves.")
@@ -427,8 +447,8 @@ class SettingsDialog(QDialog):
         self.ptt_picker = ShortcutPicker(self.settings.push_to_talk_hotkey)
         form.addRow("Hold to dictate", self.ptt_picker)
         note = QLabel(
-            "Choose one modifier and one key. On Wayland, your desktop will ask once "
-            "for permission to use this system-wide shortcut."
+            "Choose a modifier chord and one trigger key. On Wayland, your desktop "
+            "will ask once for permission to use this system-wide shortcut."
         )
         note.setObjectName("formHint")
         note.setWordWrap(True)
@@ -473,7 +493,10 @@ class SettingsDialog(QDialog):
         self.settings.compute_type = "int8"
         self.settings.microphone = self.microphone.currentData()
         self.settings.global_hotkeys = self.hotkeys_enabled.isChecked()
-        self.settings.push_to_talk_hotkey = self.ptt_picker.shortcut()
+        shortcut = self.ptt_picker.shortcut()
+        if shortcut != self.original_shortcut:
+            self.settings.hotkey_authorized = False
+        self.settings.push_to_talk_hotkey = shortcut
         self.settings.silence_duration_ms = self.silence.value()
         self.settings.auto_copy = self.auto_copy.isChecked()
         self.settings.start_minimized = self.start_minimized.isChecked()
@@ -495,6 +518,10 @@ class MainWindow(QMainWindow):
         self.no_hotkeys = no_hotkeys
         self.hotkeys = None
         self._hotkey_is_ready = False
+        self._hotkey_setup_requested = False
+        self._injector_started = False
+        self._injector_is_ready = False
+        self._setup_retry_target = "hotkey"
         self.pipeline: DictationPipeline | None = None
         self._auto_insert_after_drain = False
         self._session_fragments: list[str] = []
@@ -510,14 +537,13 @@ class MainWindow(QMainWindow):
         self.injector = create_text_injector(
             self.settings.remote_desktop_restore_token,
             self.bridge.restore_token_ready.emit,
-            self.bridge.error.emit,
+            self.bridge.injector_error.emit,
+            self.bridge.injector_ready.emit,
             self.portal_parent_window,
         )
         self._build_tray()
-        self._rebuild_runtime()
-        if not self.no_hotkeys:
-            QTimer.singleShot(1200, self.injector.start)
         self._apply_state(DictationState.IDLE, "Ready")
+        QTimer.singleShot(0, self._rebuild_runtime)
 
     def _build_ui(self) -> None:
         self.setWindowTitle("Soundflow · Private Dictation")
@@ -667,15 +693,18 @@ class MainWindow(QMainWindow):
         shortcut_layout.addWidget(shortcut_title)
         shortcut_row = QHBoxLayout()
         shortcut_row.setSpacing(6)
-        self.ptt_modifier = QLabel("CTRL")
-        self.ptt_modifier.setObjectName("keycap")
-        shortcut_row.addWidget(self.ptt_modifier)
-        plus = QLabel("+")
-        plus.setObjectName("shortcutPlus")
-        shortcut_row.addWidget(plus)
-        self.ptt_key = QLabel("SPACE")
-        self.ptt_key.setObjectName("keycap")
-        shortcut_row.addWidget(self.ptt_key)
+        self.ptt_keycaps: list[QLabel] = []
+        self.ptt_pluses: list[QLabel] = []
+        for index in range(3):
+            keycap = QLabel(("CTRL", "ALT", "SPACE")[index])
+            keycap.setObjectName("keycap")
+            shortcut_row.addWidget(keycap)
+            self.ptt_keycaps.append(keycap)
+            if index < 2:
+                plus = QLabel("+")
+                plus.setObjectName("shortcutPlus")
+                shortcut_row.addWidget(plus)
+                self.ptt_pluses.append(plus)
         shortcut_row.addStretch(1)
         shortcut_layout.addLayout(shortcut_row)
         hero_layout.addWidget(shortcut_card)
@@ -685,6 +714,12 @@ class MainWindow(QMainWindow):
         self.hotkey_indicator.setProperty("state", "connecting")
         self.hotkey_indicator.setWordWrap(True)
         hero_layout.addWidget(self.hotkey_indicator)
+        self.hotkey_retry_button = QPushButton("Set up global shortcut")
+        self.hotkey_retry_button.setObjectName("hotkeyRetry")
+        self.hotkey_retry_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.hotkey_retry_button.clicked.connect(self.retry_setup)
+        self.hotkey_retry_button.hide()
+        hero_layout.addWidget(self.hotkey_retry_button)
         content.addWidget(control)
 
         transcript = QFrame()
@@ -820,6 +855,15 @@ class MainWindow(QMainWindow):
                 color: #f1bd75;
                 background: #241d15;
                 border-color: #493722;
+            }}
+            QPushButton#hotkeyRetry {{
+                color: #f1bd75;
+                background: transparent;
+                border-color: #493722;
+            }}
+            QPushButton#hotkeyRetry:hover {{
+                color: #ffe0ae;
+                background: #241d15;
             }}
             QLabel#eyebrow {{
                 color: #717784;
@@ -1015,6 +1059,8 @@ class MainWindow(QMainWindow):
         self.bridge.restore_token_ready.connect(self._save_restore_token)
         self.bridge.hotkey_ready.connect(self._hotkey_ready)
         self.bridge.hotkey_error.connect(self._hotkey_failed)
+        self.bridge.injector_ready.connect(self._injector_ready)
+        self.bridge.injector_error.connect(self._injector_failed)
 
     def _build_tray(self) -> None:
         icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
@@ -1078,7 +1124,14 @@ class MainWindow(QMainWindow):
             self.bridge.error.emit,
             self.bridge.level.emit,
         )
-        if self.settings.global_hotkeys and not self.no_hotkeys:
+        should_start_hotkey = (
+            self.settings.hotkey_authorized or self._hotkey_setup_requested
+        )
+        if (
+            self.settings.global_hotkeys
+            and not self.no_hotkeys
+            and should_start_hotkey
+        ):
             self._set_hotkey_indicator("connecting", "●  CONNECTING GLOBAL SHORTCUT…")
             try:
                 self.hotkeys = create_global_hotkeys(
@@ -1095,8 +1148,17 @@ class MainWindow(QMainWindow):
                 QTimer.singleShot(0, lambda message=str(exc): self._hotkey_failed(message))
         elif self.no_hotkeys:
             self._set_hotkey_indicator("error", "●  GLOBAL SHORTCUT DISABLED")
+        elif self.settings.global_hotkeys:
+            self._set_hotkey_indicator(
+                "error",
+                "●  SETUP REQUIRED · AUTHORIZE CTRL + ALT + SPACE",
+                retry="hotkey",
+            )
         else:
-            self._set_hotkey_indicator("error", "●  ENABLE SHORTCUTS IN PREFERENCES")
+            self._set_hotkey_indicator(
+                "error", "●  ENABLE SHORTCUTS IN PREFERENCES"
+            )
+            self._start_injector()
         self._refresh_shortcut_display()
 
     @Slot()
@@ -1207,10 +1269,16 @@ class MainWindow(QMainWindow):
             self.overlay.show_processing()
         else:
             if self.hotkeys and self._hotkey_is_ready:
-                self._set_hotkey_indicator(
-                    "ready",
-                    f"●  READY · HOLD {self.settings.push_to_talk_hotkey.upper().replace('+', ' + ')}",
-                )
+                if self._injector_is_ready:
+                    self._set_hotkey_indicator(
+                        "ready",
+                        f"●  READY · HOLD {display_hotkey(self.settings.push_to_talk_hotkey)}",
+                    )
+                else:
+                    self._set_hotkey_indicator(
+                        "connecting",
+                        "●  SHORTCUT READY · SETTING UP AUTOMATIC PASTE…",
+                    )
             self.overlay.hide_animated()
             self.tray.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
 
@@ -1228,29 +1296,119 @@ class MainWindow(QMainWindow):
         self.word_count.setText(f"{count} word" if count == 1 else f"{count} words")
 
     def _refresh_shortcut_display(self) -> None:
-        parts = self.settings.push_to_talk_hotkey.split("+", 1)
-        modifier, key = (parts + ["space"])[:2]
-        self.ptt_modifier.setText(modifier.upper())
-        self.ptt_key.setText(key.upper())
+        parts = hotkey_parts(self.settings.push_to_talk_hotkey)
+        for index, keycap in enumerate(self.ptt_keycaps):
+            visible = index < len(parts)
+            keycap.setVisible(visible)
+            if visible:
+                label = "SUPER" if parts[index] == "cmd" else parts[index].upper()
+                keycap.setText(label)
+        for index, plus in enumerate(self.ptt_pluses):
+            plus.setVisible(index < len(parts) - 1)
 
     @Slot(str)
     def _hotkey_ready(self, shortcut: str) -> None:
         self._hotkey_is_ready = True
-        label = shortcut.upper() if shortcut else self.settings.push_to_talk_hotkey.upper()
-        self._set_hotkey_indicator("ready", f"●  READY · HOLD {label}")
-        self.statusBar().showMessage("Global push-to-talk is ready", 3500)
+        self._hotkey_setup_requested = False
+        self.settings.hotkey_authorized = True
+        self.store.save(self.settings)
+        label = shortcut if shortcut else display_hotkey(
+            self.settings.push_to_talk_hotkey
+        )
+        self._set_hotkey_indicator(
+            "connecting", f"●  SHORTCUT READY · HOLD {label} · SETTING UP PASTE…"
+        )
+        self.statusBar().showMessage(
+            "Global shortcut ready; setting up automatic paste", 3500
+        )
+        self._start_injector()
 
     @Slot(str)
     def _hotkey_failed(self, message: str) -> None:
         self._hotkey_is_ready = False
-        self._set_hotkey_indicator("error", "●  SHORTCUT NEEDS ATTENTION")
+        self._hotkey_setup_requested = False
+        self.settings.hotkey_authorized = False
+        self.store.save(self.settings)
+        self._set_hotkey_indicator(
+            "error",
+            "●  SETUP REQUIRED · GLOBAL SHORTCUT NOT ACTIVE",
+            retry="hotkey",
+        )
         self.statusBar().showMessage(message, 15_000)
+        if not self.isVisible():
+            self._show_window()
 
-    def _set_hotkey_indicator(self, state: str, text: str) -> None:
+    def _set_hotkey_indicator(
+        self, state: str, text: str, *, retry: str | None = None
+    ) -> None:
         self.hotkey_indicator.setText(text)
         self.hotkey_indicator.setProperty("state", state)
         self.hotkey_indicator.style().unpolish(self.hotkey_indicator)
         self.hotkey_indicator.style().polish(self.hotkey_indicator)
+        self._setup_retry_target = retry or "hotkey"
+        self.hotkey_retry_button.setText(
+            "Set up automatic paste"
+            if retry == "injector"
+            else "Set up global shortcut"
+        )
+        self.hotkey_retry_button.setVisible(retry is not None)
+
+    @Slot()
+    def retry_setup(self) -> None:
+        if self._setup_retry_target == "injector":
+            self._start_injector(force=True)
+            return
+        if self.state.state not in {DictationState.IDLE, DictationState.ERROR}:
+            self.statusBar().showMessage(
+                "Stop dictation before setting up the shortcut", 3000
+            )
+            return
+        self.settings.hotkey_authorized = False
+        self.store.save(self.settings)
+        self._hotkey_setup_requested = True
+        self._set_hotkey_indicator(
+            "connecting", "●  WAITING FOR DESKTOP APPROVAL…"
+        )
+        self._rebuild_runtime()
+
+    def _start_injector(self, *, force: bool = False) -> None:
+        if self.no_hotkeys:
+            return
+        if force:
+            self.injector.stop()
+            self._injector_started = False
+            self._injector_is_ready = False
+            self._set_hotkey_indicator(
+                "connecting", "●  SHORTCUT READY · WAITING FOR PASTE APPROVAL…"
+            )
+        if self._injector_started:
+            return
+        self._injector_started = True
+        self.injector.start()
+
+    @Slot()
+    def _injector_ready(self) -> None:
+        self._injector_is_ready = True
+        self._set_hotkey_indicator(
+            "ready",
+            f"●  READY · HOLD {display_hotkey(self.settings.push_to_talk_hotkey)}",
+        )
+        self.statusBar().showMessage(
+            "Push-to-talk and automatic paste are ready", 3500
+        )
+
+    @Slot(str)
+    def _injector_failed(self, message: str) -> None:
+        self._injector_started = False
+        self._injector_is_ready = False
+        self._set_hotkey_indicator(
+            "error",
+            "●  SHORTCUT READY · AUTOMATIC PASTE NEEDS APPROVAL",
+            retry="injector",
+        )
+        self.statusBar().showMessage(message, 15_000)
+        if not self.isVisible():
+            self._show_window()
 
     @Slot(int)
     def _home_language_changed(self, index: int) -> None:

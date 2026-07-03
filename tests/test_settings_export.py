@@ -4,7 +4,11 @@ import unittest
 from pathlib import Path
 
 from soundflow.core.export import ExportError, export_transcript
-from soundflow.core.settings import Settings, SettingsStore
+from soundflow.core.settings import (
+    SHORTCUT_SCHEMA_VERSION,
+    Settings,
+    SettingsStore,
+)
 
 
 class SettingsAndExportTests(unittest.TestCase):
@@ -19,13 +23,50 @@ class SettingsAndExportTests(unittest.TestCase):
             self.assertFalse(loaded.global_hotkeys)
             json.loads(path.read_text(encoding="utf-8"))
 
-    def test_legacy_shortcut_and_precision_are_migrated(self):
+    def test_three_key_shortcut_and_precision_are_normalized(self):
         settings = Settings(
             push_to_talk_hotkey="ctrl+alt+space",
             compute_type="float32",
         ).normalized()
-        self.assertEqual(settings.push_to_talk_hotkey, "ctrl+space")
+        self.assertEqual(settings.push_to_talk_hotkey, "ctrl+alt+space")
         self.assertEqual(settings.compute_type, "int8")
+
+    def test_legacy_shortcut_file_is_migrated_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "language": "bn",
+                        "push_to_talk_hotkey": "shift+d",
+                        "hotkey_authorized": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            settings = SettingsStore(path).load()
+            self.assertEqual(settings.language, "bn")
+            self.assertEqual(settings.push_to_talk_hotkey, "ctrl+alt+space")
+            self.assertFalse(settings.hotkey_authorized)
+            self.assertEqual(
+                settings.shortcut_schema_version, SHORTCUT_SCHEMA_VERSION
+            )
+            persisted = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                persisted["shortcut_schema_version"], SHORTCUT_SCHEMA_VERSION
+            )
+
+    def test_current_custom_shortcut_is_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            settings = Settings(
+                push_to_talk_hotkey="ctrl+shift+v",
+                hotkey_authorized=True,
+            )
+            SettingsStore(path).save(settings)
+            loaded = SettingsStore(path).load()
+            self.assertEqual(loaded.push_to_talk_hotkey, "ctrl+shift+v")
+            self.assertTrue(loaded.hotkey_authorized)
 
     def test_text_export(self):
         with tempfile.TemporaryDirectory() as directory:

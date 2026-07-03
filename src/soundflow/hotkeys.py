@@ -18,20 +18,64 @@ class HotkeyError(RuntimeError):
     pass
 
 
+MODIFIERS = ("ctrl", "alt", "shift", "cmd")
+MODIFIER_SET = frozenset(MODIFIERS)
+KEY_ALIASES = {
+    "control": "ctrl",
+    "ctl": "ctrl",
+    "option": "alt",
+    "super": "cmd",
+    "win": "cmd",
+    "windows": "cmd",
+    "return": "enter",
+}
+NAMED_TRIGGER_KEYS = frozenset(
+    {"space", "enter", "tab", "escape", "backspace"}
+    | {f"f{number}" for number in range(1, 13)}
+)
+
+
+def hotkey_parts(value: str) -> tuple[str, ...]:
+    raw_parts = value.split("+")
+    if any(not part.strip() for part in raw_parts):
+        raise ValueError("Push-to-talk contains an empty key")
+    parts = tuple(
+        KEY_ALIASES.get(part.strip().lower(), part.strip().lower())
+        for part in raw_parts
+    )
+    if len(parts) not in {2, 3}:
+        raise ValueError("Push-to-talk must contain two or three keys")
+    if len(set(parts)) != len(parts):
+        raise ValueError("Push-to-talk cannot contain duplicate keys")
+    modifiers = [part for part in parts if part in MODIFIER_SET]
+    triggers = [part for part in parts if part not in MODIFIER_SET]
+    if not modifiers:
+        raise ValueError("Push-to-talk requires at least one modifier")
+    if len(triggers) != 1:
+        raise ValueError("Push-to-talk requires one non-modifier key")
+    trigger = triggers[0]
+    if not (
+        trigger in NAMED_TRIGGER_KEYS
+        or (len(trigger) == 1 and trigger.isalnum())
+    ):
+        raise ValueError(f"Unsupported push-to-talk key: {trigger}")
+    ordered_modifiers = tuple(
+        modifier for modifier in MODIFIERS if modifier in modifiers
+    )
+    return (*ordered_modifiers, trigger)
+
+
+def canonical_hotkey(value: str) -> str:
+    return "+".join(hotkey_parts(value))
+
+
+def display_hotkey(value: str) -> str:
+    labels = {"ctrl": "Ctrl", "alt": "Alt", "shift": "Shift", "cmd": "Super"}
+    return " + ".join(labels.get(part, part.upper()) for part in hotkey_parts(value))
+
+
 def parse_hotkey(value: str) -> frozenset[str]:
-    aliases = {
-        "control": "ctrl",
-        "ctl": "ctrl",
-        "option": "alt",
-        "super": "cmd",
-        "win": "cmd",
-        "windows": "cmd",
-    }
-    parts = [aliases.get(part.strip().lower(), part.strip().lower()) for part in value.split("+")]
-    normalized = frozenset(part for part in parts if part)
-    if len(normalized) != 2:
-        raise ValueError("Push-to-talk must contain exactly two keys")
-    return normalized
+    return frozenset(hotkey_parts(value))
 
 
 def portal_trigger(value: str) -> str:
@@ -51,12 +95,12 @@ def portal_trigger(value: str) -> str:
         "tab": "Tab",
         "escape": "Escape",
         "backspace": "BackSpace",
+        **{f"f{number}": f"F{number}" for number in range(1, 13)},
     }
-    result = []
-    for part in (piece.strip().lower() for piece in value.split("+")):
-        result.append(modifiers.get(part, keys.get(part, part)))
-    if len(result) != 2:
-        raise ValueError("Push-to-talk must contain exactly two keys")
+    result = [
+        modifiers.get(part, keys.get(part, part))
+        for part in hotkey_parts(value)
+    ]
     return "+".join(result)
 
 
@@ -91,7 +135,7 @@ class GlobalHotkeys:
                 on_release=self._on_release,
             )
             self._listener.start()
-            self.on_ready(" + ".join(sorted(self.binding)).upper())
+            self.on_ready(display_hotkey("+".join(self.binding)))
         except Exception as exc:
             raise HotkeyError("Global push-to-talk could not start.") from exc
 

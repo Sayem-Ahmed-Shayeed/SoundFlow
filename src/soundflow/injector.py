@@ -16,8 +16,11 @@ class InjectionError(RuntimeError):
 
 
 class TextInjector:
+    def __init__(self, on_ready: Callable[[], None] | None = None) -> None:
+        self.on_ready = on_ready or (lambda: None)
+
     def start(self) -> None:
-        pass
+        self.on_ready()
 
     def paste(self) -> None:
         paste_from_clipboard()
@@ -37,11 +40,13 @@ class PortalTextInjector(TextInjector):
         restore_token: str,
         on_restore_token: Callable[[str], None],
         on_error: Callable[[str], None],
+        on_ready: Callable[[], None],
         parent_window: str = "",
     ) -> None:
         self.restore_token = restore_token
         self.on_restore_token = on_restore_token
         self.on_error = on_error
+        self.on_ready = on_ready
         self.parent_window = parent_window
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -199,6 +204,7 @@ class PortalTextInjector(TextInjector):
         if "restore_token" in results:
             self.on_restore_token(results["restore_token"].value)
         self._ready.set()
+        self.on_ready()
 
         while True:
             command = await self._commands.get()
@@ -244,6 +250,7 @@ def create_text_injector(
     restore_token: str,
     on_restore_token: Callable[[str], None],
     on_error: Callable[[str], None],
+    on_ready: Callable[[], None],
     parent_window: str = "",
 ) -> TextInjector:
     if (
@@ -251,9 +258,13 @@ def create_text_injector(
         and os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
     ):
         return PortalTextInjector(
-            restore_token, on_restore_token, on_error, parent_window
+            restore_token,
+            on_restore_token,
+            on_error,
+            on_ready,
+            parent_window,
         )
-    return TextInjector()
+    return TextInjector(on_ready)
 
 
 def paste_from_clipboard() -> None:

@@ -115,7 +115,12 @@ def main(argv: list[str] | None = None) -> int:
     if instance_server.isListening():
         instance_server.newConnection.connect(handle_instance_request)
     application.aboutToQuit.connect(window.shutdown)
-    if not settings.start_minimized and not args.background:
+    setup_required = (
+        settings.global_hotkeys
+        and not settings.hotkey_authorized
+        and not args.no_hotkeys
+    )
+    if setup_required or (not settings.start_minimized and not args.background):
         window.show()
     if args.smoke_test:
         QTimer.singleShot(300, application.quit)
