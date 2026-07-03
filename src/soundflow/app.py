@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import multiprocessing
 import os
 import sys
@@ -36,10 +37,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     multiprocessing.freeze_support()
     args = build_parser().parse_args(argv)
     if args.self_test_audio:
         return _run_inference_self_test(args.self_test_audio)
+    if (
+        sys.platform.startswith("linux")
+        and os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+    ):
+        # PySide does not expose an xdg-foreign token. XWayland provides a
+        # stable XID so GNOME can parent its required permission dialogs.
+        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
     try:
         from PySide6.QtNetwork import QLocalServer, QLocalSocket
         from PySide6.QtWidgets import QApplication

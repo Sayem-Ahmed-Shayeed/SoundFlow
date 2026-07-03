@@ -8,6 +8,8 @@ import threading
 import time
 from collections.abc import Callable
 
+from soundflow.portal import register_host_app
+
 
 class InjectionError(RuntimeError):
     pass
@@ -35,10 +37,12 @@ class PortalTextInjector(TextInjector):
         restore_token: str,
         on_restore_token: Callable[[str], None],
         on_error: Callable[[str], None],
+        parent_window: str = "",
     ) -> None:
         self.restore_token = restore_token
         self.on_restore_token = on_restore_token
         self.on_error = on_error
+        self.parent_window = parent_window
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._commands: asyncio.Queue | None = None
@@ -62,7 +66,7 @@ class PortalTextInjector(TextInjector):
         self._loop.call_soon_threadsafe(self._commands.put_nowait, "paste")
 
     def stop(self) -> None:
-        if self._loop and self._commands:
+        if self._loop and not self._loop.is_closed() and self._commands:
             self._loop.call_soon_threadsafe(self._commands.put_nowait, "stop")
         if self._thread and self._thread is not threading.current_thread():
             self._thread.join(timeout=1.5)
@@ -81,6 +85,7 @@ class PortalTextInjector(TextInjector):
         self._loop = asyncio.get_running_loop()
         self._commands = asyncio.Queue()
         bus = await MessageBus().connect()
+        await register_host_app(bus)
 
         async def add_match(rule: str) -> None:
             reply = await bus.call(
@@ -181,7 +186,7 @@ class PortalTextInjector(TextInjector):
                 signature="osa{sv}",
                 body=[
                     session_handle,
-                    "",
+                    self.parent_window,
                     {"handle_token": Variant("s", start_token)},
                 ],
             )
@@ -239,12 +244,15 @@ def create_text_injector(
     restore_token: str,
     on_restore_token: Callable[[str], None],
     on_error: Callable[[str], None],
+    parent_window: str = "",
 ) -> TextInjector:
     if (
         sys.platform.startswith("linux")
         and os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
     ):
-        return PortalTextInjector(restore_token, on_restore_token, on_error)
+        return PortalTextInjector(
+            restore_token, on_restore_token, on_error, parent_window
+        )
     return TextInjector()
 
 

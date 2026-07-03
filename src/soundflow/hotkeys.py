@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import secrets
 import sys
 import threading
 from collections.abc import Callable
 from typing import Any
+
+from soundflow.portal import register_host_app
+
+LOGGER = logging.getLogger(__name__)
 
 
 class HotkeyError(RuntimeError):
@@ -154,12 +159,14 @@ class PortalGlobalHotkeys:
         on_ptt_up: Callable[[], None],
         on_error: Callable[[str], None] | None = None,
         on_ready: Callable[[str], None] | None = None,
+        parent_window: str = "",
     ) -> None:
         self.trigger = portal_trigger(push_to_talk)
         self.on_ptt_down = on_ptt_down
         self.on_ptt_up = on_ptt_up
         self.on_error = on_error or (lambda message: None)
         self.on_ready = on_ready or (lambda shortcut: None)
+        self.parent_window = parent_window
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
@@ -177,7 +184,7 @@ class PortalGlobalHotkeys:
         self._thread.start()
 
     def stop(self) -> None:
-        if self._loop and self._stop_event:
+        if self._loop and not self._loop.is_closed() and self._stop_event:
             self._loop.call_soon_threadsafe(self._stop_event.set)
         if self._thread and self._thread is not threading.current_thread():
             self._thread.join(timeout=1.5)
@@ -191,6 +198,7 @@ class PortalGlobalHotkeys:
         try:
             asyncio.run(self._run())
         except Exception as exc:
+            LOGGER.exception("Wayland global shortcut service stopped")
             self.on_error(f"Wayland push-to-talk could not start: {exc}")
 
     async def _run(self) -> None:
@@ -203,6 +211,7 @@ class PortalGlobalHotkeys:
         self._loop = asyncio.get_running_loop()
         self._stop_event = asyncio.Event()
         bus = await MessageBus().connect()
+        await register_host_app(bus)
 
         async def add_match(rule: str) -> None:
             reply = await bus.call(
@@ -294,7 +303,7 @@ class PortalGlobalHotkeys:
                             },
                         ]
                     ],
-                    "",
+                    self.parent_window,
                     {"handle_token": Variant("s", bind_token)},
                 ],
             )
@@ -304,9 +313,11 @@ class PortalGlobalHotkeys:
         response, results = await asyncio.wait_for(bind_response, 60)
         if response != 0:
             raise HotkeyError("The desktop did not grant the push-to-talk shortcut")
-        if not results.get("shortcuts"):
+        shortcut_result = results.get("shortcuts")
+        shortcuts = getattr(shortcut_result, "value", shortcut_result)
+        if not shortcuts:
             raise HotkeyError("No push-to-talk shortcut was assigned")
-        assigned = results["shortcuts"][0][1]
+        assigned = shortcuts[0][1]
         description = assigned.get("trigger_description")
         display_shortcut = (
             description.value
@@ -314,6 +325,7 @@ class PortalGlobalHotkeys:
             else self.trigger.replace("+", " + ")
         )
         self._ready.set()
+        LOGGER.info("Global push-to-talk ready: %s", display_shortcut)
         self.on_ready(display_shortcut)
 
         def shortcut_handler(message) -> bool:
@@ -354,6 +366,7 @@ def create_global_hotkeys(
     on_ptt_up: Callable[[], None],
     on_error: Callable[[str], None] | None = None,
     on_ready: Callable[[str], None] | None = None,
+    parent_window: str = "",
 ):
     if (
         sys.platform.startswith("linux")
@@ -365,6 +378,7 @@ def create_global_hotkeys(
             on_ptt_up,
             on_error,
             on_ready,
+            parent_window,
         )
     return GlobalHotkeys(
         push_to_talk,
