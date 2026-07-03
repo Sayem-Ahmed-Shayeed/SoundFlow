@@ -7,9 +7,18 @@ BIN_PATH="$HOME/.local/bin/soundflow"
 DESKTOP_FILE="$DATA_HOME/applications/soundflow.desktop"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 AUTOSTART_FILE="$CONFIG_HOME/autostart/soundflow.desktop"
+SERVICE_FILE="$CONFIG_HOME/systemd/user/soundflow.service"
+
+if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+    systemctl --user disable --now soundflow.service >/dev/null 2>&1 || true
+fi
 
 rm -rf "$INSTALL_DIR"
-rm -f "$BIN_PATH" "$DESKTOP_FILE" "$AUTOSTART_FILE"
+rm -f "$BIN_PATH" "$DESKTOP_FILE" "$AUTOSTART_FILE" "$SERVICE_FILE"
+
+if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+    systemctl --user daemon-reload
+fi
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true

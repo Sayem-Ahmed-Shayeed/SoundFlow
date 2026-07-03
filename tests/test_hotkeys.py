@@ -14,6 +14,7 @@ class HotkeyTests(unittest.TestCase):
     def test_portal_trigger_uses_xdg_format(self):
         self.assertEqual(portal_trigger("ctrl+space"), "CTRL+space")
         self.assertEqual(portal_trigger("cmd+r"), "LOGO+r")
+        self.assertEqual(portal_trigger("shift+tab"), "SHIFT+Tab")
 
 
 if __name__ == "__main__":

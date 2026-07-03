@@ -4,6 +4,7 @@ import argparse
 import multiprocessing
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -40,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_test_audio:
         return _run_inference_self_test(args.self_test_audio)
     try:
+        from PySide6.QtNetwork import QLocalServer, QLocalSocket
         from PySide6.QtWidgets import QApplication
     except ImportError:
         print(
@@ -58,11 +60,48 @@ def main(argv: list[str] | None = None) -> int:
     application = QApplication(["soundflow"])
     application.setApplicationName("Soundflow")
     application.setOrganizationName("Soundflow")
+    application.setDesktopFileName("soundflow")
     application.setQuitOnLastWindowClosed(False)
+
+    server_name = (
+        str(Path(tempfile.gettempdir()) / f"soundflow-{os.getuid()}.sock")
+        if hasattr(os, "getuid")
+        else "soundflow"
+    )
+    existing = QLocalSocket()
+    existing.connectToServer(server_name)
+    if existing.waitForConnected(200):
+        existing.write(b"background" if args.background else b"show")
+        existing.waitForBytesWritten(200)
+        existing.disconnectFromServer()
+        return 0
+    QLocalServer.removeServer(server_name)
+    instance_server = QLocalServer(application)
+    if not instance_server.listen(server_name):
+        print(
+            f"Soundflow single-instance channel is unavailable: "
+            f"{instance_server.errorString()}",
+            file=sys.stderr,
+        )
 
     store = SettingsStore()
     settings = store.load()
     window = MainWindow(settings, store, demo_mode=args.demo, no_hotkeys=args.no_hotkeys)
+
+    def handle_instance_request() -> None:
+        client = instance_server.nextPendingConnection()
+        if client is None:
+            return
+        if not client.bytesAvailable():
+            client.waitForReadyRead(200)
+        command = bytes(client.readAll()).decode("utf-8", errors="ignore")
+        if command == "show":
+            window._show_window()
+        client.disconnectFromServer()
+        client.deleteLater()
+
+    if instance_server.isListening():
+        instance_server.newConnection.connect(handle_instance_request)
     application.aboutToQuit.connect(window.shutdown)
     if not settings.start_minimized and not args.background:
         window.show()

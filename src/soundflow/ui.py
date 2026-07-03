@@ -71,6 +71,8 @@ class UiBridge(QObject):
     ptt_down_requested = Signal()
     ptt_up_requested = Signal()
     restore_token_ready = Signal(str)
+    hotkey_ready = Signal(str)
+    hotkey_error = Signal(str)
 
 
 def preferred_font(candidates: tuple[str, ...]) -> str:
@@ -492,6 +494,7 @@ class MainWindow(QMainWindow):
         self.demo_mode = demo_mode
         self.no_hotkeys = no_hotkeys
         self.hotkeys = None
+        self._hotkey_is_ready = False
         self.pipeline: DictationPipeline | None = None
         self._auto_insert_after_drain = False
         self._session_fragments: list[str] = []
@@ -670,6 +673,12 @@ class MainWindow(QMainWindow):
         shortcut_row.addStretch(1)
         shortcut_layout.addLayout(shortcut_row)
         hero_layout.addWidget(shortcut_card)
+
+        self.hotkey_indicator = QLabel("●  STARTING GLOBAL SHORTCUT…")
+        self.hotkey_indicator.setObjectName("hotkeyIndicator")
+        self.hotkey_indicator.setProperty("state", "connecting")
+        self.hotkey_indicator.setWordWrap(True)
+        hero_layout.addWidget(self.hotkey_indicator)
         content.addWidget(control)
 
         transcript = QFrame()
@@ -780,6 +789,31 @@ class MainWindow(QMainWindow):
                 font-size: 9px;
                 font-weight: 800;
                 letter-spacing: 1px;
+            }}
+            QLabel#hotkeyIndicator {{
+                color: #b6bac3;
+                background: #1a1b20;
+                border: 1px solid #2b2c33;
+                border-radius: 9px;
+                padding: 10px 11px;
+                font-family: "{MONO_FONT}";
+                font-size: 9px;
+                font-weight: 700;
+            }}
+            QLabel#hotkeyIndicator[state="ready"] {{
+                color: #8dd6b5;
+                background: #171b19;
+                border-color: #294036;
+            }}
+            QLabel#hotkeyIndicator[state="recording"] {{
+                color: #ff9aa4;
+                background: #26171a;
+                border-color: #573037;
+            }}
+            QLabel#hotkeyIndicator[state="error"] {{
+                color: #f1bd75;
+                background: #241d15;
+                border-color: #493722;
             }}
             QLabel#eyebrow {{
                 color: #717784;
@@ -973,6 +1007,8 @@ class MainWindow(QMainWindow):
         self.bridge.ptt_down_requested.connect(self._ptt_down)
         self.bridge.ptt_up_requested.connect(self._ptt_up)
         self.bridge.restore_token_ready.connect(self._save_restore_token)
+        self.bridge.hotkey_ready.connect(self._hotkey_ready)
+        self.bridge.hotkey_error.connect(self._hotkey_failed)
 
     def _build_tray(self) -> None:
         icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
@@ -1005,6 +1041,7 @@ class MainWindow(QMainWindow):
             QApplication.instance().setQuitOnLastWindowClosed(True)
 
     def _rebuild_runtime(self) -> None:
+        self._hotkey_is_ready = False
         if self.pipeline:
             self.pipeline.close()
         if self.hotkeys:
@@ -1036,20 +1073,23 @@ class MainWindow(QMainWindow):
             self.bridge.level.emit,
         )
         if self.settings.global_hotkeys and not self.no_hotkeys:
+            self._set_hotkey_indicator("connecting", "●  CONNECTING GLOBAL SHORTCUT…")
             try:
                 self.hotkeys = create_global_hotkeys(
                     self.settings.push_to_talk_hotkey,
                     self.bridge.ptt_down_requested.emit,
                     self.bridge.ptt_up_requested.emit,
-                    self.bridge.error.emit,
+                    self.bridge.hotkey_error.emit,
+                    self.bridge.hotkey_ready.emit,
                 )
                 self.hotkeys.start()
             except HotkeyError as exc:
                 self.hotkeys = None
-                QTimer.singleShot(
-                    0,
-                    lambda message=str(exc): self.statusBar().showMessage(message, 12_000),
-                )
+                QTimer.singleShot(0, lambda message=str(exc): self._hotkey_failed(message))
+        elif self.no_hotkeys:
+            self._set_hotkey_indicator("error", "●  GLOBAL SHORTCUT DISABLED")
+        else:
+            self._set_hotkey_indicator("error", "●  ENABLE SHORTCUTS IN PREFERENCES")
         self._refresh_shortcut_display()
 
     @Slot()
@@ -1152,11 +1192,18 @@ class MainWindow(QMainWindow):
         self.status_animation.stop()
         self.status_animation.start()
         if state is DictationState.RECORDING:
+            self._set_hotkey_indicator("recording", "●  RECORDING · RELEASE TO INSERT")
             self.overlay.show_recording(self.settings.push_to_talk_hotkey)
             self.tray.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop))
         elif state is DictationState.DRAINING:
+            self._set_hotkey_indicator("recording", "●  TRANSCRIBING…")
             self.overlay.show_processing()
         else:
+            if self.hotkeys and self._hotkey_is_ready:
+                self._set_hotkey_indicator(
+                    "ready",
+                    f"●  READY · HOLD {self.settings.push_to_talk_hotkey.upper().replace('+', ' + ')}",
+                )
             self.overlay.hide_animated()
             self.tray.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
 
@@ -1178,6 +1225,25 @@ class MainWindow(QMainWindow):
         modifier, key = (parts + ["space"])[:2]
         self.ptt_modifier.setText(modifier.upper())
         self.ptt_key.setText(key.upper())
+
+    @Slot(str)
+    def _hotkey_ready(self, shortcut: str) -> None:
+        self._hotkey_is_ready = True
+        label = shortcut.upper() if shortcut else self.settings.push_to_talk_hotkey.upper()
+        self._set_hotkey_indicator("ready", f"●  READY · HOLD {label}")
+        self.statusBar().showMessage("Global push-to-talk is ready", 3500)
+
+    @Slot(str)
+    def _hotkey_failed(self, message: str) -> None:
+        self._hotkey_is_ready = False
+        self._set_hotkey_indicator("error", "●  SHORTCUT NEEDS ATTENTION")
+        self.statusBar().showMessage(message, 15_000)
+
+    def _set_hotkey_indicator(self, state: str, text: str) -> None:
+        self.hotkey_indicator.setText(text)
+        self.hotkey_indicator.setProperty("state", state)
+        self.hotkey_indicator.style().unpolish(self.hotkey_indicator)
+        self.hotkey_indicator.style().polish(self.hotkey_indicator)
 
     @Slot(int)
     def _home_language_changed(self, index: int) -> None:

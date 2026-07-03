@@ -13,6 +13,8 @@ DESKTOP_FILE="$APP_DIR/soundflow.desktop"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 AUTOSTART_DIR="$CONFIG_HOME/autostart"
 AUTOSTART_FILE="$AUTOSTART_DIR/soundflow.desktop"
+SYSTEMD_DIR="$CONFIG_HOME/systemd/user"
+SERVICE_FILE="$SYSTEMD_DIR/soundflow.service"
 
 cleanup() {
     rm -rf "$STAGING_DIR"
@@ -27,7 +29,7 @@ if [ ! -x "$SOURCE/Soundflow" ]; then
 fi
 
 echo "Installing Soundflow to $INSTALL_DIR ..."
-mkdir -p "$DATA_HOME" "$BIN_DIR" "$APP_DIR" "$AUTOSTART_DIR"
+mkdir -p "$DATA_HOME" "$BIN_DIR" "$APP_DIR" "$AUTOSTART_DIR" "$SYSTEMD_DIR"
 rm -rf "$STAGING_DIR" "$OLD_DIR"
 mkdir -p "$STAGING_DIR"
 cp -a "$SOURCE/." "$STAGING_DIR/"
@@ -70,8 +72,29 @@ chmod +x "$DESKTOP_FILE"
 } > "$AUTOSTART_FILE"
 chmod +x "$AUTOSTART_FILE"
 
+{
+    echo "[Unit]"
+    echo "Description=Soundflow background dictation"
+    echo "After=graphical-session.target"
+    echo
+    echo "[Service]"
+    echo "Type=simple"
+    echo "ExecStart=$INSTALL_DIR/Soundflow --background"
+    echo "Restart=on-failure"
+    echo "RestartSec=2"
+    echo
+    echo "[Install]"
+    echo "WantedBy=default.target"
+} > "$SERVICE_FILE"
+
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true
+fi
+
+if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+    systemctl --user daemon-reload
+    systemctl --user enable --now soundflow.service
+    rm -f "$AUTOSTART_FILE"
 fi
 
 echo

@@ -64,11 +64,13 @@ class GlobalHotkeys:
         on_ptt_down: Callable[[], None],
         on_ptt_up: Callable[[], None],
         on_error: Callable[[str], None] | None = None,
+        on_ready: Callable[[str], None] | None = None,
     ) -> None:
         self.binding = parse_hotkey(push_to_talk)
         self.on_ptt_down = on_ptt_down
         self.on_ptt_up = on_ptt_up
         self.on_error = on_error or (lambda message: None)
+        self.on_ready = on_ready or (lambda shortcut: None)
         self._pressed: set[str] = set()
         self._ptt_active = False
         self._listener: Any = None
@@ -84,6 +86,7 @@ class GlobalHotkeys:
                 on_release=self._on_release,
             )
             self._listener.start()
+            self.on_ready(" + ".join(sorted(self.binding)).upper())
         except Exception as exc:
             raise HotkeyError("Global push-to-talk could not start.") from exc
 
@@ -150,11 +153,13 @@ class PortalGlobalHotkeys:
         on_ptt_down: Callable[[], None],
         on_ptt_up: Callable[[], None],
         on_error: Callable[[str], None] | None = None,
+        on_ready: Callable[[str], None] | None = None,
     ) -> None:
         self.trigger = portal_trigger(push_to_talk)
         self.on_ptt_down = on_ptt_down
         self.on_ptt_up = on_ptt_up
         self.on_error = on_error or (lambda message: None)
+        self.on_ready = on_ready or (lambda shortcut: None)
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
@@ -301,7 +306,15 @@ class PortalGlobalHotkeys:
             raise HotkeyError("The desktop did not grant the push-to-talk shortcut")
         if not results.get("shortcuts"):
             raise HotkeyError("No push-to-talk shortcut was assigned")
+        assigned = results["shortcuts"][0][1]
+        description = assigned.get("trigger_description")
+        display_shortcut = (
+            description.value
+            if description is not None
+            else self.trigger.replace("+", " + ")
+        )
         self._ready.set()
+        self.on_ready(display_shortcut)
 
         def shortcut_handler(message) -> bool:
             if (
@@ -340,6 +353,7 @@ def create_global_hotkeys(
     on_ptt_down: Callable[[], None],
     on_ptt_up: Callable[[], None],
     on_error: Callable[[str], None] | None = None,
+    on_ready: Callable[[str], None] | None = None,
 ):
     if (
         sys.platform.startswith("linux")
@@ -350,10 +364,12 @@ def create_global_hotkeys(
             on_ptt_down,
             on_ptt_up,
             on_error,
+            on_ready,
         )
     return GlobalHotkeys(
         push_to_talk,
         on_ptt_down,
         on_ptt_up,
         on_error,
+        on_ready,
     )
