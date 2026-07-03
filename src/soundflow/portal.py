@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
+APP_ID = "io.github.SayemAhmedShayeed.Soundflow"
+
 
 class PortalRegistrationError(RuntimeError):
     pass
 
 
-async def register_host_app(bus: Any, app_id: str = "soundflow") -> None:
+async def register_host_app(bus: Any, app_id: str = APP_ID) -> None:
     """Associate a native application's D-Bus connection with its desktop ID."""
     from dbus_next import Message, MessageType
 

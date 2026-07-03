@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     from soundflow.core.settings import SettingsStore
+    from soundflow.portal import APP_ID
     from soundflow.ui import MainWindow
     from PySide6.QtCore import QTimer
 
@@ -72,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     application = QApplication(["soundflow"])
     application.setApplicationName("Soundflow")
     application.setOrganizationName("Soundflow")
-    application.setDesktopFileName("soundflow")
+    application.setDesktopFileName(APP_ID)
     application.setQuitOnLastWindowClosed(False)
 
     server_name = (

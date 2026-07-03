@@ -2,6 +2,7 @@
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+APP_ID="io.github.SayemAhmedShayeed.Soundflow"
 SOURCE="$ROOT/dist/Soundflow"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 INSTALL_DIR="$DATA_HOME/soundflow"
@@ -9,7 +10,8 @@ STAGING_DIR="$DATA_HOME/.soundflow-install-$$"
 OLD_DIR="$DATA_HOME/.soundflow-previous-$$"
 BIN_DIR="$HOME/.local/bin"
 APP_DIR="$DATA_HOME/applications"
-DESKTOP_FILE="$APP_DIR/soundflow.desktop"
+DESKTOP_FILE="$APP_DIR/$APP_ID.desktop"
+LEGACY_DESKTOP_FILE="$APP_DIR/soundflow.desktop"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 AUTOSTART_DIR="$CONFIG_HOME/autostart"
 AUTOSTART_FILE="$AUTOSTART_DIR/soundflow.desktop"
@@ -46,6 +48,7 @@ if ! mv "$STAGING_DIR" "$INSTALL_DIR"; then
 fi
 rm -rf "$OLD_DIR"
 ln -sf "$INSTALL_DIR/Soundflow" "$BIN_DIR/soundflow"
+rm -f "$LEGACY_DESKTOP_FILE"
 
 {
     echo "[Desktop Entry]"
@@ -57,6 +60,7 @@ ln -sf "$INSTALL_DIR/Soundflow" "$BIN_DIR/soundflow"
     echo "Categories=AudioVideo;Audio;Utility;Accessibility;"
     echo "Terminal=false"
     echo "StartupNotify=true"
+    echo "StartupWMClass=soundflow"
 } > "$DESKTOP_FILE"
 chmod +x "$DESKTOP_FILE"
 

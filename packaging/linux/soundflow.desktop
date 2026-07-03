@@ -7,4 +7,4 @@ Icon=soundflow
 Categories=AudioVideo;Audio;Utility;Accessibility;
 Terminal=false
 StartupNotify=true
-
+StartupWMClass=soundflow
