@@ -502,10 +502,16 @@ class MainWindow(QMainWindow):
         self.state = DictationStateMachine(self._state_changed)
         self._build_ui()
         self._connect_bridge()
+        self.portal_parent_window = (
+            f"x11:{int(self.winId()):x}"
+            if QApplication.platformName().lower() == "xcb"
+            else ""
+        )
         self.injector = create_text_injector(
             self.settings.remote_desktop_restore_token,
             self.bridge.restore_token_ready.emit,
             self.bridge.error.emit,
+            self.portal_parent_window,
         )
         self._build_tray()
         self._rebuild_runtime()
@@ -1081,6 +1087,7 @@ class MainWindow(QMainWindow):
                     self.bridge.ptt_up_requested.emit,
                     self.bridge.hotkey_error.emit,
                     self.bridge.hotkey_ready.emit,
+                    self.portal_parent_window,
                 )
                 self.hotkeys.start()
             except HotkeyError as exc:
