@@ -32,6 +32,7 @@ def data_directory() -> Path:
 @dataclass
 class Settings:
     shortcut_schema_version: int = SHORTCUT_SCHEMA_VERSION
+    appearance: str = "system"
     model_path: str = ""
     language: str = "auto"
     inference_device: str = "cpu"
@@ -54,6 +55,8 @@ class Settings:
         from soundflow.hotkeys import canonical_hotkey
 
         self.shortcut_schema_version = SHORTCUT_SCHEMA_VERSION
+        if self.appearance not in {"system", "light", "dark"}:
+            self.appearance = "system"
         self.language = self.language.strip() or "auto"
         self.inference_device = (
             self.inference_device if self.inference_device in {"cpu", "cuda"} else "cpu"

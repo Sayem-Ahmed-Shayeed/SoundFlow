@@ -7,7 +7,11 @@ try:
     from PySide6.QtWidgets import QApplication
 
     from soundflow.core.settings import Settings, SettingsStore
-    from soundflow.ui import MainWindow, RecordingOverlay, ShortcutPicker
+    from soundflow.ui import (
+        MainWindow,
+        RecordingOverlay,
+        ShortcutPicker,
+    )
 
     HAS_QT = True
 except ImportError:
@@ -20,6 +24,7 @@ class UiTests(unittest.TestCase):
     def setUpClass(cls):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         cls.application = QApplication.instance() or QApplication([])
+        cls.application.setQuitOnLastWindowClosed(False)
 
     def test_shortcut_picker_round_trip(self):
         picker = ShortcutPicker("ctrl+alt+space")
@@ -54,6 +59,10 @@ class UiTests(unittest.TestCase):
                 demo_mode=True,
                 no_hotkeys=True,
             )
+            window.apply_appearance("dark")
+            self.assertTrue(window.property("darkAppearance"))
+            window.apply_appearance("light")
+            self.assertFalse(window.property("darkAppearance"))
             injector = FakeInjector()
             window.injector = injector
             window._set_hotkey_indicator(

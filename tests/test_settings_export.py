@@ -16,12 +16,21 @@ class SettingsAndExportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.json"
             store = SettingsStore(path)
-            settings = Settings(language="bn", global_hotkeys=False)
+            settings = Settings(
+                language="bn",
+                global_hotkeys=False,
+                appearance="dark",
+            )
             store.save(settings)
             loaded = store.load()
             self.assertEqual(loaded.language, "bn")
             self.assertFalse(loaded.global_hotkeys)
+            self.assertEqual(loaded.appearance, "dark")
             json.loads(path.read_text(encoding="utf-8"))
+
+    def test_invalid_appearance_falls_back_to_system(self):
+        settings = Settings(appearance="sepia").normalized()
+        self.assertEqual(settings.appearance, "system")
 
     def test_three_key_shortcut_and_precision_are_normalized(self):
         settings = Settings(

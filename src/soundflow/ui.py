@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import (
@@ -18,12 +19,16 @@ from PySide6.QtGui import (
     QCursor,
     QFont,
     QFontDatabase,
+    QGuiApplication,
     QPainter,
+    QPen,
+    QRadialGradient,
     QTextCursor,
 )
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -41,6 +46,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSpinBox,
+    QStackedWidget,
     QStyle,
     QSystemTrayIcon,
     QTabWidget,
@@ -93,6 +99,200 @@ def preferred_font(candidates: tuple[str, ...]) -> str:
 DISPLAY_FONT = preferred_font(("Lato Heavy", "Lato", "Noto Sans Display", "Segoe UI"))
 BODY_FONT = preferred_font(("Lato", "Noto Sans", "Segoe UI", "Cantarell"))
 MONO_FONT = preferred_font(("JetBrains Mono", "Cascadia Mono", "Noto Sans Mono", "DejaVu Sans Mono"))
+
+
+def resolved_dark_appearance(appearance: str) -> bool:
+    if appearance == "dark":
+        return True
+    if appearance == "light":
+        return False
+    hints = QGuiApplication.styleHints()
+    color_scheme = getattr(hints, "colorScheme", lambda: None)()
+    dark_scheme = getattr(Qt.ColorScheme, "Dark", None)
+    if color_scheme is not None and dark_scheme is not None:
+        return color_scheme == dark_scheme
+    return QApplication.palette().window().color().lightness() < 128
+
+
+def macos_style_sheet(dark: bool) -> str:
+    colors = (
+        {
+            "canvas": "#1c1c1e",
+            "sidebar": "#242428",
+            "card": "#2c2c2e",
+            "raised": "#36363a",
+            "border": "#45454a",
+            "text": "#f5f5f7",
+            "muted": "#a1a1a6",
+            "subtle": "#77777e",
+            "accent": "#8b80f9",
+            "accent_hover": "#9a90ff",
+            "editor": "#252529",
+            "danger": "#ff6b7f",
+        }
+        if dark
+        else {
+            "canvas": "#f2f2f5",
+            "sidebar": "#e9e9ee",
+            "card": "#fcfcfd",
+            "raised": "#f4f4f7",
+            "border": "#d8d8de",
+            "text": "#1d1d1f",
+            "muted": "#6e6e73",
+            "subtle": "#92929a",
+            "accent": "#7367f0",
+            "accent_hover": "#6559df",
+            "editor": "#ffffff",
+            "danger": "#d94d62",
+        }
+    )
+    c = colors
+    return f"""
+        QMainWindow, QDialog#settingsDialog, QWidget#mainSurface, QWidget#workspace {{
+            background: {c["canvas"]};
+        }}
+        QWidget#settingsPage {{ background: {c["canvas"]}; }}
+        QWidget {{
+            color: {c["text"]};
+            font-family: "{BODY_FONT}";
+            font-size: 13px;
+        }}
+        QFrame#sidebar {{
+            background: {c["sidebar"]};
+            border-right: 1px solid {c["border"]};
+        }}
+        QFrame#settingsSidebar {{
+            background: {c["sidebar"]}; border: 1px solid {c["border"]};
+            border-radius: 14px;
+        }}
+        QLabel#brandMark {{
+            color: white;
+            background: {c["accent"]};
+            border-radius: 11px;
+            min-width: 38px; max-width: 38px;
+            min-height: 38px; max-height: 38px;
+            font-family: "{DISPLAY_FONT}";
+            font-size: 19px; font-weight: 800;
+        }}
+        QLabel#brand {{ color: {c["text"]}; font-size: 19px; font-weight: 750; }}
+        QLabel#pageTitle, QLabel#dialogTitle {{
+            color: {c["text"]}; font-family: "{DISPLAY_FONT}";
+            font-size: 27px; font-weight: 800;
+        }}
+        QLabel#mutedText, QLabel#formHint, QLabel#railCaption {{
+            color: {c["muted"]};
+        }}
+        QLabel#fieldLabel {{
+            color: {c["subtle"]}; font-size: 10px; font-weight: 700;
+        }}
+        QPushButton#navActive, QPushButton#navButton {{
+            min-height: 28px; padding: 10px 13px; text-align: left;
+            border: none; border-radius: 10px; font-weight: 600;
+        }}
+        QPushButton#navActive {{
+            color: {c["text"]}; background: rgba(115, 103, 240, 0.13);
+            border-left: 3px solid {c["accent"]};
+        }}
+        QPushButton#navButton {{ color: {c["muted"]}; background: transparent; }}
+        QPushButton#navButton:hover {{ color: {c["text"]}; background: {c["raised"]}; }}
+        QFrame#privacyCard {{ background: transparent; border: none; }}
+        QLabel#privacyPill {{ color: #35a66f; font-size: 11px; font-weight: 650; }}
+        QFrame#controlPanel, QFrame#transcriptPanel, QFrame#settingsCard {{
+            background: {c["card"]}; border: 1px solid {c["border"]};
+            border-radius: 18px;
+        }}
+        QFrame#shortcutCard {{
+            background: {c["raised"]}; border: 1px solid {c["border"]};
+            border-radius: 11px;
+        }}
+        QLabel#status {{ color: {c["text"]}; font-size: 18px; font-weight: 750; }}
+        QLabel#statusDot {{ color: #35a66f; }}
+        QLabel#statusDot[state="recording"] {{ color: {c["danger"]}; }}
+        QLabel#statusDot[state="draining"] {{ color: #d79b32; }}
+        QLabel#statusDot[state="error"] {{ color: {c["danger"]}; }}
+        QLabel#keycap, QLabel#overlayKeycap {{
+            color: {c["text"]}; background: {c["card"]};
+            border: 1px solid {c["border"]}; border-radius: 7px;
+            padding: 5px 8px; font-family: "{MONO_FONT}";
+            font-size: 9px; font-weight: 700;
+        }}
+        QLabel#keycap[held="true"] {{
+            color: white; background: {c["accent"]}; border-color: {c["accent"]};
+            padding-top: 7px; padding-bottom: 3px;
+        }}
+        QLabel#shortcutPlus {{ color: {c["subtle"]}; }}
+        QLabel#hotkeyIndicator {{
+            color: {c["muted"]}; background: {c["raised"]};
+            border: 1px solid {c["border"]}; border-radius: 9px;
+            padding: 10px 11px; font-size: 10px; font-weight: 650;
+        }}
+        QLabel#hotkeyIndicator[state="ready"] {{ color: #2f9b67; }}
+        QLabel#hotkeyIndicator[state="recording"] {{ color: {c["danger"]}; }}
+        QLabel#hotkeyIndicator[state="error"] {{ color: #c28728; }}
+        QLabel#sectionTitle {{ color: {c["text"]}; font-size: 15px; font-weight: 700; }}
+        QLabel#wordCount {{ color: {c["subtle"]}; font-size: 11px; }}
+        QPushButton {{
+            min-height: 22px; color: {c["text"]}; background: {c["raised"]};
+            border: 1px solid {c["border"]}; border-radius: 9px;
+            padding: 9px 15px; font-weight: 600;
+        }}
+        QPushButton:hover {{ border-color: {c["accent"]}; }}
+        QPushButton:disabled {{ color: {c["subtle"]}; background: {c["raised"]}; }}
+        QPushButton[role="accent"] {{
+            color: white; background: {c["accent"]}; border-color: {c["accent"]};
+        }}
+        QPushButton[role="accent"]:hover {{ background: {c["accent_hover"]}; }}
+        QPushButton[role="quiet"] {{ background: transparent; }}
+        QPushButton#recordButton {{
+            color: white; background: #24242b; border: none;
+            border-radius: 12px; padding: 15px 22px; font-size: 14px; font-weight: 750;
+        }}
+        QPushButton#recordButton[recording="true"] {{ background: {c["danger"]}; }}
+        QTextEdit, QLineEdit, QComboBox, QSpinBox {{
+            color: {c["text"]}; background: {c["editor"]};
+            border: 1px solid {c["border"]}; border-radius: 9px;
+            padding: 8px 10px; selection-background-color: {c["accent"]};
+        }}
+        QTextEdit#transcriptEditor {{
+            background: {c["editor"]}; border: 1px solid {c["border"]};
+            border-radius: 12px; padding: 16px;
+        }}
+        QComboBox QAbstractItemView {{
+            color: {c["text"]}; background: {c["card"]};
+            selection-background-color: {c["accent"]};
+        }}
+        QProgressBar {{ background: {c["raised"]}; border: none; border-radius: 2px; }}
+        QProgressBar::chunk {{ background: {c["accent"]}; border-radius: 2px; }}
+        QTabWidget::pane {{ border: none; background: transparent; }}
+        QTabBar::tab {{
+            color: {c["muted"]}; background: transparent; border: none;
+            border-radius: 9px; padding: 11px 16px; min-width: 105px;
+            text-align: left; font-weight: 600;
+        }}
+        QTabBar::tab:selected {{
+            color: {c["text"]}; background: rgba(115, 103, 240, 0.13);
+            border-left: 3px solid {c["accent"]};
+        }}
+        QCheckBox {{ spacing: 10px; }}
+        QCheckBox::indicator {{
+            width: 34px; height: 18px; border-radius: 9px;
+            background: {c["border"]}; border: none;
+        }}
+        QCheckBox::indicator:checked {{ background: {c["accent"]}; }}
+        QLabel#fixedValue {{
+            color: {c["text"]}; background: {c["raised"]}; border: 1px solid {c["border"]};
+            border-radius: 7px; padding: 7px 10px; font-family: "{MONO_FONT}";
+        }}
+        QFrame#overlayPanel {{
+            background: {c["card"]}; border: 1px solid {c["border"]}; border-radius: 20px;
+        }}
+        QLabel#overlayTitle {{ color: {c["text"]}; font-weight: 700; }}
+        QLabel#overlayHint {{ color: {c["muted"]}; font-size: 10px; }}
+        QStatusBar {{
+            color: {c["muted"]}; background: {c["canvas"]};
+            border-top: 1px solid {c["border"]};
+        }}
+    """
 
 
 class AnimatedRecordButton(QPushButton):
@@ -267,6 +467,97 @@ class WaveformWidget(QWidget):
             )
 
 
+class VoiceOrb(QWidget):
+    """Low-cost microphone visualizer shared by all dictation states."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setMinimumSize(150, 150)
+        self.setMaximumHeight(190)
+        self._level = 0.08
+        self._phase = 0.0
+        self._state = "idle"
+        self._timer = QTimer(self)
+        self._timer.setInterval(33)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start()
+
+    def set_level(self, level: float) -> None:
+        self._level = 0.72 * self._level + 0.28 * max(0.04, min(level, 1.0))
+
+    def set_state(self, state: str) -> None:
+        self._state = state
+        if state not in {"recording", "draining"}:
+            self._level = 0.08
+        self.update()
+
+    def _tick(self) -> None:
+        if not self.isVisible():
+            return
+        self._phase = (self._phase + 0.025) % 1.0
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        center = self.rect().center()
+        base = min(self.width(), self.height()) * 0.27
+        pulse = 3.0 * abs(0.5 - self._phase) if self._state == "idle" else 0.0
+        amplitude = self._level * 15 if self._state == "recording" else pulse
+        accent = QColor("#d94d62" if self._state == "recording" else "#7367f0")
+        if self._state == "draining":
+            accent = QColor("#5b93f5")
+
+        glow = QRadialGradient(center, base + 28)
+        glow.setColorAt(0.2, QColor(accent.red(), accent.green(), accent.blue(), 65))
+        glow.setColorAt(1.0, QColor(accent.red(), accent.green(), accent.blue(), 0))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(glow)
+        painter.drawEllipse(center, int(base + 32 + amplitude), int(base + 32 + amplitude))
+
+        for ring in range(3):
+            radius = base + 12 + ring * 10 + amplitude * (0.35 + ring * 0.2)
+            color = QColor(accent)
+            color.setAlpha(145 - ring * 35)
+            pen = QPen(color, 2 if ring == 0 else 1)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(center, int(radius), int(radius))
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#ffffff"))
+        painter.drawEllipse(center, int(base), int(base))
+        ink = QColor("#29292f")
+        stem = int(base * 0.42)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(ink)
+        painter.drawRoundedRect(
+            int(center.x() - 7),
+            int(center.y() - stem),
+            14,
+            int(stem * 1.35),
+            7,
+            7,
+        )
+        painter.setPen(QPen(ink, 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawArc(
+            int(center.x() - stem),
+            int(center.y() - stem // 3),
+            stem * 2,
+            stem * 2,
+            180 * 16,
+            180 * 16,
+        )
+        painter.drawLine(center.x(), center.y() + stem, center.x(), center.y() + stem + 10)
+        painter.drawLine(
+            center.x() - 9,
+            center.y() + stem + 10,
+            center.x() + 9,
+            center.y() + stem + 10,
+        )
+
+
 class RecordingOverlay(QWidget):
     def __init__(self) -> None:
         super().__init__(None)
@@ -282,6 +573,7 @@ class RecordingOverlay(QWidget):
         self.setFixedSize(360, 72)
         panel = QFrame(self)
         panel.setObjectName("overlayPanel")
+        panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         panel.setGeometry(0, 0, 360, 72)
         layout = QHBoxLayout(panel)
         layout.setContentsMargins(18, 12, 16, 12)
@@ -355,23 +647,55 @@ class RecordingOverlay(QWidget):
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: Settings, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        parent: QWidget | None = None,
+        on_appearance_change: Callable[[str], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("settingsDialog")
-        self.setWindowTitle("Settings · Soundflow")
-        self.setMinimumSize(660, 590)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setWindowTitle("Preferences · Soundflow")
+        self.setMinimumSize(820, 610)
+        self.resize(900, 650)
         self.settings = settings
+        self.on_appearance_change = on_appearance_change
+        self.original_appearance = settings.appearance
         self.original_shortcut = settings.push_to_talk_hotkey
-        title = QLabel("Settings")
+        title = QLabel("Preferences")
         title.setObjectName("dialogTitle")
-        intro = QLabel("Tune recognition, shortcuts, and the way Soundflow behaves.")
+        intro = QLabel("Choose how Soundflow looks, listens, and behaves.")
         intro.setObjectName("mutedText")
-        tabs = QTabWidget()
-        tabs.setDocumentMode(True)
-        tabs.tabBar().setDrawBase(False)
-        tabs.addTab(self._recognition_tab(), "Recognition")
-        tabs.addTab(self._hotkeys_tab(), "Shortcuts")
-        tabs.addTab(self._behavior_tab(), "Behavior")
+        self.tabs = QStackedWidget()
+        self.tabs.addWidget(self._general_tab())
+        self.tabs.addWidget(self._recognition_tab())
+        self.tabs.addWidget(self._hotkeys_tab())
+        settings_sidebar = QFrame()
+        settings_sidebar.setObjectName("settingsSidebar")
+        settings_sidebar.setFixedWidth(165)
+        nav = QVBoxLayout(settings_sidebar)
+        nav.setContentsMargins(10, 12, 10, 12)
+        nav.setSpacing(6)
+        self.settings_nav_group = QButtonGroup(self)
+        self.settings_nav_group.setExclusive(True)
+        self.settings_nav_buttons: list[QPushButton] = []
+        for index, label in enumerate(("General", "Recognition", "Shortcuts")):
+            button = QPushButton(label)
+            button.setCheckable(True)
+            button.setObjectName("navActive" if index == 0 else "navButton")
+            button.clicked.connect(
+                lambda checked=False, page=index: self._select_settings_page(page)
+            )
+            self.settings_nav_group.addButton(button, index)
+            self.settings_nav_buttons.append(button)
+            nav.addWidget(button)
+        self.settings_nav_buttons[0].setChecked(True)
+        nav.addStretch(1)
+        body = QHBoxLayout()
+        body.setSpacing(16)
+        body.addWidget(settings_sidebar)
+        body.addWidget(self.tabs, 1)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
             | QDialogButtonBox.StandardButton.Cancel
@@ -387,12 +711,77 @@ class SettingsDialog(QDialog):
         layout.addWidget(title)
         layout.addWidget(intro)
         layout.addSpacing(12)
-        layout.addWidget(tabs)
+        layout.addLayout(body, 1)
         layout.addSpacing(10)
         layout.addWidget(buttons)
 
+    def _select_settings_page(self, index: int) -> None:
+        self.tabs.setCurrentIndex(index)
+        for button_index, button in enumerate(self.settings_nav_buttons):
+            button.setObjectName(
+                "navActive" if button_index == index else "navButton"
+            )
+            button.style().unpolish(button)
+            button.style().polish(button)
+
+    def _general_tab(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName("settingsPage")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(22, 18, 8, 14)
+        layout.setSpacing(14)
+
+        appearance_card = QFrame()
+        appearance_card.setObjectName("settingsCard")
+        appearance_layout = QVBoxLayout(appearance_card)
+        appearance_layout.setContentsMargins(20, 18, 20, 18)
+        appearance_layout.setSpacing(8)
+        heading = QLabel("Appearance")
+        heading.setObjectName("sectionTitle")
+        hint = QLabel("Choose a theme or match your system.")
+        hint.setObjectName("mutedText")
+        self.appearance = QComboBox()
+        self.appearance.setObjectName("appearancePicker")
+        for label, value in (
+            ("System", "system"),
+            ("Light", "light"),
+            ("Dark", "dark"),
+        ):
+            self.appearance.addItem(label, value)
+        self.appearance.setCurrentIndex(
+            max(0, self.appearance.findData(self.settings.appearance))
+        )
+        self.appearance.currentIndexChanged.connect(self._preview_appearance)
+        appearance_layout.addWidget(heading)
+        appearance_layout.addWidget(hint)
+        appearance_layout.addWidget(self.appearance)
+        layout.addWidget(appearance_card)
+
+        behavior_card = QFrame()
+        behavior_card.setObjectName("settingsCard")
+        form = QFormLayout(behavior_card)
+        self._prepare_form(form)
+        self.silence = QSpinBox()
+        self.silence.setRange(200, 3000)
+        self.silence.setSuffix(" ms")
+        self.silence.setValue(self.settings.silence_duration_ms)
+        self.silence.setMaximumWidth(180)
+        form.addRow("Finish after silence", self.silence)
+        self.auto_copy = QCheckBox("Copy every completed phrase")
+        self.auto_copy.setChecked(self.settings.auto_copy)
+        form.addRow(self.auto_copy)
+        self.start_minimized = QCheckBox("Start in the system tray")
+        self.start_minimized.setChecked(self.settings.start_minimized)
+        form.addRow(self.start_minimized)
+        layout.addWidget(behavior_card)
+        layout.addStretch(1)
+        return page
+
     def _recognition_tab(self) -> QWidget:
         page = QWidget()
+        page.setObjectName("settingsPage")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         form = QFormLayout(page)
         self._prepare_form(form)
         self.model_path = QLineEdit(self.settings.model_path or str(default_model_path()))
@@ -437,6 +826,8 @@ class SettingsDialog(QDialog):
 
     def _hotkeys_tab(self) -> QWidget:
         page = QWidget()
+        page.setObjectName("settingsPage")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         form = QFormLayout(page)
         self._prepare_form(form)
         self.hotkeys_enabled = QCheckBox(
@@ -455,24 +846,6 @@ class SettingsDialog(QDialog):
         form.addRow("", note)
         return page
 
-    def _behavior_tab(self) -> QWidget:
-        page = QWidget()
-        form = QFormLayout(page)
-        self._prepare_form(form)
-        self.silence = QSpinBox()
-        self.silence.setRange(200, 3000)
-        self.silence.setSuffix(" ms")
-        self.silence.setValue(self.settings.silence_duration_ms)
-        self.silence.setMaximumWidth(180)
-        form.addRow("Finish after silence", self.silence)
-        self.auto_copy = QCheckBox("Copy every completed phrase")
-        self.auto_copy.setChecked(self.settings.auto_copy)
-        form.addRow(self.auto_copy)
-        self.start_minimized = QCheckBox("Start in the system tray")
-        self.start_minimized.setChecked(self.settings.start_minimized)
-        form.addRow(self.start_minimized)
-        return page
-
     @staticmethod
     def _prepare_form(form: QFormLayout) -> None:
         form.setContentsMargins(4, 20, 4, 16)
@@ -486,7 +859,20 @@ class SettingsDialog(QDialog):
         if selected:
             self.model_path.setText(selected)
 
+    def _preview_appearance(self) -> None:
+        appearance = str(self.appearance.currentData())
+        self.settings.appearance = appearance
+        if self.on_appearance_change:
+            self.on_appearance_change(appearance)
+
+    def reject(self) -> None:
+        self.settings.appearance = self.original_appearance
+        if self.on_appearance_change:
+            self.on_appearance_change(self.original_appearance)
+        super().reject()
+
     def _save(self) -> None:
+        self.settings.appearance = str(self.appearance.currentData())
         self.settings.model_path = self.model_path.text().strip()
         self.settings.language = self.language.text().strip() or "auto"
         self.settings.inference_device = self.device.currentText()
@@ -528,6 +914,12 @@ class MainWindow(QMainWindow):
         self.bridge = UiBridge()
         self.state = DictationStateMachine(self._state_changed)
         self._build_ui()
+        self.apply_appearance(self.settings.appearance)
+        color_scheme_changed = getattr(
+            QGuiApplication.styleHints(), "colorSchemeChanged", None
+        )
+        if color_scheme_changed is not None:
+            color_scheme_changed.connect(self._system_appearance_changed)
         self._connect_bridge()
         self.portal_parent_window = (
             f"x11:{int(self.winId()):x}"
@@ -559,7 +951,7 @@ class MainWindow(QMainWindow):
 
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(224)
+        sidebar.setFixedWidth(216)
         rail = QVBoxLayout(sidebar)
         rail.setContentsMargins(24, 28, 24, 24)
         rail.setSpacing(8)
@@ -615,9 +1007,9 @@ class MainWindow(QMainWindow):
         header = QHBoxLayout()
         title_stack = QVBoxLayout()
         title_stack.setSpacing(2)
-        title = QLabel("Dictation studio")
+        title = QLabel("Dictation")
         title.setObjectName("pageTitle")
-        subtitle = QLabel("Speak freely. Soundflow handles the typing.")
+        subtitle = QLabel("Speak naturally. Soundflow types for you.")
         subtitle.setObjectName("mutedText")
         title_stack.addWidget(title)
         title_stack.addWidget(subtitle)
@@ -650,10 +1042,13 @@ class MainWindow(QMainWindow):
 
         control = QFrame()
         control.setObjectName("controlPanel")
-        control.setFixedWidth(290)
+        control.setFixedWidth(360)
         hero_layout = QVBoxLayout(control)
-        hero_layout.setContentsMargins(24, 24, 24, 22)
+        hero_layout.setContentsMargins(26, 22, 26, 22)
         hero_layout.setSpacing(12)
+
+        self.voice_orb = VoiceOrb()
+        hero_layout.addWidget(self.voice_orb, 0, Qt.AlignmentFlag.AlignHCenter)
 
         status_row = QHBoxLayout()
         status_row.setSpacing(10)
@@ -666,7 +1061,7 @@ class MainWindow(QMainWindow):
         status_row.addWidget(self.status, 1)
         hero_layout.addLayout(status_row)
 
-        self.status_caption = QLabel("Click below or use your shortcut.")
+        self.status_caption = QLabel("Hold your shortcut or click to start.")
         self.status_caption.setObjectName("mutedText")
         self.status_caption.setWordWrap(True)
         hero_layout.addWidget(self.status_caption)
@@ -688,7 +1083,7 @@ class MainWindow(QMainWindow):
         shortcut_layout = QVBoxLayout(shortcut_card)
         shortcut_layout.setContentsMargins(12, 10, 12, 10)
         shortcut_layout.setSpacing(5)
-        shortcut_title = QLabel("PUSH TO TALK · HOLD")
+        shortcut_title = QLabel("Hold anywhere to dictate")
         shortcut_title.setObjectName("fieldLabel")
         shortcut_layout.addWidget(shortcut_title)
         shortcut_row = QHBoxLayout()
@@ -757,6 +1152,24 @@ class MainWindow(QMainWindow):
         transcript_layout.addLayout(actions)
         content.addWidget(transcript, 1)
         layout.addLayout(content, 1)
+
+        system_row = QHBoxLayout()
+        system_row.setSpacing(16)
+        model_name = Path(
+            self.settings.model_path or default_model_path()
+        ).name.replace("faster-whisper-", "").replace("-", " ").title()
+        self.model_status = QLabel(f"◈  {model_name or 'Whisper Small'} · INT8")
+        self.model_status.setObjectName("mutedText")
+        self.device_status = QLabel(f"▣  {self.settings.inference_device.upper()}")
+        self.device_status.setObjectName("mutedText")
+        self.microphone_status = QLabel("♩  System microphone")
+        self.microphone_status.setObjectName("mutedText")
+        system_row.addStretch(1)
+        system_row.addWidget(self.model_status)
+        system_row.addWidget(self.device_status)
+        system_row.addWidget(self.microphone_status)
+        system_row.addStretch(1)
+        layout.addLayout(system_row)
         shell.addWidget(workspace, 1)
         self.setCentralWidget(container)
 
@@ -1049,6 +1462,23 @@ class MainWindow(QMainWindow):
         self.statusBar().setSizeGripEnabled(False)
         self.overlay = RecordingOverlay()
 
+    def apply_appearance(self, appearance: str) -> None:
+        self.settings.appearance = (
+            appearance if appearance in {"system", "light", "dark"} else "system"
+        )
+        dark = resolved_dark_appearance(self.settings.appearance)
+        QApplication.instance().setStyleSheet(macos_style_sheet(dark))
+        self.setProperty("darkAppearance", dark)
+        if hasattr(self, "overlay"):
+            self.overlay.setProperty("darkAppearance", dark)
+            self.overlay.update()
+
+    @Slot()
+    def _system_appearance_changed(self, *args) -> None:
+        del args
+        if self.settings.appearance == "system":
+            self.apply_appearance("system")
+
     def _connect_bridge(self) -> None:
         self.bridge.text_ready.connect(self._append_text)
         self.bridge.finished.connect(self._pipeline_finished)
@@ -1260,6 +1690,14 @@ class MainWindow(QMainWindow):
         self.status_dot.style().polish(self.status_dot)
         self.status_animation.stop()
         self.status_animation.start()
+        self.voice_orb.set_state(dot_state)
+        if state is not DictationState.RECORDING:
+            self.meter.setValue(0)
+        held = state is DictationState.RECORDING
+        for keycap in self.ptt_keycaps:
+            keycap.setProperty("held", held)
+            keycap.style().unpolish(keycap)
+            keycap.style().polish(keycap)
         if state is DictationState.RECORDING:
             self._set_hotkey_indicator("recording", "●  RECORDING · RELEASE TO INSERT")
             self.overlay.show_recording(self.settings.push_to_talk_hotkey)
@@ -1288,6 +1726,7 @@ class MainWindow(QMainWindow):
         self.level_animation.setStartValue(self.meter.value())
         self.level_animation.setEndValue(round(max(0.0, min(level, 1.0)) * 100))
         self.level_animation.start()
+        self.voice_orb.set_level(level)
         self.overlay.set_level(level)
 
     @Slot()
@@ -1520,9 +1959,14 @@ class MainWindow(QMainWindow):
                 self, "Dictation active", "Stop dictation before changing settings."
             )
             return
-        dialog = SettingsDialog(self.settings, self)
+        dialog = SettingsDialog(
+            self.settings,
+            self,
+            on_appearance_change=self.apply_appearance,
+        )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.store.save(self.settings)
+            self.apply_appearance(self.settings.appearance)
             self._rebuild_runtime()
             self.statusBar().showMessage("Settings saved", 3000)
 
