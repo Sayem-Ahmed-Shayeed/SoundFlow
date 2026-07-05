@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
 )
 
 from soundflow.design import DISPLAY_FONT, FONT_TITLE
-from soundflow.preferences.about_card import AboutCard
 from soundflow.preferences.tabs import (
     DictationTab,
     GeneralTab,
@@ -53,9 +52,6 @@ class PreferencesPage(QWidget):
         ):
             self.tabs.addTab(widget, label)
         body.addWidget(self.tabs, 1)
-        self.about_card = AboutCard()
-        self.about_card.check_system_clicked.connect(self.system_tab.run_check)
-        body.addWidget(self.about_card)
         layout.addLayout(body, 1)
         saved = QLabel("✓  Changes are saved automatically")
         saved.setObjectName("savedStatus")

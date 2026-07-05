@@ -28,7 +28,6 @@ from soundflow.design import (
     SPACE_4,
     SPACE_6,
 )
-from soundflow.preferences.about_card import AboutCard
 from soundflow.preferences.tabs import (
     DictationTab,
     GeneralTab,
@@ -79,7 +78,7 @@ class PreferencesDialog(QDialog):
         top.addStretch(1)
         outer.addLayout(top)
 
-        # Body: tabs (left) + About card (right)
+        # Body
         body = QHBoxLayout()
         body.setContentsMargins(SPACE_6, SPACE_4, SPACE_6, SPACE_4)
         body.setSpacing(SPACE_6)
@@ -94,8 +93,6 @@ class PreferencesDialog(QDialog):
 
         body.addWidget(self._tabs, 1)
 
-        self._about = AboutCard()
-        body.addWidget(self._about, 0, Qt.AlignmentFlag.AlignTop)
         outer.addLayout(body, 1)
 
         # Buttons

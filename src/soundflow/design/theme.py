@@ -155,7 +155,7 @@ QPushButton#sideNavButton[active="true"] {{
 #headingText {{ color: {text}; }}
 #mutedText, #captionText {{ color: {muted}; }}
 #dimText {{ color: #737D90; }}
-#historyCard, #preferencesCard, #aboutCard, #systemMiniCard,
+#historyCard, #preferencesCard,
 QPushButton#quickActionCard {{
     background: {panel};
     border: 1px solid {border};
