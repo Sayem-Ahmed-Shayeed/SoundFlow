@@ -23,7 +23,7 @@ from __future__ import annotations
 from soundflow._legacy import ui_module as _legacy_module
 
 RecordingOverlay = _legacy_module.RecordingOverlay
-MainWindow = _legacy_module.MainWindow
+ShortcutPicker = _legacy_module.ShortcutPicker
 UiBridge = _legacy_module.UiBridge
 resolved_dark_appearance = _legacy_module.resolved_dark_appearance
 macos_style_sheet = _legacy_module.macos_style_sheet
@@ -37,6 +37,7 @@ from soundflow.ui import (  # noqa: F401  (re-export submodules)
     widgets as widgets,
 )
 from soundflow.ui.widgets import AppearanceSelector
+from soundflow.ui.main_window import MainWindow
 
 __all__ = [
     "BODY_FONT",
@@ -45,6 +46,7 @@ __all__ = [
     "MainWindow",
     "MONO_FONT",
     "RecordingOverlay",
+    "ShortcutPicker",
     "UiBridge",
     "macos_style_sheet",
     "preferred_font",

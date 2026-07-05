@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QFormLayout,
     QLabel,
     QVBoxLayout,
     QWidget,
 )
+from soundflow.ui.widgets import PreferenceToggleRow
 
 from soundflow.design import (
     BODY_FONT,
@@ -44,22 +43,31 @@ class PlaybackTab(QWidget):
         title.setObjectName("headingText")
         layout.addWidget(title)
 
-        form = QFormLayout()
-        form.setSpacing(SPACE_2)
-
-        self._auto_insert = QCheckBox("Insert text automatically at the cursor")
-        self._auto_insert.setChecked(bool(getattr(settings, "auto_insert", True)))
-        form.addRow(self._auto_insert)
-
-        self._show_widget = QCheckBox("Show floating dictation widget while recording")
-        self._show_widget.setChecked(bool(getattr(settings, "show_dictation_widget", True)))
-        form.addRow(self._show_widget)
-
-        self._auto_save = QCheckBox("Auto-save transcripts to History")
-        self._auto_save.setChecked(bool(getattr(settings, "auto_save_transcripts", True)))
-        form.addRow(self._auto_save)
-
-        layout.addLayout(form)
+        for attr, label, description, value in (
+            (
+                "_auto_insert",
+                "Insert text automatically at the cursor",
+                "Paste completed dictation into the focused application.",
+                getattr(settings, "auto_insert", True),
+            ),
+            (
+                "_show_widget",
+                "Show floating dictation widget while recording",
+                "Display recording and transcription status above other apps.",
+                getattr(settings, "show_dictation_widget", True),
+            ),
+            (
+                "_auto_save",
+                "Auto-save transcripts to History",
+                "Keep completed dictations locally so they can be reviewed.",
+                getattr(settings, "auto_save_transcripts", True),
+            ),
+        ):
+            row = PreferenceToggleRow(
+                label, description, checked=bool(value)
+            )
+            setattr(self, attr, row.switch)
+            layout.addWidget(row)
         outer.addWidget(card)
         outer.addStretch(1)
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -28,6 +27,7 @@ from soundflow.hotkeys import (
     canonical_hotkey,
     display_hotkey,
 )
+from soundflow.ui.widgets import PreferenceToggleRow, ShortcutPicker
 
 
 def _keycap(text: str) -> QLabel:
@@ -45,6 +45,7 @@ class ShortcutsTab(QWidget):
         super().__init__(parent)
         self.setObjectName("shortcutsTab")
         self._settings = settings
+        self._original_shortcut = settings.push_to_talk_hotkey
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(SPACE_4, SPACE_4, SPACE_4, SPACE_4)
@@ -95,9 +96,16 @@ class ShortcutsTab(QWidget):
         form = QFormLayout()
         form.setSpacing(SPACE_2)
 
-        self._toggle = QCheckBox("Listen for shortcuts while Soundflow is in the background")
-        self._toggle.setChecked(bool(settings.global_hotkeys))
-        form.addRow(self._toggle)
+        self._picker = ShortcutPicker(settings.push_to_talk_hotkey)
+        form.addRow("Hold to dictate", self._picker)
+
+        toggle_row = PreferenceToggleRow(
+            "Listen for shortcuts while Soundflow is in the background",
+            "Enables push-to-talk even when another app is focused.",
+            checked=bool(settings.global_hotkeys),
+        )
+        self._toggle = toggle_row.switch
+        form.addRow(toggle_row)
 
         ol.addLayout(form)
         outer.addWidget(other_card)
@@ -106,6 +114,7 @@ class ShortcutsTab(QWidget):
         reset_btn = QPushButton("Reset to default")
         reset_btn.setObjectName("quietButton")
         reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset_btn.clicked.connect(self._reset)
         outer.addWidget(reset_btn, 0, Qt.AlignmentFlag.AlignLeft)
 
         outer.addStretch(1)
@@ -118,6 +127,14 @@ class ShortcutsTab(QWidget):
 
     def write_back(self, settings) -> None:
         settings.global_hotkeys = self._toggle.isChecked()
+        shortcut = self._picker.shortcut()
+        if shortcut != self._original_shortcut:
+            settings.hotkey_authorized = False
+        settings.push_to_talk_hotkey = shortcut
+
+    def _reset(self) -> None:
+        self._picker.set_shortcut("ctrl+alt+space")
+        self._toggle.setChecked(True)
 
 
 __all__ = ["ShortcutsTab"]

@@ -5,7 +5,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QFormLayout,
     QHBoxLayout,
@@ -15,6 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from soundflow.ui.widgets import PreferenceToggleRow
 
 from soundflow.design import (
     BODY_FONT,
@@ -48,7 +48,7 @@ class GeneralTab(QWidget):
 
         # Appearance
         appearance_card = self._make_card("Appearance")
-        aform = QFormLayout(appearance_card)
+        aform = QFormLayout()
         aform.setSpacing(SPACE_2)
         aform.setContentsMargins(SPACE_3, SPACE_3, SPACE_3, SPACE_3)
 
@@ -59,11 +59,12 @@ class GeneralTab(QWidget):
         self._theme.addItem("Light", "light")
         self._theme.setCurrentIndex(0 if settings.appearance == "dark" else 1)
         aform.addRow(theme_label, self._theme)
+        appearance_card.layout().addLayout(aform)
         outer.addWidget(appearance_card)
 
         # Dictation
         dictation_card = self._make_card("Dictation")
-        dform = QFormLayout(dictation_card)
+        dform = QFormLayout()
         dform.setSpacing(SPACE_2)
         dform.setContentsMargins(SPACE_3, SPACE_3, SPACE_3, SPACE_3)
 
@@ -97,22 +98,30 @@ class GeneralTab(QWidget):
         dform.addRow(self._silence_label)
         self._silence.valueChanged.connect(self._on_slider)
 
+        dictation_card.layout().addLayout(dform)
         outer.addWidget(dictation_card)
 
         # Behavior
         behavior_card = self._make_card("Behavior")
-        bform = QFormLayout(behavior_card)
+        bform = QVBoxLayout()
         bform.setSpacing(SPACE_2)
         bform.setContentsMargins(SPACE_3, SPACE_3, SPACE_3, SPACE_3)
 
-        self._auto_copy = QCheckBox("Copy completed phrases automatically")
-        self._auto_copy.setChecked(bool(settings.auto_copy))
-        bform.addRow(self._auto_copy)
+        auto_copy_row = PreferenceToggleRow(
+            "Copy completed phrases automatically",
+            checked=bool(settings.auto_copy),
+        )
+        self._auto_copy = auto_copy_row.switch
+        bform.addWidget(auto_copy_row)
+        minimized_row = PreferenceToggleRow(
+            "Start in the system tray",
+            "Launch Soundflow quietly in the background.",
+            checked=bool(settings.start_minimized),
+        )
+        self._start_minimized = minimized_row.switch
+        bform.addWidget(minimized_row)
 
-        self._start_minimized = QCheckBox("Start in the system tray")
-        self._start_minimized.setChecked(bool(settings.start_minimized))
-        bform.addRow(self._start_minimized)
-
+        behavior_card.layout().addLayout(bform)
         outer.addWidget(behavior_card)
 
         outer.addStretch(1)

@@ -30,6 +30,7 @@ class HistoryStoreTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.store = HistoryStore(Path(self._tmp.name) / "history.db")
+        self.addCleanup(self.store.close)
 
     def test_add_and_list(self) -> None:
         a = self.store.add("First entry. With two sentences.", duration_s=2.0)
@@ -54,6 +55,22 @@ class HistoryStoreTests(unittest.TestCase):
         e = self.store.add("Disposable.")
         self.store.delete(e.id)
         self.assertEqual(len(self.store.list_entries()), 0)
+
+    def test_update_rebuilds_title_summary_and_preserves_metadata(self) -> None:
+        entry = self.store.add("Original body.", duration_s=7.5)
+        updated = self.store.update(entry.id, "Edited full transcript. More detail.")
+        self.assertEqual(updated.body, "Edited full transcript. More detail.")
+        self.assertEqual(updated.duration_s, 7.5)
+        self.assertEqual(updated.id, entry.id)
+        self.assertTrue(updated.title.startswith("Edited full transcript"))
+        self.assertEqual(self.store.get(entry.id).body, updated.body)
+
+    def test_update_rejects_blank_and_missing_entries(self) -> None:
+        entry = self.store.add("Keep me.")
+        with self.assertRaises(ValueError):
+            self.store.update(entry.id, "   ")
+        with self.assertRaises(KeyError):
+            self.store.update(9999, "Missing")
 
     def test_get_missing_returns_none(self) -> None:
         self.assertIsNone(self.store.get(9999))

@@ -13,6 +13,7 @@ try:
         RecordingOverlay,
         ShortcutPicker,
     )
+    from soundflow.ui.pages import DictationPage
 
     HAS_QT = True
 except ImportError:
@@ -21,6 +22,8 @@ except ImportError:
 
 @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
 class UiTests(unittest.TestCase):
+    _windows = []
+    _temps = []
     @classmethod
     def setUpClass(cls):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -48,6 +51,20 @@ class UiTests(unittest.TestCase):
         overlay.hide()
         overlay.close()
 
+    def test_main_window_hosts_four_page_shell(self):
+        directory = tempfile.TemporaryDirectory()
+        self._temps.append(directory)
+        store = SettingsStore(Path(directory.name) / "settings.json")
+        window = MainWindow(Settings(), store, demo_mode=True, no_hotkeys=True)
+        self._windows.append(window)
+        self.assertIsInstance(window.dictation_page, DictationPage)
+        self.assertEqual(
+            set(window._page_indices),
+            {"dictation", "history", "playground", "preferences"},
+        )
+        window.navigate("history")
+        self.assertEqual(window.pages.currentWidget(), window.history_page)
+
     def test_authorization_indicator_and_persistence(self):
         class FakeInjector:
             def __init__(self):
@@ -59,38 +76,31 @@ class UiTests(unittest.TestCase):
             def stop(self):
                 pass
 
-        with tempfile.TemporaryDirectory() as directory:
-            store = SettingsStore(Path(directory) / "settings.json")
-            settings = Settings(hotkey_authorized=False)
-            window = MainWindow(
-                settings,
-                store,
-                demo_mode=True,
-                no_hotkeys=True,
-            )
-            window.apply_appearance("dark")
-            self.assertTrue(window.property("darkAppearance"))
-            window.apply_appearance("light")
-            self.assertFalse(window.property("darkAppearance"))
-            injector = FakeInjector()
-            window.injector = injector
-            window._set_hotkey_indicator(
-                "error", "setup required", retry="hotkey"
-            )
-            self.assertFalse(window.hotkey_retry_button.isHidden())
-            window.retry_setup()
-            self.assertTrue(window._hotkey_setup_requested)
-            window.no_hotkeys = False
-            window._hotkey_ready("Ctrl + Alt + Space")
-            self.assertTrue(settings.hotkey_authorized)
-            self.assertEqual(injector.starts, 1)
-            self.assertFalse(window._injector_is_ready)
-            window._injector_ready()
-            self.assertTrue(window._injector_is_ready)
-            self.assertTrue(window.hotkey_retry_button.isHidden())
-            self.assertTrue(store.load().hotkey_authorized)
-            window.shutdown()
-            window.close()
+        directory = tempfile.TemporaryDirectory()
+        self._temps.append(directory)
+        store = SettingsStore(Path(directory.name) / "settings.json")
+        settings = Settings(hotkey_authorized=False)
+        window = MainWindow(settings, store, demo_mode=True, no_hotkeys=True)
+        self._windows.append(window)
+        window.apply_appearance("dark")
+        self.assertTrue(window.property("darkAppearance"))
+        window.apply_appearance("light")
+        self.assertFalse(window.property("darkAppearance"))
+        injector = FakeInjector()
+        window.injector = injector
+        window._set_hotkey_indicator("error", "setup required", retry="hotkey")
+        self.assertFalse(window.hotkey_retry_button.isHidden())
+        window.retry_setup()
+        self.assertTrue(window._hotkey_setup_requested)
+        window.no_hotkeys = False
+        window._hotkey_ready("Ctrl + Alt + Space")
+        self.assertTrue(settings.hotkey_authorized)
+        self.assertEqual(injector.starts, 1)
+        self.assertFalse(window._injector_is_ready)
+        window._injector_ready()
+        self.assertTrue(window._injector_is_ready)
+        self.assertTrue(window.hotkey_retry_button.isHidden())
+        self.assertTrue(store.load().hotkey_authorized)
 
 
 if __name__ == "__main__":

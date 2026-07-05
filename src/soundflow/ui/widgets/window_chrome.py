@@ -46,6 +46,7 @@ class WindowChrome(QWidget):
     def _make_button(self, glyph: str, slot: str) -> QPushButton:
         btn = QPushButton(glyph)
         btn.setObjectName(f"windowChrome:{slot}")
+        btn.setProperty("chrome", True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setFixedSize(28, 28)
         btn.setFont(__import__("PySide6.QtGui", fromlist=["QFont"]).QFont(BODY_FONT, FONT_BODY))

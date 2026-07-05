@@ -77,8 +77,195 @@ def resolved_dark(appearance: str) -> bool:
 def stylesheet(dark: bool) -> str:
     """Return the full Qt stylesheet for the requested appearance."""
     if dark:
-        return _dark_stylesheet()
-    return _light_stylesheet()
+        return _dark_stylesheet() + _shell_stylesheet(True)
+    return _light_stylesheet() + _shell_stylesheet(False)
+
+
+def _shell_stylesheet(dark: bool) -> str:
+    """Screenshot-specific shell rules layered over the shared controls."""
+    bg = "#080D17" if dark else "#F5F6FB"
+    sidebar = "#0D1422" if dark else "#ECEEF7"
+    panel = "#111827" if dark else "#FFFFFF"
+    raised = "#171F30" if dark else "#F0F1F7"
+    text = "#F7F8FC" if dark else "#151826"
+    muted = "#98A1B3" if dark else "#626B7B"
+    border = "#263044" if dark else "#D7DAE5"
+    accent = "#8B5CF6"
+    active = "#241D45" if dark else "#EAE4FF"
+    return f"""
+QMainWindow, #appSurface, #contentSurface, QStackedWidget {{
+    background: {bg};
+    color: {text};
+}}
+QLabel, QCheckBox, QRadioButton {{
+    background: transparent;
+    color: {text};
+}}
+#appSurface {{
+    border: 1px solid {border};
+    border-radius: 14px;
+}}
+#sideBar {{
+    background: {sidebar};
+    border-right: 1px solid {border};
+    border-top-left-radius: 14px;
+}}
+#brandMark {{
+    color: {accent};
+    font-size: 23px;
+    font-weight: 700;
+}}
+#brand {{
+    color: {text};
+    font-size: 15px;
+    font-weight: 700;
+}}
+QPushButton#sideNavButton {{
+    color: {muted};
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 10px 12px;
+    text-align: left;
+    min-height: 22px;
+}}
+QPushButton#sideNavButton:hover {{
+    color: {text};
+    background: {raised};
+}}
+QPushButton#sideNavButton[active="true"] {{
+    color: #C4A7FF;
+    background: {active};
+    border-left: 3px solid {accent};
+}}
+#privacyCard {{
+    background: {panel};
+    border: 1px solid {border};
+    border-radius: 8px;
+}}
+#privacyPill {{ color: #6EE7A8; font-weight: 600; }}
+#privacyPill {{ font-size: 10px; }}
+#railCaption {{ color: {muted}; font-size: 9px; }}
+#dictationPage, #historyPage, #playgroundPage, #preferencesPage,
+#historyListHolder, #historyScroll, #generalTab, #dictationTab,
+#playbackTab, #shortcutsTab, #systemTab {{
+    background: {bg};
+}}
+#displayText {{ color: {text}; }}
+#headingText {{ color: {text}; }}
+#mutedText, #captionText {{ color: {muted}; }}
+#dimText {{ color: #737D90; }}
+#historyCard, #preferencesCard, #aboutCard, #systemMiniCard,
+QPushButton#quickActionCard {{
+    background: {panel};
+    border: 1px solid {border};
+    border-radius: 8px;
+}}
+#historyCard:hover, QPushButton#quickActionCard:hover {{
+    background: {raised};
+    border-color: #39455D;
+}}
+#historyBody {{
+    color: {text};
+    font-size: 13px;
+    line-height: 1.45;
+}}
+#historyGroup {{
+    color: #A78BFA;
+    font-weight: 600;
+    padding: 8px 2px 2px 2px;
+}}
+QPushButton#historyAction {{
+    color: {muted};
+    background: transparent;
+    border: 1px solid {border};
+    border-radius: 5px;
+    min-height: 26px;
+    padding: 3px 9px;
+}}
+QPushButton#historyAction:hover {{
+    color: {text};
+    background: {raised};
+}}
+#historyFeedback[state="error"] {{ color: #FB7185; }}
+#toggleRow {{ background: transparent; min-height: 44px; }}
+#toggleRowTitle {{ color: {text}; font-size: 13px; }}
+#historySearch, #playgroundCommand {{
+    background: {panel};
+    border: 1px solid {border};
+    border-radius: 7px;
+    color: {text};
+}}
+#preferencesTabs::pane {{ border: 0; background: transparent; }}
+#preferencesTabs QTabBar::tab {{
+    color: {muted};
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 9px 13px;
+}}
+#preferencesTabs QTabBar::tab:selected {{
+    color: #B99AFF;
+    border-bottom-color: {accent};
+}}
+#statusBar {{
+    background: {sidebar};
+    border-top: 1px solid {border};
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+}}
+#statusBarLabel {{ color: {muted}; font-size: 10px; }}
+#statusDot[state="ready"] {{ color: #4ADE80; }}
+#statusDot[state="recording"] {{ color: {accent}; }}
+#statusDot[state="error"] {{ color: #FB7185; }}
+#statusBarAccent, #quickActionIcon, #aboutLogo, #savedStatus {{ color: {accent}; }}
+#keyCap {{
+    color: {text};
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 4px;
+    padding: 3px 7px;
+}}
+#windowChrome QPushButton, QPushButton[objectName^="windowChrome"] {{
+    color: {muted};
+    background: transparent;
+    border: 0;
+}}
+QPushButton[chrome="true"] {{
+    color: {muted};
+    background: transparent;
+    border: 0;
+    min-height: 20px;
+    padding: 0;
+}}
+#windowChrome {{ background: transparent; }}
+#statusBarGear {{
+    color: {muted};
+    background: transparent;
+    border: 0;
+    padding: 0;
+}}
+QPushButton#presetChip {{
+    color: {muted};
+    background: {panel};
+    border: 1px solid {border};
+    min-height: 26px;
+}}
+QPushButton#presetChip:checked {{
+    color: white;
+    background: {accent};
+    border-color: {accent};
+}}
+QComboBox, QLineEdit, QTextEdit, QPlainTextEdit {{
+    background: {panel};
+    color: {text};
+    border-color: {border};
+}}
+QCheckBox::indicator:checked {{
+    background: {accent};
+    border-color: {accent};
+}}
+"""
 
 
 def _dark_stylesheet() -> str:

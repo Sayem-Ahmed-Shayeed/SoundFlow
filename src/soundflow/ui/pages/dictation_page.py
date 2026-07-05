@@ -16,7 +16,7 @@ Layout (top to bottom):
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -53,25 +53,22 @@ class DictationPage(QWidget):
     """Redesigned Dictation home page."""
 
     language_changed = Signal(str)
+    dictation_toggled = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("dictationPage")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(SPACE_8, SPACE_6, SPACE_8, SPACE_6)
-        outer.setSpacing(SPACE_6)
+        outer.setContentsMargins(SPACE_8, SPACE_4, SPACE_8, SPACE_6)
+        outer.setSpacing(SPACE_4)
 
         # --- Header row -------------------------------------------------
         header = QHBoxLayout()
         header.setSpacing(SPACE_3)
 
-        title = QLabel("Dictation")
-        title_font = QFont(DISPLAY_FONT, FONT_TITLE)
-        title.setFont(title_font)
-        title.setObjectName("displayText")
-        header.addWidget(title)
         header.addStretch(1)
 
         self._language = QComboBox()
@@ -85,10 +82,7 @@ class DictationPage(QWidget):
         self._language.addItem("German", "de")
         self._language.addItem("Japanese", "ja")
         self._language.currentIndexChanged.connect(self._emit_language)
-        header.addWidget(self._language)
-
-        self._chrome = WindowChrome()
-        header.addWidget(self._chrome)
+        self._language.hide()
 
         outer.addLayout(header)
 
@@ -96,7 +90,13 @@ class DictationPage(QWidget):
         hero = QVBoxLayout()
         hero.setSpacing(SPACE_4)
 
-        self._hero = QLabel(HERO_IDLE)
+        prompt = QLabel("Start speaking")
+        prompt.setFont(QFont(DISPLAY_FONT, FONT_TITLE))
+        prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        prompt.setObjectName("headingText")
+        hero.addWidget(prompt)
+
+        self._hero = QLabel("Press Space or hold Ctrl + Alt + Space")
         hero_font = QFont(DISPLAY_FONT, FONT_DISPLAY)
         self._hero.setFont(hero_font)
         self._hero.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -104,6 +104,8 @@ class DictationPage(QWidget):
         hero.addWidget(self._hero)
 
         self._ring = WaveformRing()
+        self._ring.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._ring.installEventFilter(self)
         self._ring.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         hero.addWidget(self._ring)
 
@@ -137,7 +139,7 @@ class DictationPage(QWidget):
         meta_row.setSpacing(SPACE_4)
         meta_row.addStretch(1)
 
-        self._meta = QLabel("Small \u00B7 INT8 \u00B7 CPU \u00B7 System microphone")
+        self._meta = QLabel("")
         self._meta.setObjectName("dimText")
         self._meta.setFont(QFont(BODY_FONT, FONT_SMALL))
         meta_row.addWidget(self._meta)
@@ -159,7 +161,7 @@ class DictationPage(QWidget):
         elif state == "draining":
             self._hero.setText(HERO_DRAINING)
         else:
-            self._hero.setText(HERO_IDLE)
+            self._hero.setText("Press Space or hold Ctrl + Alt + Space")
         self._ring.set_state(state)
 
     def push_level(self, level: float) -> None:
@@ -168,15 +170,35 @@ class DictationPage(QWidget):
     def set_meta(self, text: str) -> None:
         self._meta.setText(text)
 
+    def set_language(self, language: str) -> None:
+        index = self._language.findData(language)
+        self._language.blockSignals(True)
+        self._language.setCurrentIndex(max(0, index))
+        self._language.blockSignals(False)
+
+    @property
+    def language_picker(self) -> QComboBox:
+        return self._language
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched is self._ring and event.type() == QEvent.Type.MouseButtonRelease:
+            self.dictation_toggled.emit()
+            return True
+        return super().eventFilter(watched, event)
+
+    def keyPressEvent(self, event) -> None:
+        if (
+            event.key() == Qt.Key.Key_Space
+            and not event.isAutoRepeat()
+            and not self._language.hasFocus()
+        ):
+            self.dictation_toggled.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     # ------------------------------------------------------------------
     def _emit_language(self, _index: int) -> None:
         self.language_changed.emit(self._language.currentData() or "auto")
-
-    # Expose chrome signals for the host window to wire
-    @property
-    def chrome(self) -> WindowChrome:
-        return self._chrome
-
 
 __all__ = ["DictationPage"]

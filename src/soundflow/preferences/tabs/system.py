@@ -25,6 +25,7 @@ from soundflow.design import (
     SPACE_4,
 )
 from soundflow.utils import open_data_folder
+from soundflow.preferences.system_check import run_system_check
 
 
 class SystemTab(QWidget):
@@ -54,10 +55,12 @@ class SystemTab(QWidget):
         size_lbl.setObjectName("mutedText")
         size_lbl.setFont(QFont(BODY_FONT, FONT_SMALL))
         form.addRow("Status", size_lbl)
+        self._status = size_lbl
 
         check_btn = QPushButton("Check system")
         check_btn.setObjectName("primaryButton")
         check_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        check_btn.clicked.connect(self.run_check)
         form.addRow("", check_btn)
 
         model_card.layout().addLayout(form)
@@ -101,6 +104,16 @@ class SystemTab(QWidget):
 
     def write_back(self, settings) -> None:
         pass
+
+    def run_check(self) -> None:
+        result = run_system_check(self._settings)
+        parts = [
+            "Model ✓" if result.model_ready else "Model missing",
+            "Microphone ✓" if result.microphone_ready else "Microphone unavailable",
+            result.effective_device.upper(),
+        ]
+        self._status.setText(" · ".join(parts))
+        self._status.setProperty("state", "ready" if result.ready else "error")
 
 
 __all__ = ["SystemTab"]

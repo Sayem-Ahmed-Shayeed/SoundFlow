@@ -86,6 +86,29 @@ class HistoryStore:
         with self._conn:
             self._conn.execute("DELETE FROM transcripts WHERE id = ?", (entry_id,))
 
+    def update(self, entry_id: int, body: str) -> TranscriptEntry:
+        body = body.strip()
+        if not body:
+            raise ValueError("Transcript text cannot be empty")
+        current = self.get(entry_id)
+        if current is None:
+            raise KeyError(entry_id)
+        title = TranscriptEntry.make_title(body)
+        summary = TranscriptEntry.make_summary(body)
+        with self._conn:
+            self._conn.execute(
+                "UPDATE transcripts SET title = ?, summary = ?, body = ? WHERE id = ?",
+                (title, summary, body, entry_id),
+            )
+        return TranscriptEntry(
+            id=current.id,
+            created_at=current.created_at,
+            duration_s=current.duration_s,
+            title=title,
+            summary=summary,
+            body=body,
+        )
+
     def get(self, entry_id: int) -> TranscriptEntry | None:
         row = self._conn.execute(
             "SELECT * FROM transcripts WHERE id = ?", (entry_id,)

@@ -14,21 +14,9 @@ States:
 from __future__ import annotations
 
 from collections import deque
-from math import cos, sin
-
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget
-
-from soundflow.design import (
-    BG_PANEL,
-    FG_CREAM,
-    FG_MUTED,
-    FONT_HEADING,
-    DISPLAY_FONT,
-    SPACE_2,
-)
-
 
 class WaveformRing(QWidget):
     """A ring of small vertical bars driven by an audio level."""
@@ -39,7 +27,7 @@ class WaveformRing(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("waveformRing")
-        self.setMinimumSize(280, 100)
+        self.setMinimumSize(420, 190)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
 
         self._levels: deque[float] = deque([0.0] * self.BAR_COUNT, maxlen=self.BAR_COUNT)
@@ -80,37 +68,44 @@ class WaveformRing(QWidget):
         w, h = self.width(), self.height()
         cx, cy = w / 2.0, h / 2.0
 
-        # Centre dot
-        centre_radius = 18
+        accent = QColor("#8B5CF6")
+        quiet = QColor("#55427D")
+        # Central microphone control and glow.
+        centre_radius = 52
+        painter.setPen(QPen(QColor(139, 92, 246, 75), 2))
+        painter.setBrush(QColor(139, 92, 246, 18))
+        painter.drawEllipse(
+            int(cx - centre_radius), int(cy - centre_radius),
+            centre_radius * 2, centre_radius * 2,
+        )
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(FG_CREAM))
-        painter.drawEllipse(int(cx - centre_radius), int(cy - centre_radius),
-                            centre_radius * 2, centre_radius * 2)
+        painter.setBrush(QColor("#111827"))
+        painter.drawEllipse(int(cx - 44), int(cy - 44), 88, 88)
 
-        # Inner mic glyph
-        painter.setPen(QPen(QColor("#0A0A0A"), 2))
+        painter.setPen(QPen(accent, 4))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        mic_w, mic_h = 6, 14
+        mic_w, mic_h = 14, 30
         painter.drawRoundedRect(int(cx - mic_w / 2), int(cy - mic_h / 2),
-                                int(mic_w), int(mic_h), 3, 3)
+                                int(mic_w), int(mic_h), 7, 7)
+        painter.drawArc(int(cx - 15), int(cy - 9), 30, 30, 180 * 16, 180 * 16)
+        painter.drawLine(int(cx), int(cy + 21), int(cx), int(cy + 29))
+        painter.drawLine(int(cx - 9), int(cy + 29), int(cx + 9), int(cy + 29))
 
-        # Ring of bars
-        ring_radius = min(w, h) / 2.0 - 12
+        # Mirrored horizontal waveform from the central control.
         bar_width = 2
-        bar_color = QColor(FG_CREAM if self._state == "recording" else FG_MUTED)
+        bar_color = accent if self._state == "recording" else quiet
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(bar_color)
-
-        for i in range(self.BAR_COUNT):
-            angle = (2 * 3.14159265) * (i / self.BAR_COUNT) - 3.14159265 / 2
-            bar_x = cx + ring_radius * cos(angle) - bar_width / 2
-            base_h = 4
-            level = self._levels[i] if i < len(self._levels) else 0.0
-            extra = level * 18  # max extra height
-            bar_h = base_h + extra
-            bar_y = cy + ring_radius * sin(angle) - bar_h / 2
-            painter.drawRoundedRect(int(bar_x), int(bar_y),
-                                    int(bar_width), int(bar_h), 1, 1)
+        span = min(170.0, max(90.0, w / 2.0 - 70.0))
+        for side in (-1, 1):
+            for i in range(32):
+                level = self._levels[(i * 2) % len(self._levels)]
+                pulse = 3 + level * 28
+                x = cx + side * (64 + (i / 31.0) * span)
+                painter.drawRoundedRect(
+                    int(x - bar_width / 2), int(cy - pulse / 2),
+                    bar_width, int(pulse), 1, 1,
+                )
 
         painter.end()
 
