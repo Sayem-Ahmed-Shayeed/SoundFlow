@@ -190,6 +190,56 @@ QPushButton#historyAction:hover {{
 #historyFeedback[state="error"] {{ color: #FB7185; }}
 #toggleRow {{ background: transparent; min-height: 44px; }}
 #toggleRowTitle {{ color: {text}; font-size: 13px; }}
+#systemCheckRow, #systemPathBlock {{
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 7px;
+}}
+#systemRowTitle {{ color: {text}; font-weight: 600; }}
+#systemPathBlock QLabel[role="path"] {{
+    color: {text};
+    font-family: "{MONO_FONT}";
+}}
+#systemStatusPill {{
+    color: {muted};
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 11px;
+    padding: 4px 10px;
+}}
+#systemStatusPill[state="ready"],
+QLabel[objectName^="systemStatus"][state="ready"] {{
+    color: #6EE7A8;
+}}
+#systemStatusPill[state="warning"],
+QLabel[objectName^="systemStatus"][state="warning"] {{
+    color: #F2C879;
+}}
+#systemStatusPill[state="error"],
+QLabel[objectName^="systemStatus"][state="error"] {{
+    color: #FB7185;
+}}
+QPushButton#systemCheckButton {{
+    color: #0B1020;
+    background: {accent};
+    border: 1px solid {accent};
+    border-radius: 7px;
+    padding: 7px 14px;
+}}
+QPushButton#systemCheckButton:hover {{
+    background: #A78BFA;
+    border-color: #A78BFA;
+}}
+QPushButton#systemSecondaryButton {{
+    color: {text};
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 7px;
+    padding: 7px 14px;
+}}
+QPushButton#systemSecondaryButton:hover {{
+    border-color: {accent};
+}}
 #historySearch, #playgroundCommand {{
     background: {panel};
     border: 1px solid {border};
