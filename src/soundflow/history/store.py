@@ -1,0 +1,112 @@
+"""SQLite-backed persistent storage for transcript history.
+
+The store lives at ``data_directory()/history.db``. It is intentionally
+small and synchronous (the volume is low — one row per phrase).
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+
+from soundflow.core.settings import data_directory
+from soundflow.history.models import TranscriptEntry
+
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS transcripts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  TEXT NOT NULL,
+    duration_s  REAL NOT NULL DEFAULT 0,
+    title       TEXT NOT NULL,
+    summary     TEXT NOT NULL,
+    body        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_transcripts_created_at
+    ON transcripts (created_at DESC);
+"""
+
+
+class HistoryStore:
+    """Thin wrapper around an SQLite connection for transcript rows."""
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or (data_directory() / "history.db")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(self.path)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.executescript(_SCHEMA)
+        self._conn.commit()
+
+    # ------------------------------------------------------------------
+    def close(self) -> None:
+        try:
+            self._conn.close()
+        except sqlite3.Error:
+            pass
+
+    def add(self, body: str, duration_s: float = 0.0) -> TranscriptEntry:
+        body = body.strip()
+        title = TranscriptEntry.make_title(body)
+        summary = TranscriptEntry.make_summary(body)
+        created = datetime.now()
+        with self._conn:
+            cur = self._conn.execute(
+                "INSERT INTO transcripts (created_at, duration_s, title, summary, body)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (created.isoformat(timespec="seconds"), float(duration_s), title, summary, body),
+            )
+            row_id = cur.lastrowid
+        return TranscriptEntry(
+            id=row_id,
+            created_at=created,
+            duration_s=duration_s,
+            title=title,
+            summary=summary,
+            body=body,
+        )
+
+    def list_entries(self, query: str = "") -> list[TranscriptEntry]:
+        like = f"%{query.strip()}%"
+        if query.strip():
+            rows = self._conn.execute(
+                "SELECT * FROM transcripts WHERE body LIKE ? OR title LIKE ?"
+                " ORDER BY created_at DESC, id DESC",
+                (like, like),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM transcripts ORDER BY created_at DESC, id DESC"
+            ).fetchall()
+        return [self._row_to_entry(r) for r in rows]
+
+    def delete(self, entry_id: int) -> None:
+        with self._conn:
+            self._conn.execute("DELETE FROM transcripts WHERE id = ?", (entry_id,))
+
+    def get(self, entry_id: int) -> TranscriptEntry | None:
+        row = self._conn.execute(
+            "SELECT * FROM transcripts WHERE id = ?", (entry_id,)
+        ).fetchone()
+        return self._row_to_entry(row) if row else None
+
+    @staticmethod
+    def _row_to_entry(row: sqlite3.Row) -> TranscriptEntry:
+        return TranscriptEntry(
+            id=int(row["id"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            duration_s=float(row["duration_s"]),
+            title=str(row["title"]),
+            summary=str(row["summary"]),
+            body=str(row["body"]),
+        )
+
+    def as_dict(self, entry: TranscriptEntry) -> dict:
+        d = asdict(entry)
+        d["created_at"] = entry.created_at.isoformat(timespec="seconds")
+        return d
+
+
+__all__ = ["HistoryStore"]

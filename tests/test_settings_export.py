@@ -28,9 +28,9 @@ class SettingsAndExportTests(unittest.TestCase):
             self.assertEqual(loaded.appearance, "dark")
             json.loads(path.read_text(encoding="utf-8"))
 
-    def test_invalid_appearance_falls_back_to_system(self):
+    def test_invalid_appearance_falls_back_to_dark(self):
         settings = Settings(appearance="sepia").normalized()
-        self.assertEqual(settings.appearance, "system")
+        self.assertEqual(settings.appearance, "dark")
 
     def test_three_key_shortcut_and_precision_are_normalized(self):
         settings = Settings(

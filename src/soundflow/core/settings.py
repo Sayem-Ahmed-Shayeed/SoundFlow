@@ -32,13 +32,14 @@ def data_directory() -> Path:
 @dataclass
 class Settings:
     shortcut_schema_version: int = SHORTCUT_SCHEMA_VERSION
-    appearance: str = "system"
+    appearance: str = "dark"
     model_path: str = ""
     language: str = "auto"
     inference_device: str = "cpu"
     compute_type: str = "int8"
     microphone: int | None = None
     global_hotkeys: bool = True
+    show_shortcut_hint: bool = False
     toggle_hotkey: str = "ctrl+d"
     push_to_talk_hotkey: str = DEFAULT_PUSH_TO_TALK
     hotkey_authorized: bool = False
@@ -48,6 +49,9 @@ class Settings:
     min_speech_ms: int = 250
     max_speech_s: int = 20
     auto_copy: bool = False
+    auto_insert: bool = True
+    show_dictation_widget: bool = True
+    auto_save_transcripts: bool = True
     start_minimized: bool = False
     remote_desktop_restore_token: str = ""
 
@@ -55,8 +59,8 @@ class Settings:
         from soundflow.hotkeys import canonical_hotkey
 
         self.shortcut_schema_version = SHORTCUT_SCHEMA_VERSION
-        if self.appearance not in {"system", "light", "dark"}:
-            self.appearance = "system"
+        if self.appearance not in {"light", "dark"}:
+            self.appearance = "dark"
         self.language = self.language.strip() or "auto"
         self.inference_device = (
             self.inference_device if self.inference_device in {"cpu", "cuda"} else "cpu"

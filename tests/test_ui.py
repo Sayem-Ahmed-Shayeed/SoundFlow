@@ -8,6 +8,7 @@ try:
 
     from soundflow.core.settings import Settings, SettingsStore
     from soundflow.ui import (
+        AppearanceSelector,
         MainWindow,
         RecordingOverlay,
         ShortcutPicker,
@@ -31,6 +32,14 @@ class UiTests(unittest.TestCase):
         self.assertEqual(picker.shortcut(), "ctrl+alt+space")
         picker.set_shortcut("ctrl+shift+v")
         self.assertEqual(picker.shortcut(), "ctrl+shift+v")
+
+    def test_appearance_selector_round_trip(self):
+        changes: list[str] = []
+        selector = AppearanceSelector("system")
+        selector.changed.connect(changes.append)
+        selector.set_value("dark")
+        self.assertEqual(selector.value(), "dark")
+        self.assertEqual(changes, ["dark"])
 
     def test_overlay_displays_three_key_chord(self):
         overlay = RecordingOverlay()

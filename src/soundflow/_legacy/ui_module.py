@@ -60,6 +60,8 @@ from soundflow.core.export import ExportError, export_transcript
 from soundflow.core.segmenter import SegmenterConfig
 from soundflow.core.settings import Settings, SettingsStore, default_model_path
 from soundflow.core.state import DictationState, DictationStateMachine, StateChange
+from soundflow.design import BODY_FONT, stylesheet as design_stylesheet
+from soundflow.design.theme import resolved_dark as _resolved_dark
 from soundflow.hotkeys import (
     HotkeyError,
     canonical_hotkey,
@@ -102,197 +104,17 @@ MONO_FONT = preferred_font(("JetBrains Mono", "Cascadia Mono", "Noto Sans Mono",
 
 
 def resolved_dark_appearance(appearance: str) -> bool:
-    if appearance == "dark":
-        return True
-    if appearance == "light":
-        return False
-    hints = QGuiApplication.styleHints()
-    color_scheme = getattr(hints, "colorScheme", lambda: None)()
-    dark_scheme = getattr(Qt.ColorScheme, "Dark", None)
-    if color_scheme is not None and dark_scheme is not None:
-        return color_scheme == dark_scheme
-    return QApplication.palette().window().color().lightness() < 128
+    # Legacy shim — appearance is now restricted to "dark" / "light" by the
+    # design module. Any value other than "light" resolves to dark.
+    return _resolved_dark(appearance)
 
 
 def macos_style_sheet(dark: bool) -> str:
-    colors = (
-        {
-            "canvas": "#1c1c1e",
-            "sidebar": "#242428",
-            "card": "#2c2c2e",
-            "raised": "#36363a",
-            "border": "#45454a",
-            "text": "#f5f5f7",
-            "muted": "#a1a1a6",
-            "subtle": "#77777e",
-            "accent": "#8b80f9",
-            "accent_hover": "#9a90ff",
-            "editor": "#252529",
-            "danger": "#ff6b7f",
-        }
-        if dark
-        else {
-            "canvas": "#f2f2f5",
-            "sidebar": "#e9e9ee",
-            "card": "#fcfcfd",
-            "raised": "#f4f4f7",
-            "border": "#d8d8de",
-            "text": "#1d1d1f",
-            "muted": "#6e6e73",
-            "subtle": "#92929a",
-            "accent": "#7367f0",
-            "accent_hover": "#6559df",
-            "editor": "#ffffff",
-            "danger": "#d94d62",
-        }
-    )
-    c = colors
-    return f"""
-        QMainWindow, QDialog#settingsDialog, QWidget#mainSurface, QWidget#workspace {{
-            background: {c["canvas"]};
-        }}
-        QWidget#settingsPage {{ background: {c["canvas"]}; }}
-        QWidget {{
-            color: {c["text"]};
-            font-family: "{BODY_FONT}";
-            font-size: 13px;
-        }}
-        QFrame#sidebar {{
-            background: {c["sidebar"]};
-            border-right: 1px solid {c["border"]};
-        }}
-        QFrame#settingsSidebar {{
-            background: {c["sidebar"]}; border: 1px solid {c["border"]};
-            border-radius: 14px;
-        }}
-        QLabel#brandMark {{
-            color: white;
-            background: {c["accent"]};
-            border-radius: 11px;
-            min-width: 38px; max-width: 38px;
-            min-height: 38px; max-height: 38px;
-            font-family: "{DISPLAY_FONT}";
-            font-size: 19px; font-weight: 800;
-        }}
-        QLabel#brand {{ color: {c["text"]}; font-size: 19px; font-weight: 750; }}
-        QLabel#pageTitle, QLabel#dialogTitle {{
-            color: {c["text"]}; font-family: "{DISPLAY_FONT}";
-            font-size: 27px; font-weight: 800;
-        }}
-        QLabel#mutedText, QLabel#formHint, QLabel#railCaption {{
-            color: {c["muted"]};
-        }}
-        QLabel#fieldLabel {{
-            color: {c["subtle"]}; font-size: 10px; font-weight: 700;
-        }}
-        QPushButton#navActive, QPushButton#navButton {{
-            min-height: 28px; padding: 10px 13px; text-align: left;
-            border: none; border-radius: 10px; font-weight: 600;
-        }}
-        QPushButton#navActive {{
-            color: {c["text"]}; background: rgba(115, 103, 240, 0.13);
-            border-left: 3px solid {c["accent"]};
-        }}
-        QPushButton#navButton {{ color: {c["muted"]}; background: transparent; }}
-        QPushButton#navButton:hover {{ color: {c["text"]}; background: {c["raised"]}; }}
-        QFrame#privacyCard {{ background: transparent; border: none; }}
-        QLabel#privacyPill {{ color: #35a66f; font-size: 11px; font-weight: 650; }}
-        QFrame#controlPanel, QFrame#transcriptPanel, QFrame#settingsCard {{
-            background: {c["card"]}; border: 1px solid {c["border"]};
-            border-radius: 18px;
-        }}
-        QFrame#shortcutCard {{
-            background: {c["raised"]}; border: 1px solid {c["border"]};
-            border-radius: 11px;
-        }}
-        QLabel#status {{ color: {c["text"]}; font-size: 18px; font-weight: 750; }}
-        QLabel#statusDot {{ color: #35a66f; }}
-        QLabel#statusDot[state="recording"] {{ color: {c["danger"]}; }}
-        QLabel#statusDot[state="draining"] {{ color: #d79b32; }}
-        QLabel#statusDot[state="error"] {{ color: {c["danger"]}; }}
-        QLabel#keycap, QLabel#overlayKeycap {{
-            color: {c["text"]}; background: {c["card"]};
-            border: 1px solid {c["border"]}; border-radius: 7px;
-            padding: 5px 8px; font-family: "{MONO_FONT}";
-            font-size: 9px; font-weight: 700;
-        }}
-        QLabel#keycap[held="true"] {{
-            color: white; background: {c["accent"]}; border-color: {c["accent"]};
-            padding-top: 7px; padding-bottom: 3px;
-        }}
-        QLabel#shortcutPlus {{ color: {c["subtle"]}; }}
-        QLabel#hotkeyIndicator {{
-            color: {c["muted"]}; background: {c["raised"]};
-            border: 1px solid {c["border"]}; border-radius: 9px;
-            padding: 10px 11px; font-size: 10px; font-weight: 650;
-        }}
-        QLabel#hotkeyIndicator[state="ready"] {{ color: #2f9b67; }}
-        QLabel#hotkeyIndicator[state="recording"] {{ color: {c["danger"]}; }}
-        QLabel#hotkeyIndicator[state="error"] {{ color: #c28728; }}
-        QLabel#sectionTitle {{ color: {c["text"]}; font-size: 15px; font-weight: 700; }}
-        QLabel#wordCount {{ color: {c["subtle"]}; font-size: 11px; }}
-        QPushButton {{
-            min-height: 22px; color: {c["text"]}; background: {c["raised"]};
-            border: 1px solid {c["border"]}; border-radius: 9px;
-            padding: 9px 15px; font-weight: 600;
-        }}
-        QPushButton:hover {{ border-color: {c["accent"]}; }}
-        QPushButton:disabled {{ color: {c["subtle"]}; background: {c["raised"]}; }}
-        QPushButton[role="accent"] {{
-            color: white; background: {c["accent"]}; border-color: {c["accent"]};
-        }}
-        QPushButton[role="accent"]:hover {{ background: {c["accent_hover"]}; }}
-        QPushButton[role="quiet"] {{ background: transparent; }}
-        QPushButton#recordButton {{
-            color: white; background: #24242b; border: none;
-            border-radius: 12px; padding: 15px 22px; font-size: 14px; font-weight: 750;
-        }}
-        QPushButton#recordButton[recording="true"] {{ background: {c["danger"]}; }}
-        QTextEdit, QLineEdit, QComboBox, QSpinBox {{
-            color: {c["text"]}; background: {c["editor"]};
-            border: 1px solid {c["border"]}; border-radius: 9px;
-            padding: 8px 10px; selection-background-color: {c["accent"]};
-        }}
-        QTextEdit#transcriptEditor {{
-            background: {c["editor"]}; border: 1px solid {c["border"]};
-            border-radius: 12px; padding: 16px;
-        }}
-        QComboBox QAbstractItemView {{
-            color: {c["text"]}; background: {c["card"]};
-            selection-background-color: {c["accent"]};
-        }}
-        QProgressBar {{ background: {c["raised"]}; border: none; border-radius: 2px; }}
-        QProgressBar::chunk {{ background: {c["accent"]}; border-radius: 2px; }}
-        QTabWidget::pane {{ border: none; background: transparent; }}
-        QTabBar::tab {{
-            color: {c["muted"]}; background: transparent; border: none;
-            border-radius: 9px; padding: 11px 16px; min-width: 105px;
-            text-align: left; font-weight: 600;
-        }}
-        QTabBar::tab:selected {{
-            color: {c["text"]}; background: rgba(115, 103, 240, 0.13);
-            border-left: 3px solid {c["accent"]};
-        }}
-        QCheckBox {{ spacing: 10px; }}
-        QCheckBox::indicator {{
-            width: 34px; height: 18px; border-radius: 9px;
-            background: {c["border"]}; border: none;
-        }}
-        QCheckBox::indicator:checked {{ background: {c["accent"]}; }}
-        QLabel#fixedValue {{
-            color: {c["text"]}; background: {c["raised"]}; border: 1px solid {c["border"]};
-            border-radius: 7px; padding: 7px 10px; font-family: "{MONO_FONT}";
-        }}
-        QFrame#overlayPanel {{
-            background: {c["card"]}; border: 1px solid {c["border"]}; border-radius: 20px;
-        }}
-        QLabel#overlayTitle {{ color: {c["text"]}; font-weight: 700; }}
-        QLabel#overlayHint {{ color: {c["muted"]}; font-size: 10px; }}
-        QStatusBar {{
-            color: {c["muted"]}; background: {c["canvas"]};
-            border-top: 1px solid {c["border"]};
-        }}
+    """Legacy shim — returns the centralised stylesheet from
+    :mod:`soundflow.design`. New code should import
+    :func:`soundflow.design.stylesheet` directly.
     """
+    return design_stylesheet(dark)
 
 
 class AnimatedRecordButton(QPushButton):
@@ -744,7 +566,6 @@ class SettingsDialog(QDialog):
         self.appearance = QComboBox()
         self.appearance.setObjectName("appearancePicker")
         for label, value in (
-            ("System", "system"),
             ("Light", "light"),
             ("Dark", "dark"),
         ):
@@ -1464,7 +1285,7 @@ class MainWindow(QMainWindow):
 
     def apply_appearance(self, appearance: str) -> None:
         self.settings.appearance = (
-            appearance if appearance in {"system", "light", "dark"} else "system"
+            appearance if appearance in {"light", "dark"} else "dark"
         )
         dark = resolved_dark_appearance(self.settings.appearance)
         QApplication.instance().setStyleSheet(macos_style_sheet(dark))
@@ -1476,8 +1297,8 @@ class MainWindow(QMainWindow):
     @Slot()
     def _system_appearance_changed(self, *args) -> None:
         del args
-        if self.settings.appearance == "system":
-            self.apply_appearance("system")
+        # "System" appearance is no longer supported; ignore the Qt signal.
+        pass
 
     def _connect_bridge(self) -> None:
         self.bridge.text_ready.connect(self._append_text)
