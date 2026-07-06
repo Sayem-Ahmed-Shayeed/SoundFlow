@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from soundflow.design import (
     BODY_FONT,
+    CONTROL_HEIGHT_SM,
     FONT_BODY,
     FONT_HEADING,
     FONT_SMALL,
@@ -63,14 +64,20 @@ class ShortcutsTab(QWidget):
         title.setObjectName("headingText")
         pl.addWidget(title)
 
-        try:
-            display = display_hotkey(settings.push_to_talk_hotkey)
-        except ValueError:
-            display = settings.push_to_talk_hotkey
         chip_row = QHBoxLayout()
         chip_row.setSpacing(SPACE_2)
-        for token in display.split(" + "):
-            chip_row.addWidget(_keycap(token))
+        self._summary_caps: list[QLabel] = []
+        self._summary_pluses: list[QLabel] = []
+        for index in range(3):
+            cap = _keycap("")
+            cap.setObjectName("shortcutSummaryCap")
+            self._summary_caps.append(cap)
+            chip_row.addWidget(cap)
+            if index < 2:
+                plus = QLabel("+")
+                plus.setObjectName("mutedText")
+                self._summary_pluses.append(plus)
+                chip_row.addWidget(plus)
         chip_row.addStretch(1)
         pl.addLayout(chip_row)
 
@@ -89,14 +96,27 @@ class ShortcutsTab(QWidget):
         other_card = QWidget()
         other_card.setObjectName("preferencesCard")
         ol = QVBoxLayout(other_card)
-        ol.setContentsMargins(SPACE_3, SPACE_3, SPACE_3, SPACE_3)
-        ol.setSpacing(SPACE_2)
+        ol.setContentsMargins(SPACE_2, SPACE_2, SPACE_2, SPACE_2)
+        ol.setSpacing(4)
         ol.addWidget(self._heading("Other shortcuts"))
 
         form = QFormLayout()
-        form.setSpacing(SPACE_2)
+        form.setHorizontalSpacing(SPACE_2)
+        form.setVerticalSpacing(4)
 
         self._picker = ShortcutPicker(settings.push_to_talk_hotkey)
+        self._picker.setMaximumHeight(CONTROL_HEIGHT_SM)
+        self._picker.modifiers.setObjectName("compactShortcutField")
+        self._picker.modifiers.setFixedSize(128, CONTROL_HEIGHT_SM)
+        self._picker.key.setObjectName("compactShortcutField")
+        self._picker.key.setFixedSize(96, CONTROL_HEIGHT_SM)
+        self._picker.modifiers.currentIndexChanged.connect(
+            self._sync_shortcut_summary
+        )
+        self._picker.key.currentIndexChanged.connect(
+            self._sync_shortcut_summary
+        )
+        self._sync_shortcut_summary()
         form.addRow("Hold to dictate", self._picker)
 
         toggle_row = PreferenceToggleRow(
@@ -131,6 +151,20 @@ class ShortcutsTab(QWidget):
         if shortcut != self._original_shortcut:
             settings.hotkey_authorized = False
         settings.push_to_talk_hotkey = shortcut
+        self._original_shortcut = shortcut
+
+    def _sync_shortcut_summary(self, *_args) -> None:
+        try:
+            tokens = display_hotkey(self._picker.shortcut()).split(" + ")
+        except ValueError:
+            tokens = ["Ctrl", "Alt", "Space"]
+        for index, cap in enumerate(self._summary_caps):
+            visible = index < len(tokens)
+            cap.setVisible(visible)
+            if visible:
+                cap.setText(tokens[index])
+        for index, plus in enumerate(self._summary_pluses):
+            plus.setVisible(index < len(tokens) - 1)
 
     def _reset(self) -> None:
         self._picker.set_shortcut("ctrl+alt+space")

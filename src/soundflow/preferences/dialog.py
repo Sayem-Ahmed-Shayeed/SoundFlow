@@ -1,4 +1,4 @@
-"""Preferences dialog — 5-tab redesign with side About card."""
+"""Preferences dialog — 5-tab redesign."""
 
 from __future__ import annotations
 

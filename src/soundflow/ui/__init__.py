@@ -37,7 +37,15 @@ from soundflow.ui import (  # noqa: F401  (re-export submodules)
     widgets as widgets,
 )
 from soundflow.ui.widgets import AppearanceSelector
-from soundflow.ui.main_window import MainWindow
+
+
+def __getattr__(name: str):
+    """Load the main window lazily so Preferences may import UI widgets first."""
+    if name == "MainWindow":
+        from soundflow.ui.main_window import MainWindow
+
+        return MainWindow
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "BODY_FONT",

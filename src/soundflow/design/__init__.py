@@ -9,7 +9,13 @@ This package is the single source of truth for visual constants:
 No magic numbers should appear in widget code. Import from this package.
 """
 
-from .fonts import BODY_FONT, DISPLAY_FONT, MONO_FONT, preferred_font
+from .fonts import (
+    BODY_FONT,
+    DISPLAY_FONT,
+    MONO_FONT,
+    preferred_font,
+    register_application_fonts,
+)
 from .spacing import (
     BORDER_FOCUS,
     BORDER_THIN,
@@ -55,6 +61,7 @@ __all__ = [
     "DISPLAY_FONT",
     "MONO_FONT",
     "preferred_font",
+    "register_application_fonts",
     "BORDER_FOCUS",
     "BORDER_THIN",
     "CONTROL_HEIGHT_LG",

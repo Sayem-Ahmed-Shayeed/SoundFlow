@@ -31,15 +31,18 @@ class ToggleSwitch(QCheckBox):
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        dark = self.palette().color(self.palette().ColorRole.Window).lightness() < 128
-        track = QColor("#8B5CF6") if self.isChecked() else QColor(
-            "#252E40" if dark else "#D8DCE7"
+        appearance = self.window().property("darkAppearance")
+        dark = bool(appearance) if appearance is not None else (
+            self.palette().color(self.palette().ColorRole.Window).lightness() < 128
         )
-        border = QColor("#A78BFA") if self.isChecked() else QColor(
-            "#3B465C" if dark else "#B6BDCC"
+        track = QColor("#91A187" if dark else "#74836A") if self.isChecked() else QColor(
+            "#30322B" if dark else "#D8D5CC"
         )
-        thumb = QColor("#FFFFFF") if self.isChecked() else QColor(
-            "#A7B0C2" if dark else "#667085"
+        border = QColor("#AAB7A2" if dark else "#68765F") if self.isChecked() else QColor(
+            "#4A4D42" if dark else "#B8B5AA"
+        )
+        thumb = QColor("#F7F4EC") if self.isChecked() else QColor(
+            "#AAA79D" if dark else "#74766E"
         )
         if not self.isEnabled():
             painter.setOpacity(0.5)

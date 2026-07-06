@@ -7,9 +7,12 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -17,10 +20,12 @@ from PySide6.QtWidgets import (
 from soundflow.core.settings import data_directory, default_model_path
 from soundflow.design import (
     BODY_FONT,
+    CONTROL_HEIGHT_SM,
     FONT_BODY,
     FONT_HEADING,
     FONT_SMALL,
     FONT_TINY,
+    MONO_FONT,
     SPACE_2,
     SPACE_3,
     SPACE_4,
@@ -39,8 +44,22 @@ class SystemTab(QWidget):
         self._status_labels: dict[str, QLabel] = {}
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(SPACE_4, SPACE_4, SPACE_4, SPACE_4)
-        outer.setSpacing(SPACE_4)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("systemScroll")
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.viewport().setObjectName("systemScrollViewport")
+
+        content = QWidget()
+        content.setObjectName("systemContent")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(SPACE_4, SPACE_4, SPACE_4, SPACE_4)
+        content_layout.setSpacing(SPACE_4)
 
         readiness = self._card()
         readiness_layout = readiness.layout()
@@ -67,20 +86,29 @@ class SystemTab(QWidget):
         action_row.setSpacing(SPACE_3)
         self._check_button = QPushButton("Run system check")
         self._check_button.setObjectName("systemCheckButton")
+        self._check_button.setFixedHeight(CONTROL_HEIGHT_SM)
         self._check_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._check_button.clicked.connect(self.run_check)
         action_row.addWidget(self._check_button)
 
         self._last_checked = QLabel("Not checked yet")
-        self._last_checked.setObjectName("dimText")
+        self._last_checked.setObjectName("systemLastChecked")
         self._last_checked.setFont(QFont(BODY_FONT, FONT_TINY))
-        action_row.addWidget(self._last_checked)
+        self._last_checked.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        action_row.addWidget(
+            self._last_checked, 0, Qt.AlignmentFlag.AlignVCenter
+        )
         action_row.addStretch(1)
         readiness_layout.addLayout(action_row)
-        outer.addWidget(readiness)
+        content_layout.addWidget(readiness)
 
         data_card = self._card()
+        data_card.setObjectName("localDataCard")
         data_layout = data_card.layout()
+        data_layout.setContentsMargins(SPACE_3, SPACE_3, SPACE_3, SPACE_3)
+        data_layout.setSpacing(SPACE_2)
         data_layout.addWidget(self._heading("Local data"))
 
         data_description = QLabel(
@@ -92,17 +120,31 @@ class SystemTab(QWidget):
         data_layout.addWidget(data_description)
 
         data_path = str(data_directory())
-        data_layout.addWidget(
-            self._path_block("Application data folder", data_path, "systemDataPath")
-        )
+        folder_row = QHBoxLayout()
+        folder_row.setSpacing(SPACE_2)
 
-        open_button = QPushButton("Open data folder")
+        path_field = QLineEdit(data_path)
+        path_field.setObjectName("systemDataPath")
+        path_field.setReadOnly(True)
+        path_field.setFixedHeight(CONTROL_HEIGHT_SM)
+        path_field.setFont(QFont(MONO_FONT, FONT_SMALL))
+        path_field.setCursorPosition(0)
+        folder_row.addWidget(path_field, 1)
+
+        open_button = QPushButton("Open folder")
         open_button.setObjectName("systemSecondaryButton")
+        open_button.setFixedHeight(CONTROL_HEIGHT_SM)
         open_button.setCursor(Qt.CursorShape.PointingHandCursor)
         open_button.clicked.connect(open_data_folder)
-        data_layout.addWidget(open_button, 0, Qt.AlignmentFlag.AlignLeft)
-        outer.addWidget(data_card)
-        outer.addStretch(1)
+        folder_row.addWidget(
+            open_button, 0, Qt.AlignmentFlag.AlignVCenter
+        )
+        data_layout.addLayout(folder_row)
+        content_layout.addWidget(data_card)
+        content_layout.addStretch(1)
+
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
 
     def _card(self) -> QWidget:
         card = QWidget()
@@ -194,17 +236,13 @@ class SystemTab(QWidget):
         caption.setFont(QFont(BODY_FONT, FONT_TINY))
         layout.addWidget(caption)
 
-        value = QLabel(path)
+        value = QLineEdit(path)
         value.setObjectName(object_name)
         value.setProperty("role", "path")
-        value.setFont(QFont(BODY_FONT, FONT_SMALL))
-        value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        value.setWordWrap(True)
-        value.setMinimumHeight(value.fontMetrics().lineSpacing() * 2 + SPACE_2)
-        value.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
-        )
-        value.setToolTip(path)
+        value.setReadOnly(True)
+        value.setFont(QFont(MONO_FONT, FONT_SMALL))
+        value.setFixedHeight(CONTROL_HEIGHT_SM)
+        value.setCursorPosition(0)
         layout.addWidget(value)
         return block
 

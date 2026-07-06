@@ -43,6 +43,7 @@ class MainWindow(LegacyMainWindow):
             history_path = store.path.parent / "history.db"
         self._history_store = HistoryStore(history_path)
         self._session_elapsed = QElapsedTimer()
+        self._pending_runtime_rebuild = False
         self._drag_origin: QPoint | None = None
         self._current_page = "dictation"
         super().__init__(*args, **kwargs)
@@ -233,6 +234,13 @@ class MainWindow(LegacyMainWindow):
             self.history_page.refresh()
         if self.state.state is DictationState.DRAINING:
             self.state.drained()
+        if (
+            self._pending_runtime_rebuild
+            and self.state.state in {DictationState.IDLE, DictationState.ERROR}
+        ):
+            self._rebuild_runtime()
+            self._last_runtime_signature = self._runtime_settings_signature()
+            self._pending_runtime_rebuild = False
         if text and self._auto_insert_after_drain:
             QApplication.clipboard().setText(text)
             QTimer.singleShot(80, self._paste_now)
@@ -284,7 +292,10 @@ class MainWindow(LegacyMainWindow):
             and self.state.state in {DictationState.IDLE, DictationState.ERROR}
         ):
             self._rebuild_runtime()
-        self._last_runtime_signature = signature
+            self._last_runtime_signature = signature
+            self._pending_runtime_rebuild = False
+        elif signature != self._last_runtime_signature:
+            self._pending_runtime_rebuild = True
         self._update_meta()
 
     def _runtime_settings_signature(self) -> tuple:
@@ -292,6 +303,7 @@ class MainWindow(LegacyMainWindow):
             self.settings.model_path, self.settings.language,
             self.settings.inference_device, self.settings.microphone,
             self.settings.global_hotkeys, self.settings.push_to_talk_hotkey,
+            self.settings.silence_duration_ms,
         )
 
     def _update_meta(self) -> None:
@@ -300,6 +312,9 @@ class MainWindow(LegacyMainWindow):
         self.dictation_page.set_meta(
             f"{model or 'Whisper Small'} · INT8 · "
             f"{self.settings.inference_device.upper()} · System microphone"
+        )
+        self.dictation_page.set_shortcut(
+            self.settings.push_to_talk_hotkey
         )
         labels = {
             "auto": "Auto detect", "en": "English (US)", "bn": "বাংলা",

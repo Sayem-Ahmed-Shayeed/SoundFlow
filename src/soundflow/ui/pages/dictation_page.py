@@ -42,6 +42,7 @@ from soundflow.design import (
     SPACE_6,
     SPACE_8,
 )
+from soundflow.hotkeys import display_hotkey
 from soundflow.ui.widgets import WaveformRing, WindowChrome
 
 HERO_IDLE = "Start speaking"
@@ -105,6 +106,11 @@ class DictationPage(QWidget):
 
         self._ring = WaveformRing()
         self._ring.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._ring.setAccessibleName("Start or stop dictation")
+        self._ring.setAccessibleDescription(
+            "Press Space or activate this microphone control."
+        )
+        self._ring.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._ring.installEventFilter(self)
         self._ring.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         hero.addWidget(self._ring)
@@ -150,6 +156,7 @@ class DictationPage(QWidget):
         outer.addStretch(1)
 
         self._state = "idle"
+        self._shortcut_display = "Ctrl + Alt + SPACE"
 
     # ------------------------------------------------------------------
     def set_state(self, state: str) -> None:
@@ -161,7 +168,9 @@ class DictationPage(QWidget):
         elif state == "draining":
             self._hero.setText(HERO_DRAINING)
         else:
-            self._hero.setText("Press Space or hold Ctrl + Alt + Space")
+            self._hero.setText(
+                f"Press Space or hold {self._shortcut_display}"
+            )
         self._ring.set_state(state)
 
     def push_level(self, level: float) -> None:
@@ -169,6 +178,16 @@ class DictationPage(QWidget):
 
     def set_meta(self, text: str) -> None:
         self._meta.setText(text)
+
+    def set_shortcut(self, shortcut: str) -> None:
+        try:
+            self._shortcut_display = display_hotkey(shortcut)
+        except ValueError:
+            self._shortcut_display = "Ctrl + Alt + SPACE"
+        if self._state == "idle":
+            self._hero.setText(
+                f"Press Space or hold {self._shortcut_display}"
+            )
 
     def set_language(self, language: str) -> None:
         index = self._language.findData(language)
@@ -181,7 +200,11 @@ class DictationPage(QWidget):
         return self._language
 
     def eventFilter(self, watched, event) -> bool:
-        if watched is self._ring and event.type() == QEvent.Type.MouseButtonRelease:
+        if (
+            watched is self._ring
+            and event.type() == QEvent.Type.MouseButtonRelease
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
             self.dictation_toggled.emit()
             return True
         return super().eventFilter(watched, event)

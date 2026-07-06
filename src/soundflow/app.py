@@ -66,7 +66,6 @@ def main(argv: list[str] | None = None) -> int:
 
     from soundflow.core.settings import SettingsStore
     from soundflow.portal import APP_ID
-    from soundflow.ui import MainWindow
     from PySide6.QtCore import QTimer
 
     os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
@@ -75,6 +74,12 @@ def main(argv: list[str] | None = None) -> int:
     application.setOrganizationName("Soundflow")
     application.setDesktopFileName(APP_ID)
     application.setQuitOnLastWindowClosed(False)
+
+    from soundflow.design import register_application_fonts
+
+    register_application_fonts()
+
+    from soundflow.ui import MainWindow
 
     server_name = (
         str(Path(tempfile.gettempdir()) / f"soundflow-{os.getuid()}.sock")

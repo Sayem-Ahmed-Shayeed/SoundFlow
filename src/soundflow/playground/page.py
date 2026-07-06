@@ -49,15 +49,15 @@ class _QuickCard(QPushButton):
         )
         self.setEnabled(enabled)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setFixedHeight(72)
+        self.setFixedHeight(52)
         self.setMinimumWidth(160)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(SPACE_3, SPACE_2, SPACE_3, SPACE_2)
+        layout.setContentsMargins(10, 6, 10, 6)
         layout.setSpacing(SPACE_2)
 
         icon_lbl = QLabel(icon)
-        icon_lbl.setFont(QFont(BODY_FONT, 22))
+        icon_lbl.setFont(QFont(BODY_FONT, 18))
         icon_lbl.setObjectName("quickActionIcon")
         layout.addWidget(icon_lbl)
 
@@ -117,6 +117,11 @@ class PlaygroundPage(QWidget):
         )
         self._command.setFont(QFont(BODY_FONT, FONT_BODY))
         self._command.setMinimumHeight(132)
+        self._command.setMaximumHeight(220)
+        self._command.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
         outer.addWidget(self._command)
 
         # Ctrl+Enter submits

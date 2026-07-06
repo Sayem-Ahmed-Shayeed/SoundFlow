@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
 from soundflow.audio import AudioCapture
 from soundflow.design import (
     BODY_FONT,
+    CONTROL_HEIGHT_SM,
     FONT_BODY,
     FONT_HEADING,
     FONT_SMALL,
@@ -61,8 +61,10 @@ class DictationTab(QWidget):
         model_row = QHBoxLayout()
         model_row.setSpacing(SPACE_2)
         self._model = QLineEdit(settings.model_path)
+        self._model.setObjectName("compactPathField")
         self._model.setPlaceholderText("Path to faster-whisper model")
         self._model.setFont(QFont(BODY_FONT, FONT_BODY))
+        self._model.setFixedHeight(CONTROL_HEIGHT_SM)
         model_row.addWidget(self._model, 1)
         browse = QPushButton("Browse")
         browse.setObjectName("primaryButton")
@@ -73,6 +75,8 @@ class DictationTab(QWidget):
 
         # Language
         self._language = QComboBox()
+        self._language.setObjectName("compactPreferenceField")
+        self._language.setFixedHeight(CONTROL_HEIGHT_SM)
         for label, value in (
             ("Auto detect", "auto"),
             ("English", "en"),
@@ -94,7 +98,9 @@ class DictationTab(QWidget):
 
         # Processing device
         self._device = QComboBox()
-        for label, value in (("Auto", "auto"), ("CPU", "cpu"), ("GPU", "cuda")):
+        self._device.setObjectName("compactPreferenceField")
+        self._device.setFixedHeight(CONTROL_HEIGHT_SM)
+        for label, value in (("CPU", "cpu"), ("GPU", "cuda")):
             self._device.addItem(label, value)
         idx = next(
             (i for i in range(self._device.count())
@@ -106,6 +112,8 @@ class DictationTab(QWidget):
 
         # Microphone
         self._mic = QComboBox()
+        self._mic.setObjectName("compactPreferenceField")
+        self._mic.setFixedHeight(CONTROL_HEIGHT_SM)
         self._mic.addItem("System default", None)
         try:
             for idx, name in AudioCapture.list_input_devices():
@@ -119,13 +127,6 @@ class DictationTab(QWidget):
                     break
         form.addRow("Microphone", self._mic)
 
-        # Mic level meter (decorative)
-        self._level = QProgressBar()
-        self._level.setRange(0, 100)
-        self._level.setValue(0)
-        self._level.setTextVisible(False)
-        form.addRow("Input level", self._level)
-
         layout.addLayout(form)
         outer.addWidget(card)
         outer.addStretch(1)
@@ -134,6 +135,7 @@ class DictationTab(QWidget):
         path = QFileDialog.getExistingDirectory(self, "Choose model directory")
         if path:
             self._model.setText(path)
+            self._model.editingFinished.emit()
 
     def write_back(self, settings) -> None:
         settings.model_path = self._model.text().strip()

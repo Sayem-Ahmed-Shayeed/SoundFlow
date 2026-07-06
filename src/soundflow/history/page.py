@@ -148,8 +148,8 @@ class TranscriptCard(QWidget):
         self.editor.setPlainText(self.entry.body)
         self.editor.show()
         self.edit_button.hide()
-        self.copy_button.setEnabled(False)
-        self.insert_button.setEnabled(False)
+        self.copy_button.setEnabled(True)
+        self.insert_button.hide()
         self.save_button.show()
         self.cancel_button.show()
         self.editor.setFocus()
@@ -160,6 +160,7 @@ class TranscriptCard(QWidget):
         self.body_label.show()
         self.edit_button.show()
         self.copy_button.setEnabled(True)
+        self.insert_button.show()
         self.insert_button.setEnabled(True)
         self.save_button.hide()
         self.cancel_button.hide()
@@ -173,7 +174,12 @@ class TranscriptCard(QWidget):
         self.save_requested.emit(self.entry.id, text)
 
     def copy_text(self) -> None:
-        QApplication.clipboard().setText(self.entry.body)
+        text = (
+            self.editor.toPlainText()
+            if not self.editor.isHidden()
+            else self.entry.body
+        )
+        QApplication.clipboard().setText(text)
         self.copy_button.setText("Copied")
         QTimer.singleShot(1200, lambda: self.copy_button.setText("Copy"))
 
@@ -226,6 +232,7 @@ class HistoryPage(QWidget):
         self.search = QLineEdit()
         self.search.setObjectName("historySearch")
         self.search.setPlaceholderText("Search transcripts…")
+        self.search.setAccessibleName("Search transcripts")
         self.search.setClearButtonEnabled(True)
         outer.addWidget(self.search)
 

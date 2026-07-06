@@ -1,14 +1,7 @@
-"""Theme tokens and stylesheet generator.
+"""Warm minimal theme tokens and stylesheet generator.
 
-The design is intentionally monochrome:
-
-* Dark mode  — deepest black background with **cream-white** text (NOT pure
-  white, NOT blue/purple).
-* Light mode — cream-white background with deepest black text.
-
-There is exactly one neutral accent (cream) for active/selected states.
-A subtle, desaturated green (``SUCCESS``) and terracotta (``ERROR``) are
-reserved for status indicators — they are not used for buttons.
+Stone surfaces and ink typography keep the interface quiet, while a muted
+sage accent identifies selection, focus, recording, and ready states.
 """
 
 from __future__ import annotations
@@ -34,26 +27,21 @@ from .spacing import (
 )
 
 # --- Palette ---------------------------------------------------------------
-# Cream whites
-FG_CREAM = "#F2EBDD"       # primary foreground (cream white)
-FG_MUTED = "#A8A296"       # muted hints / labels
-FG_DIM = "#6B6760"         # dimmer grey for inactive
+# Dark theme: warm charcoal stone with soft limestone type.
+FG_CREAM = "#EEEADF"
+FG_MUTED = "#A6A094"
+FG_DIM = "#76746B"
+BG_BLACK = "#161713"
+BG_PANEL = "#1E201B"
+BG_RAISED = "#292B25"
+BORDER = "#383A32"
 
-# Deepest blacks
-BG_BLACK = "#0A0A0A"       # window background
-BG_PANEL = "#121110"       # card surface
-BG_RAISED = "#1B1917"      # raised / hover / active
-
-# Borders
-BORDER = "#2A2724"         # standard hairline
-BORDER_FOCUS = FG_CREAM    # focus ring matches foreground
-
-# Status
-SUCCESS = "#A8B5A0"        # desaturated cream-green for ready dot
-ERROR = "#C97A6E"          # desaturated terracotta — not red
-
-# Single neutral accent (the only accent in the design)
-ACCENT = FG_CREAM
+# Shared semantic colors.
+ACCENT = "#91A187"
+BORDER_FOCUS = ACCENT
+SUCCESS = "#91A187"
+WARNING = "#C4A46B"
+ERROR = "#C47C70"
 
 # Backwards-compatibility aliases used by the legacy stylesheet generator.
 PRIMARY_TEXT = FG_CREAM
@@ -83,15 +71,20 @@ def stylesheet(dark: bool) -> str:
 
 def _shell_stylesheet(dark: bool) -> str:
     """Screenshot-specific shell rules layered over the shared controls."""
-    bg = "#080D17" if dark else "#F5F6FB"
-    sidebar = "#0D1422" if dark else "#ECEEF7"
-    panel = "#111827" if dark else "#FFFFFF"
-    raised = "#171F30" if dark else "#F0F1F7"
-    text = "#F7F8FC" if dark else "#151826"
-    muted = "#98A1B3" if dark else "#626B7B"
-    border = "#263044" if dark else "#D7DAE5"
-    accent = "#8B5CF6"
-    active = "#241D45" if dark else "#EAE4FF"
+    bg = BG_BLACK if dark else "#F3F0E8"
+    sidebar = "#1A1B17" if dark else "#EAE6DC"
+    panel = BG_PANEL if dark else "#FBF9F4"
+    raised = BG_RAISED if dark else "#E4E1D8"
+    text = FG_CREAM if dark else "#22231F"
+    muted = FG_MUTED if dark else "#6E7067"
+    border = BORDER if dark else "#D4CFC3"
+    accent = ACCENT if dark else "#74836A"
+    active = "#30372C" if dark else "#DCE3D7"
+    dim = FG_DIM if dark else "#85857D"
+    hover_border = "#55594C" if dark else "#B9B6AA"
+    error = ERROR if dark else "#9A584D"
+    warning = WARNING if dark else "#8B6D3D"
+    button_ink = "#171914" if dark else "#F8F6F0"
     return f"""
 QMainWindow, #appSurface, #contentSurface, QStackedWidget {{
     background: {bg};
@@ -134,7 +127,7 @@ QPushButton#sideNavButton:hover {{
     background: {raised};
 }}
 QPushButton#sideNavButton[active="true"] {{
-    color: #C4A7FF;
+    color: {accent};
     background: {active};
     border-left: 3px solid {accent};
 }}
@@ -143,7 +136,7 @@ QPushButton#sideNavButton[active="true"] {{
     border: 1px solid {border};
     border-radius: 8px;
 }}
-#privacyPill {{ color: #6EE7A8; font-weight: 600; }}
+#privacyPill {{ color: {accent}; font-weight: 600; }}
 #privacyPill {{ font-size: 10px; }}
 #railCaption {{ color: {muted}; font-size: 9px; }}
 #dictationPage, #historyPage, #playgroundPage, #preferencesPage,
@@ -151,19 +144,29 @@ QPushButton#sideNavButton[active="true"] {{
 #playbackTab, #shortcutsTab, #systemTab {{
     background: {bg};
 }}
+#systemScroll, #systemScrollViewport, #systemContent,
+#generalScroll, #generalScrollViewport, #generalContent {{
+    background: {bg};
+    border: 0;
+}}
 #displayText {{ color: {text}; }}
 #headingText {{ color: {text}; }}
 #mutedText, #captionText {{ color: {muted}; }}
-#dimText {{ color: #737D90; }}
-#historyCard, #preferencesCard,
+#dimText, #systemLastChecked {{ color: {dim}; }}
+#historyCard, #preferencesCard, #localDataCard,
 QPushButton#quickActionCard {{
     background: {panel};
     border: 1px solid {border};
     border-radius: 8px;
 }}
+QPushButton#quickActionCard {{
+    padding: 0;
+    min-height: 50px;
+    max-height: 50px;
+}}
 #historyCard:hover, QPushButton#quickActionCard:hover {{
     background: {raised};
-    border-color: #39455D;
+    border-color: {hover_border};
 }}
 #historyBody {{
     color: {text};
@@ -171,7 +174,7 @@ QPushButton#quickActionCard {{
     line-height: 1.45;
 }}
 #historyGroup {{
-    color: #A78BFA;
+    color: {accent};
     font-weight: 600;
     padding: 8px 2px 2px 2px;
 }}
@@ -187,7 +190,7 @@ QPushButton#historyAction:hover {{
     color: {text};
     background: {raised};
 }}
-#historyFeedback[state="error"] {{ color: #FB7185; }}
+#historyFeedback[state="error"] {{ color: {error}; }}
 #toggleRow {{ background: transparent; min-height: 44px; }}
 #toggleRowTitle {{ color: {text}; font-size: 13px; }}
 #systemCheckRow, #systemPathBlock {{
@@ -200,6 +203,16 @@ QPushButton#historyAction:hover {{
     color: {text};
     font-family: "{MONO_FONT}";
 }}
+QLineEdit#systemModelPath {{
+    color: {text};
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 3px 7px;
+    font-family: "{MONO_FONT}";
+    min-height: 22px;
+    max-height: 28px;
+}}
 #systemStatusPill {{
     color: {muted};
     background: {raised};
@@ -209,36 +222,56 @@ QPushButton#historyAction:hover {{
 }}
 #systemStatusPill[state="ready"],
 QLabel[objectName^="systemStatus"][state="ready"] {{
-    color: #6EE7A8;
+    color: {accent};
 }}
 #systemStatusPill[state="warning"],
 QLabel[objectName^="systemStatus"][state="warning"] {{
-    color: #F2C879;
+    color: {warning};
 }}
 #systemStatusPill[state="error"],
 QLabel[objectName^="systemStatus"][state="error"] {{
-    color: #FB7185;
+    color: {error};
 }}
 QPushButton#systemCheckButton {{
-    color: #0B1020;
+    color: {button_ink};
     background: {accent};
     border: 1px solid {accent};
-    border-radius: 7px;
-    padding: 7px 14px;
+    border-radius: 4px;
+    padding: 3px 7px;
+    min-height: 20px;
+    max-height: 20px;
 }}
 QPushButton#systemCheckButton:hover {{
-    background: #A78BFA;
-    border-color: #A78BFA;
+    background: {SUCCESS};
+    border-color: {SUCCESS};
 }}
 QPushButton#systemSecondaryButton {{
     color: {text};
     background: {raised};
     border: 1px solid {border};
-    border-radius: 7px;
-    padding: 7px 14px;
+    border-radius: 4px;
+    padding: 3px 7px;
+    min-height: 20px;
+    max-height: 20px;
 }}
 QPushButton#systemSecondaryButton:hover {{
     border-color: {accent};
+}}
+QLineEdit#systemDataPath, QLineEdit#compactPathField {{
+    color: {text};
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 7px;
+    padding: 3px 7px;
+    font-family: "{MONO_FONT}";
+    min-height: 20px;
+    max-height: 20px;
+}}
+QComboBox#compactShortcutField, QComboBox#compactPreferenceField {{
+    padding: 3px 7px;
+    min-height: 20px;
+    max-height: 20px;
+    border-radius: 4px;
 }}
 #historySearch, #playgroundCommand {{
     background: {panel};
@@ -255,7 +288,7 @@ QPushButton#systemSecondaryButton:hover {{
     padding: 9px 13px;
 }}
 #preferencesTabs QTabBar::tab:selected {{
-    color: #B99AFF;
+    color: {accent};
     border-bottom-color: {accent};
 }}
 #statusBar {{
@@ -265,9 +298,9 @@ QPushButton#systemSecondaryButton:hover {{
     border-bottom-right-radius: 14px;
 }}
 #statusBarLabel {{ color: {muted}; font-size: 10px; }}
-#statusDot[state="ready"] {{ color: #4ADE80; }}
+#statusDot[state="ready"] {{ color: {accent}; }}
 #statusDot[state="recording"] {{ color: {accent}; }}
-#statusDot[state="error"] {{ color: #FB7185; }}
+#statusDot[state="error"] {{ color: {error}; }}
 #statusBarAccent, #quickActionIcon, #aboutLogo, #savedStatus {{ color: {accent}; }}
 #keyCap {{
     color: {text};
@@ -285,7 +318,8 @@ QPushButton[chrome="true"] {{
     color: {muted};
     background: transparent;
     border: 0;
-    min-height: 20px;
+    min-height: 28px;
+    max-height: 28px;
     padding: 0;
 }}
 #windowChrome {{ background: transparent; }}
@@ -302,7 +336,7 @@ QPushButton#presetChip {{
     min-height: 26px;
 }}
 QPushButton#presetChip:checked {{
-    color: white;
+    color: {button_ink};
     background: {accent};
     border-color: {accent};
 }}
@@ -378,9 +412,9 @@ QPushButton, #actionButton {{
     background-color: {BG_PANEL};
     color: {FG_CREAM};
     border: 1px solid {BORDER};
-    border-radius: {RADIUS_MD}px;
-    padding: {SPACE_2}px {SPACE_4}px;
-    min-height: {CONTROL_HEIGHT_MD}px;
+    border-radius: 4px;
+    padding: 3px 7px;
+    min-height: 20px;
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
 }}
@@ -397,12 +431,12 @@ QPushButton:disabled {{
     background-color: {BG_BLACK};
 }}
 QPushButton#primaryButton, QPushButton#accentButton {{
-    background-color: {FG_CREAM};
+    background-color: {ACCENT};
     color: {BG_BLACK};
-    border: 1px solid {FG_CREAM};
+    border: 1px solid {ACCENT};
 }}
 QPushButton#primaryButton:hover, QPushButton#accentButton:hover {{
-    background-color: {FG_CREAM};
+    background-color: {SUCCESS};
     color: {BG_BLACK};
     opacity: 0.92;
 }}
@@ -423,7 +457,7 @@ QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox {{
     border: 1px solid {BORDER};
     border-radius: {RADIUS_MD}px;
     padding: {SPACE_2}px {SPACE_3}px;
-    selection-background-color: {FG_CREAM};
+    selection-background-color: {ACCENT};
     selection-color: {BG_BLACK};
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
@@ -431,7 +465,7 @@ QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox {{
 }}
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus,
 QSpinBox:focus, QComboBox:focus {{
-    border-color: {FG_CREAM};
+    border-color: {BORDER_FOCUS};
 }}
 QComboBox::drop-down {{
     border: none;
@@ -453,11 +487,11 @@ QSlider::groove:horizontal {{
     border-radius: 2px;
 }}
 QSlider::sub-page:horizontal {{
-    background: {FG_CREAM};
+    background: {ACCENT};
     border-radius: 2px;
 }}
 QSlider::handle:horizontal {{
-    background: {FG_CREAM};
+    background: {ACCENT};
     width: 16px;
     height: 16px;
     margin: -6px 0;
@@ -479,7 +513,7 @@ QProgressBar {{
     max-height: 6px;
 }}
 QProgressBar::chunk {{
-    background-color: {FG_CREAM};
+    background-color: {ACCENT};
     border-radius: {RADIUS_SM}px;
 }}
 
@@ -505,8 +539,8 @@ QTabBar::tab:hover {{
     color: {FG_CREAM};
 }}
 QTabBar::tab:selected {{
-    color: {FG_CREAM};
-    border-bottom: 2px solid {FG_CREAM};
+    color: {ACCENT};
+    border-bottom: 2px solid {ACCENT};
 }}
 
 /* ---------- Checkboxes ---------- */
@@ -526,8 +560,8 @@ QCheckBox::indicator:hover {{
     border-color: {FG_MUTED};
 }}
 QCheckBox::indicator:checked {{
-    background-color: {FG_CREAM};
-    border-color: {FG_CREAM};
+    background-color: {ACCENT};
+    border-color: {ACCENT};
     image: none;
 }}
 
@@ -620,14 +654,14 @@ QMenu::separator {{
     qproperty-alignment: AlignCenter;
 }}
 #keyCap[held="true"] {{
-    background-color: {FG_CREAM};
+    background-color: {ACCENT};
     color: {BG_BLACK};
-    border-color: {FG_CREAM};
+    border-color: {ACCENT};
 }}
 
 /* ---------- Status dot ---------- */
 #statusDot[state="ready"] {{ color: {SUCCESS}; }}
-#statusDot[state="recording"] {{ color: {FG_CREAM}; }}
+#statusDot[state="recording"] {{ color: {ACCENT}; }}
 #statusDot[state="draining"] {{ color: {FG_MUTED}; }}
 #statusDot[state="error"] {{ color: {ERROR}; }}
 #statusDot[state="setup"] {{ color: {FG_MUTED}; }}
@@ -638,117 +672,117 @@ QMenu::separator {{
 def _light_stylesheet() -> str:
     return f"""
 QWidget {{
-    background-color: {FG_CREAM};
-    color: {BG_BLACK};
+    background-color: #F3F0E8;
+    color: #22231F;
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
 }}
 QMainWindow, QDialog {{
-    background-color: {FG_CREAM};
+    background-color: #F3F0E8;
 }}
 #sideBar, #topBar, #statusBar {{
-    background-color: {FG_CREAM};
+    background-color: #EAE6DC;
     border: none;
 }}
 #panel {{
-    background-color: #FFFFFF;
-    border: 1px solid #E6DFD1;
+    background-color: #FBF9F4;
+    border: 1px solid #D4CFC3;
     border-radius: {RADIUS_LG}px;
 }}
 #displayText {{
     font-family: "{DISPLAY_FONT}";
     font-size: {FONT_DISPLAY}px;
-    color: {BG_BLACK};
+    color: #22231F;
     background: transparent;
 }}
 #titleText {{
     font-family: "{DISPLAY_FONT}";
     font-size: {FONT_TITLE}px;
-    color: {BG_BLACK};
+    color: #22231F;
     background: transparent;
 }}
 #headingText {{
     font-family: "{BODY_FONT}";
     font-size: {FONT_HEADING}px;
-    color: {BG_BLACK};
+    color: #22231F;
     background: transparent;
 }}
 #mutedText, #captionText {{
-    color: #6E665B;
+    color: #6E7067;
     font-size: {FONT_SMALL}px;
     background: transparent;
 }}
 #dimText {{
-    color: #8A8275;
+    color: #85857D;
     font-size: {FONT_TINY}px;
     background: transparent;
 }}
 QPushButton, #actionButton {{
-    background-color: #FFFFFF;
-    color: {BG_BLACK};
-    border: 1px solid #D8D0C0;
-    border-radius: {RADIUS_MD}px;
-    padding: {SPACE_2}px {SPACE_4}px;
-    min-height: {CONTROL_HEIGHT_MD}px;
+    background-color: #FBF9F4;
+    color: #22231F;
+    border: 1px solid #D4CFC3;
+    border-radius: 4px;
+    padding: 3px 7px;
+    min-height: 20px;
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
 }}
 QPushButton:hover {{
-    background-color: #F2EBDD;
-    border-color: #B8AE9C;
+    background-color: #E4E1D8;
+    border-color: #B9B6AA;
 }}
 QPushButton:primary, QPushButton#accentButton, QPushButton#primaryButton {{
-    background-color: {BG_BLACK};
-    color: {FG_CREAM};
-    border: 1px solid {BG_BLACK};
+    background-color: #74836A;
+    color: #F8F6F0;
+    border: 1px solid #74836A;
 }}
 QPushButton#quietButton {{
     background-color: transparent;
     border: 1px solid transparent;
-    color: #6E665B;
+    color: #6E7067;
 }}
 QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox {{
-    background-color: #FFFFFF;
-    color: {BG_BLACK};
-    border: 1px solid #D8D0C0;
+    background-color: #FBF9F4;
+    color: #22231F;
+    border: 1px solid #D4CFC3;
     border-radius: {RADIUS_MD}px;
     padding: {SPACE_2}px {SPACE_3}px;
-    selection-background-color: {BG_BLACK};
-    selection-color: {FG_CREAM};
+    selection-background-color: #74836A;
+    selection-color: #F8F6F0;
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
     min-height: {CONTROL_HEIGHT_MD}px;
 }}
 QCheckBox::indicator {{
-    background-color: #FFFFFF;
-    border: 1px solid #D8D0C0;
+    background-color: #FBF9F4;
+    border: 1px solid #D4CFC3;
 }}
 QCheckBox::indicator:checked {{
-    background-color: {BG_BLACK};
-    border-color: {BG_BLACK};
+    background-color: #74836A;
+    border-color: #74836A;
 }}
-QSlider::sub-page:horizontal {{ background: {BG_BLACK}; }}
-QSlider::handle:horizontal {{ background: {BG_BLACK}; }}
-QProgressBar::chunk {{ background-color: {BG_BLACK}; }}
-QTabBar::tab {{ color: #6E665B; }}
-QTabBar::tab:selected {{ color: {BG_BLACK}; border-bottom: 2px solid {BG_BLACK}; }}
-#statusBar {{ border-top: 1px solid #D8D0C0; color: #6E665B; }}
+QSlider::sub-page:horizontal {{ background: #74836A; }}
+QSlider::handle:horizontal {{ background: #74836A; }}
+QProgressBar::chunk {{ background-color: #74836A; }}
+QTabBar::tab {{ color: #6E7067; }}
+QTabBar::tab:selected {{ color: #74836A; border-bottom: 2px solid #74836A; }}
+#statusBar {{ border-top: 1px solid #D4CFC3; color: #6E7067; }}
 #keyCap {{
-    background-color: #FFFFFF;
-    color: {BG_BLACK};
-    border: 1px solid #D8D0C0;
+    background-color: #FBF9F4;
+    color: #22231F;
+    border: 1px solid #D4CFC3;
 }}
 #keyCap[held="true"] {{
-    background-color: {BG_BLACK};
-    color: {FG_CREAM};
-    border-color: {BG_BLACK};
+    background-color: #74836A;
+    color: #F8F6F0;
+    border-color: #74836A;
 }}
-#statusDot[state="ready"] {{ color: #4F5E47; }}
-#statusDot[state="recording"] {{ color: {BG_BLACK}; }}
-#statusDot[state="draining"] {{ color: #6E665B; }}
-#statusDot[state="error"] {{ color: #8E4A3E; }}
-#statusDot[state="setup"] {{ color: #6E665B; }}
-#statusDot[state="connecting"] {{ color: #6E665B; }}
+#statusDot[state="ready"] {{ color: #74836A; }}
+#statusDot[state="recording"] {{ color: #74836A; }}
+#statusDot[state="draining"] {{ color: #6E7067; }}
+#statusDot[state="error"] {{ color: #9A584D; }}
+#statusDot[state="setup"] {{ color: #6E7067; }}
+#statusDot[state="connecting"] {{ color: #6E7067; }}
 """
 
 
@@ -767,6 +801,7 @@ __all__ = [
     "PRIMARY_TEXT",
     "SUCCESS",
     "SUCCESS_GREEN",
+    "WARNING",
     "resolved_dark",
     "stylesheet",
 ]

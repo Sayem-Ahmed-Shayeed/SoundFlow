@@ -68,18 +68,27 @@ class WaveformRing(QWidget):
         w, h = self.width(), self.height()
         cx, cy = w / 2.0, h / 2.0
 
-        accent = QColor("#8B5CF6")
-        quiet = QColor("#55427D")
+        appearance = self.window().property("darkAppearance")
+        dark = bool(appearance) if appearance is not None else (
+            self.palette().color(self.palette().ColorRole.Window).lightness() < 128
+        )
+        accent = QColor("#91A187" if dark else "#74836A")
+        quiet = QColor("#53604D" if dark else "#B7C0B1")
+        centre = QColor("#1E201B" if dark else "#FBF9F4")
         # Central microphone control and glow.
         centre_radius = 52
-        painter.setPen(QPen(QColor(139, 92, 246, 75), 2))
-        painter.setBrush(QColor(139, 92, 246, 18))
+        glow = QColor(accent)
+        glow.setAlpha(75)
+        fill = QColor(accent)
+        fill.setAlpha(18)
+        painter.setPen(QPen(glow, 2))
+        painter.setBrush(fill)
         painter.drawEllipse(
             int(cx - centre_radius), int(cy - centre_radius),
             centre_radius * 2, centre_radius * 2,
         )
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#111827"))
+        painter.setBrush(centre)
         painter.drawEllipse(int(cx - 44), int(cy - 44), 88, 88)
 
         painter.setPen(QPen(accent, 4))

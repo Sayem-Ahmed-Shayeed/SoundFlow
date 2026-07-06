@@ -40,6 +40,30 @@ class HistoryCardTests(unittest.TestCase):
         card.cancel_edit()
         self.assertFalse(card.body_label.isHidden())
 
+    def test_edit_mode_hides_insert_and_copies_current_editor_text(self):
+        entry = TranscriptEntry(
+            id=8,
+            created_at=datetime.now(),
+            duration_s=2.0,
+            title="Original",
+            summary="Original",
+            body="Original transcript.",
+        )
+        card = TranscriptCard(entry)
+        card.begin_edit()
+        self.assertTrue(card.insert_button.isHidden())
+        self.assertTrue(card.copy_button.isEnabled())
+
+        card.editor.setPlainText("Edited but not saved yet.")
+        card.copy_text()
+        self.assertEqual(
+            self.app.clipboard().text(),
+            "Edited but not saved yet.",
+        )
+
+        card.cancel_edit()
+        self.assertFalse(card.insert_button.isHidden())
+
 
 if __name__ == "__main__":
     unittest.main()
