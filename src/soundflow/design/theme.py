@@ -412,6 +412,11 @@ QPushButton[objectName^="modelDelete:"]:focus {{
     background: {error};
     border-color: {error};
 }}
+QPushButton[objectName^="modelDelete:"]:disabled {{
+    color: {muted};
+    background: {panel};
+    border: 1px solid {border};
+}}
 QProgressBar[objectName^="modelProgress:"] {{
     background: {border};
     border: 0;

@@ -82,6 +82,17 @@ class DesignTokenTests(unittest.TestCase):
             )
             self.assertIn("min-height: 24px", sheet)
 
+    def test_disabled_model_delete_is_neutral_in_both_themes(self) -> None:
+        from soundflow.design import stylesheet
+
+        selector = 'QPushButton[objectName^="modelDelete:"]:disabled'
+        for sheet in (stylesheet(True), stylesheet(False)):
+            self.assertIn(selector, sheet)
+            block = sheet.split(selector, 1)[1].split("}", 1)[0]
+            self.assertIn("color:", block)
+            self.assertIn("background:", block)
+            self.assertIn("border:", block)
+
     def test_spacing_grid_is_4px(self) -> None:
         from soundflow.design.spacing import SPACE_1, SPACE_2, SPACE_3, SPACE_4
         self.assertEqual(SPACE_1, 4)
