@@ -69,6 +69,7 @@ class DesignTokenTests(unittest.TestCase):
             self.assertIn("max-height: 16px;", progress_rule)
             self.assertIn("color: #FFFFFF;", progress_rule)
             self.assertIn("text-align: center;", progress_rule)
+            self.assertIn('font-family: "Geist Mono";', progress_rule)
             self.assertIn('QPushButton[objectName^="modelAction:"]:focus', sheet)
             self.assertIn('QPushButton[objectName^="modelDelete:"]', sheet)
             self.assertIn("min-height: 20px", sheet)

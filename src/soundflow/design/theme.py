@@ -425,6 +425,7 @@ QProgressBar[objectName^="modelProgress:"] {{
     max-height: 16px;
     color: #FFFFFF;
     text-align: center;
+    font-family: "{MONO_FONT}";
     font-size: 10px;
     font-weight: 600;
 }}
