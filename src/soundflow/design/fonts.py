@@ -31,7 +31,7 @@ def preferred_font(candidates: tuple[str, ...]) -> str:
 
 
 def register_application_fonts() -> tuple[int, ...]:
-    """Register Soundflow's bundled Roboto faces with the active Qt app."""
+    """Register Soundflow's bundled Geist faces with the active Qt app."""
 
     global _REGISTERED_FONT_IDS
     if _REGISTERED_FONT_IDS is not None:
@@ -51,9 +51,12 @@ def register_application_fonts() -> tuple[int, ...]:
         for font_id in (
             QFontDatabase.addApplicationFont(str(font_directory / filename))
             for filename in (
-                "Roboto-Regular.ttf",
-                "Roboto-Medium.ttf",
-                "Roboto-Bold.ttf",
+                "Geist-Regular.ttf",
+                "Geist-Medium.ttf",
+                "Geist-SemiBold.ttf",
+                "Geist-Bold.ttf",
+                "GeistMono-Regular.ttf",
+                "GeistMono-Medium.ttf",
             )
         )
         if font_id >= 0
@@ -62,8 +65,6 @@ def register_application_fonts() -> tuple[int, ...]:
     return font_ids
 
 
-DISPLAY_FONT = "Roboto"
-BODY_FONT = "Roboto"
-MONO_FONT = preferred_font(
-    ("JetBrains Mono", "Cascadia Mono", "Noto Sans Mono", "DejaVu Sans Mono")
-)
+DISPLAY_FONT = "Geist"
+BODY_FONT = "Geist"
+MONO_FONT = "Geist Mono"

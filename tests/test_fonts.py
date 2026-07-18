@@ -1,5 +1,6 @@
 import os
 import unittest
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -9,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 from soundflow.design.fonts import (
     BODY_FONT,
     DISPLAY_FONT,
+    MONO_FONT,
     register_application_fonts,
 )
 
@@ -18,13 +20,39 @@ class FontTests(unittest.TestCase):
     def setUpClass(cls):
         cls.application = QApplication.instance() or QApplication([])
 
-    def test_roboto_is_the_shared_application_font(self):
+    def test_geist_is_the_bundled_application_font(self):
         font_ids = register_application_fonts()
 
-        self.assertEqual(BODY_FONT, "Roboto")
-        self.assertEqual(DISPLAY_FONT, "Roboto")
-        self.assertGreaterEqual(len(font_ids), 3)
-        self.assertIn("Roboto", QFontDatabase.families())
+        self.assertEqual(BODY_FONT, "Geist")
+        self.assertEqual(DISPLAY_FONT, "Geist")
+        self.assertEqual(MONO_FONT, "Geist Mono")
+        self.assertEqual(len(font_ids), 6)
+        self.assertIn("Geist", QFontDatabase.families())
+        self.assertIn("Geist Mono", QFontDatabase.families())
+
+    def test_only_geist_font_assets_are_bundled(self):
+        font_dir = (
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "soundflow"
+            / "assets"
+            / "fonts"
+        )
+        names = {path.name for path in font_dir.iterdir()}
+
+        self.assertEqual(
+            names,
+            {
+                "GEIST-OFL.txt",
+                "Geist-Regular.ttf",
+                "Geist-Medium.ttf",
+                "Geist-SemiBold.ttf",
+                "Geist-Bold.ttf",
+                "GeistMono-Regular.ttf",
+                "GeistMono-Medium.ttf",
+            },
+        )
+        self.assertFalse(any("Roboto" in name for name in names))
 
 
 if __name__ == "__main__":
