@@ -2,147 +2,140 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace Roboto with bundled Geist Sans/Mono typography and add short, interruptible toggle, button, model-progress, and status micro-interactions.
+**Goal:** Replace Roboto with bundled Geist Sans/Mono typography and add restrained, interruptible toggle, button, model-progress, and status animations.
 
-**Architecture:** Keep typography centralized in `soundflow.design.fonts`, pin official Geist v1.7.2 assets and license, and retain the existing stylesheet token hierarchy. Build motion with native PySide6 animation primitives: widgets own animations for properties they paint, while one application-level event filter provides shared button feedback.
+**Architecture:** Register pinned Geist v1.7.2 static TTF faces through the existing design-font boundary. Add a shared application-level button event filter, keep component-owned animations in `ToggleSwitch`, `ModelManagerWidget`, and `StatusBar`, and reuse Qt property animations with centralized duration tokens.
 
-**Tech Stack:** Python 3.11+, PySide6, Qt property animation and graphics effects, unittest, PyInstaller, Geist v1.7.2.
+**Tech Stack:** Python 3.11+, PySide6/Qt Widgets, QPropertyAnimation, QGraphicsOpacityEffect, unittest, PyInstaller, official Geist v1.7.2 font assets.
 
 ## Global Constraints
 
-- Use official Geist v1.7.2 from `https://github.com/vercel/geist-font/releases/download/v1.7.2/geist-font-v1.7.2.zip`.
-- Verify the release archive SHA-256 is `7fc800d2ac6b92844895196e5041aca55d814c15db70c44f79b3b83ab82b04e2`.
-- Bundle the upstream SIL Open Font License.
-- Use Geist Sans for display/body and Geist Mono only for technical values.
-- Preserve existing font-size tokens and compact UI density.
-- Use 120 ms button feedback, 160 ms toggle/progress interpolation, and 200 ms navigation/status fades.
-- Use `QEasingCurve.Type.OutCubic` for finite micro-interactions.
-- Never delay business actions or alter native keyboard/accessibility semantics.
+- Use Geist for display and body text and Geist Mono only for technical values.
+- Bundle font files and the upstream SIL Open Font License; require no system font installation.
+- Use 120 ms button feedback, 160 ms toggle/progress interpolation, and 200 ms status/navigation fades.
+- Use OutCubic easing for finite micro-interactions.
+- Never delay commands, navigation, persistence, cancellation, or downloads.
+- Rapid updates must continue from the currently visible state.
+- Preserve native keyboard, focus, accessibility, and checked/clicked semantics.
 - Keep the recording status pulse as the only looping opacity animation.
-- Do not add third-party animation dependencies or decorative movement.
-- Rebuild, freshly reinstall, verify the user service, compare executable hashes, and inspect both themes.
+- Add no third-party animation dependency and no decorative motion.
+- Rebuild and freshly reinstall after implementation.
 
 ---
 
 ### Task 1: Bundle and Register Geist Typography
 
 **Files:**
-- Replace: `src/soundflow/assets/fonts/Roboto-Regular.ttf`
-- Replace: `src/soundflow/assets/fonts/Roboto-Medium.ttf`
-- Replace: `src/soundflow/assets/fonts/Roboto-Bold.ttf`
-- Replace: `src/soundflow/assets/fonts/ROBOTO-LICENSE.txt`
-- Create: `src/soundflow/assets/fonts/Geist-Regular.ttf`
-- Create: `src/soundflow/assets/fonts/Geist-Medium.ttf`
-- Create: `src/soundflow/assets/fonts/Geist-SemiBold.ttf`
-- Create: `src/soundflow/assets/fonts/Geist-Bold.ttf`
-- Create: `src/soundflow/assets/fonts/GeistMono-Regular.ttf`
-- Create: `src/soundflow/assets/fonts/GeistMono-Medium.ttf`
-- Create: `src/soundflow/assets/fonts/GeistMono-SemiBold.ttf`
-- Create: `src/soundflow/assets/fonts/GEIST-OFL.txt`
+- Add: `src/soundflow/assets/fonts/Geist-Regular.ttf`
+- Add: `src/soundflow/assets/fonts/Geist-Medium.ttf`
+- Add: `src/soundflow/assets/fonts/Geist-SemiBold.ttf`
+- Add: `src/soundflow/assets/fonts/Geist-Bold.ttf`
+- Add: `src/soundflow/assets/fonts/GeistMono-Regular.ttf`
+- Add: `src/soundflow/assets/fonts/GeistMono-Medium.ttf`
+- Add: `src/soundflow/assets/fonts/GEIST-OFL.txt`
+- Delete: `src/soundflow/assets/fonts/Roboto-Regular.ttf`
+- Delete: `src/soundflow/assets/fonts/Roboto-Medium.ttf`
+- Delete: `src/soundflow/assets/fonts/Roboto-Bold.ttf`
+- Delete: `src/soundflow/assets/fonts/ROBOTO-LICENSE.txt`
 - Modify: `src/soundflow/design/fonts.py`
-- Modify: `tests/test_fonts.py`
+- Test: `tests/test_fonts.py`
 
 **Interfaces:**
-- Produces: `DISPLAY_FONT = "Geist"`.
-- Produces: `BODY_FONT = "Geist"`.
-- Produces: `MONO_FONT = "Geist Mono"`.
-- Preserves: `register_application_fonts() -> tuple[int, ...]`.
+- Consumes: official `vercel/geist-font` tag `v1.7.2`, commit `a73329da8fc62afc917f796555202e4997f79b7c`.
+- Produces: `DISPLAY_FONT = "Geist"`, `BODY_FONT = "Geist"`, and `MONO_FONT = "Geist Mono"`.
+- Produces: `register_application_fonts() -> tuple[int, ...]` registering six static TTF faces.
 
-- [ ] **Step 1: Write failing typography and asset tests**
+- [ ] **Step 1: Write failing Geist registration and asset tests**
 
-Replace the Roboto test with assertions:
+Replace the Roboto test with:
 
 ```python
-def test_geist_is_the_shared_bundled_application_font(self):
+def test_geist_is_the_bundled_application_font(self):
     font_ids = register_application_fonts()
 
     self.assertEqual(BODY_FONT, "Geist")
     self.assertEqual(DISPLAY_FONT, "Geist")
     self.assertEqual(MONO_FONT, "Geist Mono")
-    self.assertGreaterEqual(len(font_ids), 7)
+    self.assertEqual(len(font_ids), 6)
     self.assertIn("Geist", QFontDatabase.families())
     self.assertIn("Geist Mono", QFontDatabase.families())
 ```
 
-Add an asset-contract test:
+Add an asset-boundary test:
 
 ```python
-def test_only_geist_font_assets_and_license_are_bundled(self):
-    font_dir = Path(fonts.__file__).resolve().parents[1] / "assets" / "fonts"
-    names = {item.name for item in font_dir.iterdir()}
+def test_only_geist_font_assets_are_bundled(self):
+    font_dir = (
+        Path(__file__).resolve().parents[1]
+        / "src" / "soundflow" / "assets" / "fonts"
+    )
+    names = {path.name for path in font_dir.iterdir()}
     self.assertEqual(
         names,
         {
+            "GEIST-OFL.txt",
             "Geist-Regular.ttf",
             "Geist-Medium.ttf",
             "Geist-SemiBold.ttf",
             "Geist-Bold.ttf",
             "GeistMono-Regular.ttf",
             "GeistMono-Medium.ttf",
-            "GeistMono-SemiBold.ttf",
-            "GEIST-OFL.txt",
         },
     )
-    self.assertIn("SIL OPEN FONT LICENSE", (
-        font_dir / "GEIST-OFL.txt"
-    ).read_text(encoding="utf-8").upper())
+    self.assertFalse(any("Roboto" in name for name in names))
 ```
 
-- [ ] **Step 2: Run the font tests and verify RED**
+- [ ] **Step 2: Run font tests and verify RED**
 
 ```bash
 PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
   python3 -m unittest tests.test_fonts -v
 ```
 
-Expected: failures report the current Roboto constants and asset names.
+Expected: failures show Roboto constants/assets and missing Geist registrations.
 
-- [ ] **Step 3: Fetch and verify the official release**
+- [ ] **Step 3: Import the pinned official assets**
+
+Use the already inspected official tag, or fetch it if `/tmp/geist-font-v1.7.2` is absent:
 
 ```bash
-curl -fsSL \
-  https://github.com/vercel/geist-font/releases/download/v1.7.2/geist-font-v1.7.2.zip \
-  -o /tmp/geist-font-v1.7.2.zip
-printf '%s  %s\n' \
-  7fc800d2ac6b92844895196e5041aca55d814c15db70c44f79b3b83ab82b04e2 \
-  /tmp/geist-font-v1.7.2.zip | sha256sum --check
-rm -rf /tmp/soundflow-geist-font
-mkdir -p /tmp/soundflow-geist-font
-unzip -q /tmp/geist-font-v1.7.2.zip -d /tmp/soundflow-geist-font
+git clone --depth 1 --branch v1.7.2 \
+  https://github.com/vercel/geist-font.git /tmp/geist-font-v1.7.2
 ```
 
-Expected: checksum verification prints `OK`.
+Copy these exact files:
 
-- [ ] **Step 4: Replace the bundled font assets**
-
-Copy these exact upstream files into `src/soundflow/assets/fonts/`:
-
-```text
-geist-font/Geist/ttf/Geist-Regular.ttf
-geist-font/Geist/ttf/Geist-Medium.ttf
-geist-font/Geist/ttf/Geist-SemiBold.ttf
-geist-font/Geist/ttf/Geist-Bold.ttf
-geist-font/GeistMono/ttf/GeistMono-Regular.ttf
-geist-font/GeistMono/ttf/GeistMono-Medium.ttf
-geist-font/GeistMono/ttf/GeistMono-SemiBold.ttf
-geist-font/OFL.txt
+```bash
+cp /tmp/geist-font-v1.7.2/fonts/Geist/ttf/Geist-Regular.ttf \
+  src/soundflow/assets/fonts/
+cp /tmp/geist-font-v1.7.2/fonts/Geist/ttf/Geist-Medium.ttf \
+  src/soundflow/assets/fonts/
+cp /tmp/geist-font-v1.7.2/fonts/Geist/ttf/Geist-SemiBold.ttf \
+  src/soundflow/assets/fonts/
+cp /tmp/geist-font-v1.7.2/fonts/Geist/ttf/Geist-Bold.ttf \
+  src/soundflow/assets/fonts/
+cp /tmp/geist-font-v1.7.2/fonts/GeistMono/ttf/GeistMono-Regular.ttf \
+  src/soundflow/assets/fonts/
+cp /tmp/geist-font-v1.7.2/fonts/GeistMono/ttf/GeistMono-Medium.ttf \
+  src/soundflow/assets/fonts/
+cp /tmp/geist-font-v1.7.2/OFL.txt \
+  src/soundflow/assets/fonts/GEIST-OFL.txt
 ```
 
-Remove the three tracked Roboto TTF files and `ROBOTO-LICENSE.txt`. Rename the copied license to `GEIST-OFL.txt`. Do not copy italic, pixel, webfont, or variable-font files.
+Remove the four replaced Roboto assets only after the Geist files exist.
 
-- [ ] **Step 5: Register the Geist families**
+- [ ] **Step 4: Register the six Geist faces**
 
-Update `register_application_fonts` to iterate over:
+In `fonts.py`, update the registration loop:
 
 ```python
-(
+for filename in (
     "Geist-Regular.ttf",
     "Geist-Medium.ttf",
     "Geist-SemiBold.ttf",
     "Geist-Bold.ttf",
     "GeistMono-Regular.ttf",
     "GeistMono-Medium.ttf",
-    "GeistMono-SemiBold.ttf",
 )
 ```
 
@@ -154,36 +147,41 @@ BODY_FONT = "Geist"
 MONO_FONT = "Geist Mono"
 ```
 
-Update its docstring to describe bundled Geist families. Keep the application-instance guards and font ID caching unchanged.
+Update docstrings from Roboto to Geist and retain the cached tuple behavior.
 
-- [ ] **Step 6: Run typography tests and commit**
+- [ ] **Step 5: Verify typography and commit**
 
 ```bash
 PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
   python3 -m unittest tests.test_fonts tests.test_design -v
+rg -n "Roboto" src packaging tests
+git diff --check
+```
+
+Expected: tests pass and the Roboto search returns no matches.
+
+```bash
 git add src/soundflow/assets/fonts src/soundflow/design/fonts.py \
   tests/test_fonts.py
 git commit -m "Adopt Geist typography"
 ```
 
-Expected: all invoked tests pass; the commit contains the seven Geist faces, Geist license, registration changes, tests, and Roboto deletions.
-
 ---
 
-### Task 2: Animate Toggle Thumb Motion
+### Task 2: Animate Toggle Thumb Movement
 
 **Files:**
 - Modify: `src/soundflow/design/spacing.py`
 - Modify: `src/soundflow/design/__init__.py`
 - Modify: `src/soundflow/ui/widgets/toggle_switch.py`
-- Modify: `tests/test_toggle_switch.py`
+- Test: `tests/test_toggle_switch.py`
 
 **Interfaces:**
 - Produces: `ANIMATION_CONTROL = 160`.
-- Produces: `ToggleSwitch.thumb_position: float`, a Qt property from `0.0` to `1.0`.
-- Preserves: native `QCheckBox` checked state, signals, focus, mouse, keyboard, and accessibility behavior.
+- Produces: Qt property `ToggleSwitch.thumbPosition: float` in the inclusive range `0.0..1.0`.
+- Produces: `ToggleSwitch._thumb_animation: QPropertyAnimation`.
 
-- [ ] **Step 1: Write failing toggle animation tests**
+- [ ] **Step 1: Write failing toggle motion tests**
 
 Import `QAbstractAnimation`, `QEasingCurve`, `QTest`, and `ANIMATION_CONTROL`. Add:
 
@@ -195,20 +193,20 @@ def test_visible_switch_animates_thumb_to_checked_endpoint(self):
 
     switch.setChecked(True)
 
-    self.assertEqual(
-        switch._thumb_animation.state(),
-        QAbstractAnimation.State.Running,
-    )
     self.assertEqual(switch._thumb_animation.duration(), ANIMATION_CONTROL)
     self.assertEqual(
         switch._thumb_animation.easingCurve().type(),
         QEasingCurve.Type.OutCubic,
     )
+    self.assertEqual(
+        switch._thumb_animation.state(),
+        QAbstractAnimation.State.Running,
+    )
     QTest.qWait(ANIMATION_CONTROL + 30)
-    self.assertAlmostEqual(switch.thumb_position, 1.0)
+    self.assertAlmostEqual(switch.thumbPosition, 1.0)
 ```
 
-Add an interruption test that checks the thumb is between endpoints halfway through the first animation, toggles back, waits, and asserts `thumb_position == 0.0`.
+Add an interruption test that checks the thumb is between endpoints, toggles back, waits, and asserts `0.0`. Retain the mouse and Space-key native-state test.
 
 - [ ] **Step 2: Run toggle tests and verify RED**
 
@@ -217,186 +215,132 @@ PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
   python3 -m unittest tests.test_toggle_switch -v
 ```
 
-Expected: failures report missing `ANIMATION_CONTROL`, property, and animation.
+Expected: missing animation token/property failures.
 
 - [ ] **Step 3: Add the shared control duration**
 
-In `spacing.py`:
+Set `ANIMATION_CONTROL = 160` beside the existing duration constants and export it from `soundflow.design`.
+
+- [ ] **Step 4: Implement the animated property**
+
+Use:
 
 ```python
-ANIMATION_FAST = 120
-ANIMATION_CONTROL = 160
-ANIMATION_NORMAL = 200
-ANIMATION_SLOW = 320
+from PySide6.QtCore import (
+    Property, QEasingCurve, QPropertyAnimation, QSize, Qt
+)
 ```
 
-Export `ANIMATION_CONTROL` through `soundflow.design.__init__`.
-
-- [ ] **Step 4: Implement interruptible thumb interpolation**
-
-Import `Property`, `QEasingCurve`, and `QPropertyAnimation`. Initialize:
+Initialize:
 
 ```python
 self._thumb_position = 1.0 if self.isChecked() else 0.0
 self._thumb_animation = QPropertyAnimation(
-    self, b"thumb_position", self
+    self, b"thumbPosition", self
 )
 self._thumb_animation.setDuration(ANIMATION_CONTROL)
 self._thumb_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 self.toggled.connect(self._animate_thumb)
 ```
 
-Provide clamped getter/setter methods, call `update()` in the setter, and expose:
+Expose a clamped property whose setter calls `update()`. `_animate_thumb` must stop the current animation, snap immediately when the widget is not visible, and otherwise animate from the current property value to `1.0` or `0.0`.
 
-```python
-thumb_position = Property(
-    float,
-    _get_thumb_position,
-    _set_thumb_position,
-)
-```
-
-When hidden, set the endpoint immediately. When visible, stop the current animation, start from the current property value, and animate to `1.0` or `0.0`. In `paintEvent`, calculate:
+Paint the thumb with:
 
 ```python
 x = 5 + round(18 * self._thumb_position)
 ```
 
-- [ ] **Step 5: Run toggle and dependent preference tests**
+Keep native state, hit area, focus, palette, and accessibility behavior unchanged.
+
+- [ ] **Step 5: Verify and commit**
 
 ```bash
-PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen python3 -m unittest \
-  tests.test_toggle_switch tests.test_general_tab_ui \
+PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
+  python3 -m unittest tests.test_toggle_switch tests.test_general_tab_ui \
   tests.test_shortcuts_tab_ui tests.test_playback_tab_ui -v
+git diff --check
 git add src/soundflow/design/spacing.py src/soundflow/design/__init__.py \
   src/soundflow/ui/widgets/toggle_switch.py tests/test_toggle_switch.py
 git commit -m "Animate preference toggles"
 ```
 
-Expected: all invoked tests pass and rapid toggles end at the latest checked state.
-
 ---
 
-### Task 3: Shared Button and Status Feedback
+### Task 3: Add Shared Button Press Feedback
 
 **Files:**
 - Create: `src/soundflow/design/motion.py`
 - Modify: `src/soundflow/design/__init__.py`
 - Modify: `src/soundflow/app.py`
-- Modify: `src/soundflow/ui/widgets/status_bar.py`
 - Create: `tests/test_button_motion.py`
-- Modify: `tests/test_motion_ui.py`
 
 **Interfaces:**
-- Produces: `install_motion_feedback(application: QApplication) -> ButtonPressAnimator`.
-- Produces: one application-owned `ButtonPressAnimator` event filter.
-- Produces: `StatusBar._label_animation`, a 200 ms non-looping fade.
+- Produces: `ButtonMotionFilter(QObject)`.
+- Produces: `install_button_motion(application: QApplication) -> ButtonMotionFilter`.
+- Consumes: `ANIMATION_FAST = 120`.
 
-- [ ] **Step 1: Write failing button feedback tests**
+- [ ] **Step 1: Write failing button motion tests**
 
-Create `tests/test_button_motion.py` with an offscreen application. Install motion feedback, create a visible enabled `QPushButton`, connect `clicked`, and use `QTest.mouseClick`. Assert:
+Create Qt offscreen tests that install the filter on the test application. For an enabled `QPushButton`, send a mouse click and assert:
 
 ```python
-self.assertEqual(clicks, [True])
-self.assertEqual(animator.animation_for(button).duration(), ANIMATION_FAST)
+self.assertEqual(button_clicks, [True])
+animation = motion.animation_for(button)
+self.assertIsNotNone(animation)
+self.assertEqual(animation.duration(), ANIMATION_FAST)
 self.assertEqual(
-    animator.animation_for(button).easingCurve().type(),
+    animation.easingCurve().type(),
     QEasingCurve.Type.OutCubic,
 )
 ```
 
-Wait `ANIMATION_FAST + 30`, then assert `button.graphicsEffect() is None`. Add a disabled-button test asserting no animation is registered.
+Wait `ANIMATION_FAST + 30`, then assert the temporary graphics effect is removed. Add a disabled-button test asserting no click and no animation. Add rapid double-click coverage asserting the newest animation replaces the prior one without suppressing either click.
 
-- [ ] **Step 2: Write failing status fade tests**
-
-Extend `tests/test_motion_ui.py`:
-
-```python
-status = StatusBar()
-status.show()
-status.set_status("Downloading model", "connecting")
-self.assertEqual(status._label_animation.duration(), ANIMATION_NORMAL)
-self.assertEqual(status._label_animation.loopCount(), 1)
-self.assertEqual(
-    status._label_animation.state(),
-    QAbstractAnimation.State.Running,
-)
-QTest.qWait(ANIMATION_NORMAL + 30)
-self.assertEqual(status._label_effect.opacity(), 1.0)
-```
-
-Add an interrupted update that changes the message twice and verifies the second text and final opacity.
-
-- [ ] **Step 3: Run motion tests and verify RED**
+- [ ] **Step 2: Run tests and verify RED**
 
 ```bash
-PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen python3 -m unittest \
-  tests.test_button_motion tests.test_motion_ui -v
+PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
+  python3 -m unittest tests.test_button_motion -v
 ```
 
-Expected: import or attribute failures identify the missing shared controller and label fade.
+Expected: import failure because the shared motion module does not exist.
 
-- [ ] **Step 4: Implement the button event filter**
+- [ ] **Step 3: Implement the event-filter helper**
 
-In `soundflow.design.motion`, create a `QObject` event filter that:
+`ButtonMotionFilter.eventFilter` must return `False` for every event. On enabled `QPushButton` mouse release or Space/Return key release:
 
-- recognizes mouse press plus Space/Return/Enter key press on enabled `QPushButton` objects;
-- skips buttons that already own a non-controller graphics effect;
-- stops and replaces any existing feedback animation for the same button;
-- assigns a `QGraphicsOpacityEffect` at opacity `0.72`;
-- animates opacity to `1.0` over `ANIMATION_FAST` with `OutCubic`;
-- removes the graphics effect and dictionary entry only if the finishing animation is still current; and
-- returns `False` so Qt continues delivering the original event.
+1. stop and detach the prior animation/effect for that button;
+2. attach a new `QGraphicsOpacityEffect` at opacity `0.72`;
+3. animate opacity to `1.0` over `ANIMATION_FAST` with OutCubic;
+4. remove the effect and per-button references on finish.
 
-Expose `animation_for(button)` for deterministic testing. Cache one controller on the `QApplication` object so repeated installation returns the same instance.
+Use dictionaries keyed by button for active animations/effects and connect `destroyed` to cleanup. Expose `animation_for(button)` only as a read-only testable query.
 
-- [ ] **Step 5: Install button motion at startup**
+`install_button_motion` parents one filter to the application, installs it once, and returns the existing instance on repeated calls.
 
-Export `install_motion_feedback` from `soundflow.design`. In `app.py`, call it immediately after `register_application_fonts()`:
+- [ ] **Step 4: Install motion at application startup**
+
+After font registration in `app.main`, call:
 
 ```python
-from soundflow.design import (
-    install_motion_feedback,
-    register_application_fonts,
-)
-
-register_application_fonts()
-install_motion_feedback(application)
+from soundflow.design import install_button_motion
+install_button_motion(application)
 ```
 
-- [ ] **Step 6: Animate changed status messages**
+No page or button business logic changes.
 
-Give `_status_label` its own `QGraphicsOpacityEffect` and `QPropertyAnimation`. Configure duration `ANIMATION_NORMAL`, end value `1.0`, easing `OutCubic`, and one loop. In `set_status`, animate only when the label text changes:
-
-```python
-running = (
-    self._label_animation.state()
-    == QPropertyAnimation.State.Running
-)
-start = self._label_effect.opacity() if running else 0.35
-self._label_animation.stop()
-self._status_label.setText(label)
-self._label_effect.setOpacity(start)
-self._label_animation.setStartValue(start)
-self._label_animation.setEndValue(1.0)
-self._label_animation.start()
-```
-
-Keep the independent status-dot pulse behavior unchanged.
-
-- [ ] **Step 7: Run motion tests and commit**
+- [ ] **Step 5: Verify and commit**
 
 ```bash
-PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen python3 -m unittest \
-  tests.test_button_motion tests.test_motion_ui \
-  tests.test_ui_runtime_contracts -v
+PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
+  python3 -m unittest tests.test_button_motion tests.test_ui_runtime_contracts \
+  tests.test_modular_ui -v
+git diff --check
 git add src/soundflow/design/motion.py src/soundflow/design/__init__.py \
-  src/soundflow/app.py src/soundflow/ui/widgets/status_bar.py \
-  tests/test_button_motion.py tests/test_motion_ui.py
-git commit -m "Add restrained interface feedback"
+  src/soundflow/app.py tests/test_button_motion.py
+git commit -m "Add subtle button motion feedback"
 ```
-
-Expected: all invoked tests pass, clicks remain immediate, effects clean up, and the existing recording pulse contract remains green.
 
 ---
 
@@ -407,43 +351,38 @@ Expected: all invoked tests pass, clicks remain immediate, effects clean up, and
 - Modify: `tests/test_model_manager_ui.py`
 
 **Interfaces:**
-- Consumes: `ANIMATION_CONTROL`.
-- Produces: one `QPropertyAnimation` per `_ModelRow.progress`.
-- Preserves: immediate `downloaded MB / total MB` text and exact byte accounting.
+- Consumes: `ANIMATION_CONTROL = 160`.
+- Produces: one `QPropertyAnimation` per `_ModelRow`, targeting its progress bar `value`.
+- Preserves: immediate `downloaded MB / total MB` text.
 
-- [ ] **Step 1: Write failing determinate progress tests**
+- [ ] **Step 1: Write failing determinate and interruption tests**
 
-In `test_progress_and_errors_are_inline`, after emitting a valid byte update, assert:
+After showing `225.0 MB / 500.0 MB`, assert:
 
 ```python
-self.assertEqual(row.animation.duration(), ANIMATION_CONTROL)
+animation = widget._rows["tiny"].progress_animation
+self.assertEqual(animation.duration(), ANIMATION_CONTROL)
 self.assertEqual(
-    row.animation.state(),
-    QAbstractAnimation.State.Running,
+    animation.state(), QAbstractAnimation.State.Running
 )
 self.assertEqual(progress.format(), "225.0 MB / 500.0 MB")
-QTest.qWait(ANIMATION_CONTROL + 30)
-self.assertEqual(progress.value(), 45)
 ```
 
-Add a rapid-update assertion: issue fill 20, wait briefly, issue fill 70, then wait and assert the bar ends at 70 while its format immediately displays the newest byte values.
+Wait for completion and assert `progress.value() == 45`. Add a rapid `45 -> 80` update and assert the animation ends at 80. For unknown totals, Verifying, error, cancellation, and success, assert the animation is stopped before range/hide changes.
 
-- [ ] **Step 2: Write failing stop-state tests**
-
-Start a determinate progress animation, then call unknown progress, error, cancellation, and success helpers in separate assertions. Verify the row animation is stopped before the bar becomes indeterminate or hidden.
-
-- [ ] **Step 3: Run model-manager tests and verify RED**
+- [ ] **Step 2: Run focused tests and verify RED**
 
 ```bash
-PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
-  python3 -m unittest tests.test_model_manager_ui -v
+PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen python3 -m unittest \
+  tests.test_model_manager_ui.ModelManagerUiTests.test_progress_and_errors_are_inline \
+  -v
 ```
 
-Expected: failures report the missing row animation and immediate fill assignment.
+Expected: `_ModelRow` has no progress animation and values jump immediately.
 
-- [ ] **Step 4: Add per-row value animations**
+- [ ] **Step 3: Add row-owned progress animations**
 
-Extend `_ModelRow` with `animation: QPropertyAnimation`. Create it with the progress bar as target and parent:
+Add `progress_animation: QPropertyAnimation` to `_ModelRow`. Create it with the progress bar as target and parent:
 
 ```python
 animation = QPropertyAnimation(progress, b"value", progress)
@@ -451,32 +390,92 @@ animation.setDuration(ANIMATION_CONTROL)
 animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 ```
 
-For determinate Downloading events:
+For determinate Downloading updates, stop the current animation, set its start value to the visible bar value and end value to the newest clamped fill, update the MB format immediately, then start. For non-download phases and unknown totals, stop the animation before changing range/value/format. Stop it before success, cancellation, or error hides the bar.
 
-```python
-row.animation.stop()
-row.animation.setStartValue(row.progress.value())
-row.animation.setEndValue(max(0, min(100, int(fill))))
-row.animation.start()
-```
-
-Update the MB format before starting. For all non-download phases and unknown totals, stop the animation before setting the range/value. Stop it before hiding progress in success, cancellation, and error paths.
-
-- [ ] **Step 5: Run model-manager and motion tests, then commit**
+- [ ] **Step 4: Verify and commit**
 
 ```bash
-PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen python3 -m unittest \
-  tests.test_model_manager_ui tests.test_motion_ui tests.test_design -v
+PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
+  python3 -m unittest tests.test_model_manager_ui tests.test_model_service \
+  tests.test_design -v
+git diff --check
 git add src/soundflow/preferences/model_manager.py \
   tests/test_model_manager_ui.py
-git commit -m "Animate model download progress"
+git commit -m "Smooth model download progress"
 ```
-
-Expected: all invoked tests pass; MB text updates immediately while fill transitions remain smooth and interruptible.
 
 ---
 
-### Task 5: Full Verification, Package, Install, and Visual Review
+### Task 5: Fade New Persistent Status Messages
+
+**Files:**
+- Modify: `src/soundflow/ui/widgets/status_bar.py`
+- Modify: `tests/test_motion_ui.py`
+
+**Interfaces:**
+- Consumes: `ANIMATION_NORMAL = 200`.
+- Produces: `StatusBar._label_effect: QGraphicsOpacityEffect`.
+- Produces: `StatusBar._label_animation: QPropertyAnimation`.
+
+- [ ] **Step 1: Write failing status fade tests**
+
+After changing status text, assert:
+
+```python
+self.assertEqual(status._label_animation.duration(), ANIMATION_NORMAL)
+self.assertEqual(
+    status._label_animation.easingCurve().type(),
+    QEasingCurve.Type.OutCubic,
+)
+self.assertEqual(
+    status._label_animation.state(),
+    QAbstractAnimation.State.Running,
+)
+```
+
+Change the message again before completion, wait, and assert the second text remains and opacity ends at `1.0`. Calling `set_status` with unchanged text must not restart the label fade. Existing recording pulse assertions must remain unchanged.
+
+- [ ] **Step 2: Run motion tests and verify RED**
+
+```bash
+PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
+  python3 -m unittest tests.test_motion_ui -v
+```
+
+Expected: the label fade effect and animation do not exist.
+
+- [ ] **Step 3: Implement status-label fade**
+
+Attach a dedicated opacity effect to `_status_label` and configure a finite OutCubic animation. In `set_status`, only when the text changes:
+
+```python
+running = (
+    self._label_animation.state()
+    == QPropertyAnimation.State.Running
+)
+start = self._label_effect.opacity() if running else 0.55
+self._label_animation.stop()
+self._status_label.setText(label)
+self._label_animation.setStartValue(start)
+self._label_animation.setEndValue(1.0)
+self._label_animation.start()
+```
+
+Keep the status-dot pulse on its separate effect. Repeated state-only changes update the dot without restarting the text fade.
+
+- [ ] **Step 4: Verify and commit**
+
+```bash
+PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen \
+  python3 -m unittest tests.test_motion_ui tests.test_ui_runtime_contracts -v
+git diff --check
+git add src/soundflow/ui/widgets/status_bar.py tests/test_motion_ui.py
+git commit -m "Fade persistent status updates"
+```
+
+---
+
+### Task 6: Regression, Packaging, Installation, and Visual Review
 
 **Files:**
 - Verify: `src/soundflow/assets/fonts/`
@@ -486,10 +485,9 @@ Expected: all invoked tests pass; MB text updates immediately while fill transit
 - Verify: `tests/`
 
 **Interfaces:**
-- Consumes: Tasks 1–4.
-- Produces: a tested, packaged, freshly installed Soundflow application with reviewed typography and motion.
+- Produces: a tested and freshly installed Soundflow application with Geist typography and restrained motion.
 
-- [ ] **Step 1: Run focused typography and motion regression**
+- [ ] **Step 1: Run focused typography and motion coverage**
 
 ```bash
 PYTHONPATH=.vendor/python:src QT_QPA_PLATFORM=offscreen python3 -m unittest \
@@ -516,15 +514,16 @@ done
 
 Expected: every invoked module passes.
 
-- [ ] **Step 3: Compile and inspect repository consistency**
+- [ ] **Step 3: Compile, inspect assets, and validate the diff**
 
 ```bash
 PYTHONPATH=.vendor/python:src python3 -m compileall -q src tests
+rg -n "Roboto" src packaging tests
+find src/soundflow/assets/fonts -maxdepth 1 -type f -printf '%f\n' | sort
 git diff --check
-rg -n "Roboto|ROBOTO" src packaging tests && exit 1 || true
 ```
 
-Expected: compilation and diff checks pass, and no Roboto references remain.
+Expected: no Roboto matches, exactly seven Geist font/license assets, and no whitespace errors.
 
 - [ ] **Step 4: Build and freshly reinstall**
 
@@ -539,32 +538,19 @@ sha256sum dist/Soundflow/Soundflow \
   "$HOME/.local/share/soundflow/Soundflow"
 ```
 
-Expected: PyInstaller succeeds, the service is `enabled` and `active`, and executable hashes match.
+Expected: build succeeds, the service is `enabled` and `active`, and executable hashes match.
 
-- [ ] **Step 5: Verify packaged Geist assets**
+- [ ] **Step 5: Capture and inspect both themes**
 
-```bash
-find dist/Soundflow/_internal/soundflow/assets/fonts \
-  -maxdepth 1 -type f -printf '%f\n' | sort
-```
+Capture light- and dark-theme screenshots of Preferences, History, Dictation, and the model-download row. Confirm Geist hierarchy, readable mono technical values, compact layout, and no clipping.
 
-Expected: exactly the seven Geist TTF files and `GEIST-OFL.txt`; no Roboto asset is present.
+Exercise navigation, toggle, button, status, and download-progress interactions. Confirm motion is subtle, ends at the correct state, and remains smooth during rapid repeated input.
 
-- [ ] **Step 6: Capture and inspect light/dark UI**
-
-Capture Preferences, History, Dictation, and a model-download row in both themes. Verify:
-
-- Geist Sans renders page, section, body, and control text;
-- Geist Mono renders shortcuts, paths, model sizes, and MB progress;
-- weights remain legible without excessive boldness;
-- text is not clipped at compact control heights;
-- toggle movement, button feedback, status fade, and progress interpolation are restrained and smooth; and
-- no persistent opacity effect or stale animation remains after completion.
-
-- [ ] **Step 7: Confirm user-owned screenshots remain untouched**
+- [ ] **Step 6: Preserve user files and report the final state**
 
 ```bash
 git status --short
+git log -8 --oneline
 ```
 
-Expected: only the user's pre-existing `5db20f0e-b172-4f45-a323-c99fbc5d68df.png` and `screenshots/` paths remain untracked.
+Expected: only the user's existing `5db20f0e-b172-4f45-a323-c99fbc5d68df.png` and `screenshots/` remain untracked.
