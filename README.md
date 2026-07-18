@@ -121,8 +121,8 @@ Default locations:
 - Linux: `~/.local/share/soundflow/models/faster-whisper-small/`
 - Windows: `%LOCALAPPDATA%\Soundflow\models\faster-whisper-small\`
 
-You can instead select a directory under **Settings → Recognition**, or set
-`SOUNDFLOW_MODEL_PATH`.
+You can instead select a directory under
+**Preferences → Dictation → Model directory**, or set `SOUNDFLOW_MODEL_PATH`.
 
 The directory must contain `model.bin`, `config.json`, tokenizer data, and the model vocabulary.
 `small` is the recommended balanced model; `base` is lighter. Soundflow supplies the directory
@@ -167,8 +167,9 @@ creates `~/.local/bin/soundflow`. To remove it later:
 - Completed phrases are sent to faster-whisper on a worker thread.
 - Audio exists only in memory and is discarded after processing.
 - Transcripts are not saved unless the user exports them.
-- There is no telemetry or update checker.
-- The application does not include a network client.
+- Transcription stays local; audio and transcript content are not sent to a network service.
+- Network access occurs only when the user explicitly requests a model download.
+- There is no telemetry or automatic update behavior.
 
 The first model load can take several seconds. Later phrases reuse the loaded model.
 

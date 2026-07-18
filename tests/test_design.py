@@ -73,25 +73,35 @@ class DesignTokenTests(unittest.TestCase):
     def test_vertical_scrollbars_hide_native_arrow_steppers(self) -> None:
         from soundflow.design import stylesheet
 
+        line_selector = (
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical"
+        )
+        arrow_selector = (
+            "QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical"
+        )
         for sheet in (stylesheet(True), stylesheet(False)):
-            self.assertIn("QScrollBar::up-arrow:vertical", sheet)
-            self.assertIn("QScrollBar::down-arrow:vertical", sheet)
-            self.assertIn(
-                "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical",
-                sheet,
-            )
-            self.assertIn("min-height: 24px", sheet)
+            line_rule = sheet.split(line_selector, 1)[1].split("}", 1)[0]
+            self.assertIn("height: 0;", line_rule)
+            self.assertIn("border: 0;", line_rule)
+
+            arrow_rule = sheet.split(arrow_selector, 1)[1].split("}", 1)[0]
+            self.assertIn("width: 0;", arrow_rule)
+            self.assertIn("height: 0;", arrow_rule)
 
     def test_disabled_model_delete_is_neutral_in_both_themes(self) -> None:
         from soundflow.design import stylesheet
 
         selector = 'QPushButton[objectName^="modelDelete:"]:disabled'
-        for sheet in (stylesheet(True), stylesheet(False)):
-            self.assertIn(selector, sheet)
+        themes = (
+            (stylesheet(True), "#A9A9B2", "#29292F", "#0A0A0C", "#F0787F"),
+            (stylesheet(False), "#647089", "#D7DEEA", "#FFFFFF", "#C4515B"),
+        )
+        for sheet, muted, border, panel, destructive in themes:
             block = sheet.split(selector, 1)[1].split("}", 1)[0]
-            self.assertIn("color:", block)
-            self.assertIn("background:", block)
-            self.assertIn("border:", block)
+            self.assertIn(f"color: {muted};", block)
+            self.assertIn(f"background: {panel};", block)
+            self.assertIn(f"border: 1px solid {border};", block)
+            self.assertNotIn(destructive, block)
 
     def test_spacing_grid_is_4px(self) -> None:
         from soundflow.design.spacing import SPACE_1, SPACE_2, SPACE_3, SPACE_4
