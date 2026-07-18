@@ -113,10 +113,18 @@ class ModelManagerUiTests(unittest.TestCase):
             widget._show_progress("tiny", "Downloading", 42)
             progress = widget.findChild(QProgressBar, "modelProgress:tiny")
             self.assertEqual(progress.value(), 42)
+            self.assertTrue(progress.isTextVisible())
+            self.assertEqual(progress.format(), "%p%")
+            self.assertEqual(progress.text(), "42%")
             self.assertEqual(
                 widget.findChild(QLabel, "modelPhase:tiny").text(),
                 "Downloading",
             )
+
+            widget._show_progress("tiny", "Downloading", 150)
+            self.assertEqual(progress.text(), "100%")
+            widget._show_progress("tiny", "Downloading", -5)
+            self.assertEqual(progress.text(), "0%")
 
             widget._show_error("tiny", "Network unavailable")
 

@@ -334,7 +334,8 @@ class ModelManagerWidget(QWidget):
         progress.setObjectName(f"modelProgress:{spec.model_id}")
         progress.setAccessibleName(f"{spec.display_name} download progress")
         progress.setRange(0, 100)
-        progress.setTextVisible(False)
+        progress.setFormat("%p%")
+        progress.setTextVisible(True)
         progress.hide()
         progress_row.addWidget(progress, 1)
 

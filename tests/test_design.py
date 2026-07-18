@@ -62,13 +62,17 @@ class DesignTokenTests(unittest.TestCase):
         for sheet in (stylesheet(True), stylesheet(False)):
             self.assertIn("#modelManagerCard", sheet)
             self.assertIn('[objectName^="modelRow:"]', sheet)
-            self.assertIn('QProgressBar[objectName^="modelProgress:"]', sheet)
+            progress_selector = 'QProgressBar[objectName^="modelProgress:"]'
+            self.assertIn(progress_selector, sheet)
+            progress_rule = sheet.split(progress_selector, 1)[1].split("}", 1)[0]
+            self.assertIn("min-height: 16px;", progress_rule)
+            self.assertIn("max-height: 16px;", progress_rule)
+            self.assertIn("color: #FFFFFF;", progress_rule)
+            self.assertIn("text-align: center;", progress_rule)
             self.assertIn('QPushButton[objectName^="modelAction:"]:focus', sheet)
             self.assertIn('QPushButton[objectName^="modelDelete:"]', sheet)
             self.assertIn("min-height: 20px", sheet)
             self.assertIn("max-height: 20px", sheet)
-            self.assertIn("min-height: 4px", sheet)
-            self.assertIn("max-height: 4px", sheet)
 
     def test_vertical_scrollbars_hide_native_arrow_steppers(self) -> None:
         from soundflow.design import stylesheet

@@ -418,17 +418,19 @@ QPushButton[objectName^="modelDelete:"]:disabled {{
     border: 1px solid {border};
 }}
 QProgressBar[objectName^="modelProgress:"] {{
-    background: {border};
+    background: {muted};
     border: 0;
-    border-radius: 2px;
-    min-height: 4px;
-    max-height: 4px;
-    color: transparent;
+    border-radius: 4px;
+    min-height: 16px;
+    max-height: 16px;
+    color: #FFFFFF;
     text-align: center;
+    font-size: 10px;
+    font-weight: 600;
 }}
 QProgressBar[objectName^="modelProgress:"]::chunk {{
     background: {accent};
-    border-radius: 2px;
+    border-radius: 4px;
 }}
 QLineEdit#systemDataPath, QLineEdit#compactPathField {{
     color: {text};
