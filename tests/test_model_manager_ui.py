@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QLabel, QProgressBar, QPushButton
 
 from soundflow.core.settings import Settings
@@ -20,6 +21,7 @@ from soundflow.models.service import (
     ModelManagerError,
     ModelService,
 )
+from soundflow.preferences import model_manager
 from soundflow.preferences.model_manager import (
     ModelDownloadThread,
     ModelManagerWidget,
@@ -274,6 +276,57 @@ class ModelManagerUiTests(unittest.TestCase):
             self.assertLess(elapsed, 0.15)
             self.assertIsNotNone(worker)
             self.assertFalse(worker.isRunning())
+
+    def test_shutdown_retains_worker_when_terminate_does_not_stop_it(self):
+        class TerminationDisabledService(FakeService):
+            def __init__(self, root):
+                super().__init__(root)
+                self.started = threading.Event()
+                self.release = threading.Event()
+
+            def install(self, model_id, *, progress, cancel_event):
+                self.started.set()
+                self.release.wait(0.25)
+                return managed_model_path(model_spec(model_id), self.root)
+
+        with tempfile.TemporaryDirectory() as directory:
+            service = TerminationDisabledService(directory)
+            widget = ModelManagerWidget(Settings(), service=service)
+            widget.findChild(QPushButton, "modelAction:tiny").click()
+            self.assertTrue(service.started.wait(1))
+            worker = widget._worker
+
+            with (
+                patch.object(ModelDownloadThread, "SHUTDOWN_WAIT_MS", 10),
+                patch.object(
+                    ModelDownloadThread,
+                    "TERMINATE_WAIT_MS",
+                    10,
+                    create=True,
+                ),
+                patch.object(ModelDownloadThread, "terminate", autospec=True),
+            ):
+                started = time.monotonic()
+                widget.shutdown()
+                elapsed = time.monotonic() - started
+
+            self.assertLess(elapsed, 0.1)
+            self.assertIsNone(widget._worker)
+            self.assertIsNotNone(worker)
+            self.assertTrue(worker.isRunning())
+            self.assertIsNone(worker.parent())
+            self.assertIn(worker, model_manager._LIVE_WORKERS)
+
+            widget.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            self.app.processEvents()
+            self.assertTrue(worker.isRunning())
+            self.assertIn(worker, model_manager._LIVE_WORKERS)
+
+            service.release.set()
+            self.assertTrue(worker.wait(1000))
+            self.app.processEvents()
+            self.assertNotIn(worker, model_manager._LIVE_WORKERS)
 
     def test_destroying_widget_with_active_worker_does_not_abort(self):
         script = textwrap.dedent(

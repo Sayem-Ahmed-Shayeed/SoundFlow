@@ -26,11 +26,14 @@ from soundflow.models.service import (
     ModelService,
 )
 
+_LIVE_WORKERS: set[ModelDownloadThread] = set()
+
 
 class ModelDownloadThread(QThread):
     """Install one model without blocking Qt's main thread."""
 
     SHUTDOWN_WAIT_MS = 5000
+    TERMINATE_WAIT_MS = 100
 
     phase_changed = Signal(str, int)
     installed = Signal(str)
@@ -42,6 +45,7 @@ class ModelDownloadThread(QThread):
         self._service = service
         self._model_id = model_id
         self._cancel_event = threading.Event()
+        self.finished.connect(self._release_retained)
 
     def cancel(self) -> None:
         self._cancel_event.set()
@@ -54,7 +58,14 @@ class ModelDownloadThread(QThread):
             return
         self.requestInterruption()
         self.terminate()
-        self.wait()
+        if self.wait(self.TERMINATE_WAIT_MS):
+            return
+        self.setParent(None)
+        _LIVE_WORKERS.add(self)
+
+    @Slot()
+    def _release_retained(self) -> None:
+        _LIVE_WORKERS.discard(self)
 
     def run(self) -> None:
         try:
@@ -382,11 +393,12 @@ class ModelManagerWidget(QWidget):
             self._refresh_rows()
 
     def shutdown(self) -> None:
-        """Cancel and briefly join a worker before this widget is destroyed."""
+        """Cancel a worker without allowing shutdown to block indefinitely."""
         worker = self._worker
         if worker is None:
             return
         worker.stop()
+        self.destroyed.disconnect(worker.stop)
         if self._worker is worker:
             self._worker = None
             self._worker_model_id = None
