@@ -70,6 +70,18 @@ class DesignTokenTests(unittest.TestCase):
             self.assertIn("min-height: 4px", sheet)
             self.assertIn("max-height: 4px", sheet)
 
+    def test_vertical_scrollbars_hide_native_arrow_steppers(self) -> None:
+        from soundflow.design import stylesheet
+
+        for sheet in (stylesheet(True), stylesheet(False)):
+            self.assertIn("QScrollBar::up-arrow:vertical", sheet)
+            self.assertIn("QScrollBar::down-arrow:vertical", sheet)
+            self.assertIn(
+                "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical",
+                sheet,
+            )
+            self.assertIn("min-height: 24px", sheet)
+
     def test_spacing_grid_is_4px(self) -> None:
         from soundflow.design.spacing import SPACE_1, SPACE_2, SPACE_3, SPACE_4
         self.assertEqual(SPACE_1, 4)

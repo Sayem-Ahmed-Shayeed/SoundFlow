@@ -663,6 +663,32 @@ QCheckBox::indicator:checked {{
     background: {accent};
     border-color: {accent};
 }}
+QScrollBar:vertical {{
+    background: transparent;
+    width: 10px;
+    margin: 0;
+}}
+QScrollBar::handle:vertical {{
+    background: {border};
+    border-radius: 5px;
+    min-height: 24px;
+}}
+QScrollBar::handle:vertical:hover {{
+    background: {dim};
+}}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+    height: 0;
+    background: transparent;
+    border: 0;
+}}
+QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical {{
+    width: 0;
+    height: 0;
+    background: transparent;
+}}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+    background: transparent;
+}}
 """
 
 
@@ -900,23 +926,6 @@ QToolTip {{
 }}
 
 /* ---------- Scrollbars ---------- */
-QScrollBar:vertical {{
-    background: transparent;
-    width: 10px;
-    margin: 0;
-}}
-QScrollBar::handle:vertical {{
-    background: {BORDER};
-    border-radius: 5px;
-    min-height: 24px;
-}}
-QScrollBar::handle:vertical:hover {{
-    background: {FG_DIM};
-}}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-    height: 0;
-    background: transparent;
-}}
 QScrollBar:horizontal {{
     background: transparent;
     height: 10px;

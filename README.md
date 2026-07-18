@@ -93,10 +93,19 @@ On first launch, approve the global-shortcut prompt and then the keyboard-contro
 stays visible until shortcut setup succeeds. The Home indicator reports connecting, ready,
 recording, transcribing, or setup-required states and provides a retry action when needed.
 
-## Install an offline model
+## Download a Whisper model
 
-Soundflow does not fetch models. Prepare a faster-whisper/CTranslate2 model on a connected staging
-machine, then copy the complete directory to the offline computer.
+Open **Preferences -> Dictation -> Whisper models** and choose Download for Tiny, Base, Small,
+Medium, or Large-v3 Turbo. Downloads run in the background, are validated before use, and become
+active automatically. Installed inactive models can be selected with Use or removed with Delete.
+
+For an existing CTranslate2/faster-whisper directory, use **Model directory -> Browse**. Soundflow
+never deletes custom model directories.
+
+## Prepare an offline installer model
+
+Prepare a faster-whisper/CTranslate2 model on a connected staging machine, then copy the complete
+directory to the offline computer.
 
 For an installer build, prepare the recommended `small` model with:
 
@@ -105,7 +114,7 @@ python scripts/prepare_model.py --model small
 ```
 
 This writes a file-by-file SHA-256 manifest and places the model where the PyInstaller specification
-will include it. Running Soundflow itself never invokes this build-time downloader.
+will include it. The script remains the offline-installer workflow; in-app downloads are separate.
 
 Default locations:
 
