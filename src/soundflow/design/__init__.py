@@ -17,6 +17,7 @@ from .fonts import (
     register_application_fonts,
 )
 from .spacing import (
+    ANIMATION_CONTROL,
     ANIMATION_FAST,
     ANIMATION_NORMAL,
     ANIMATION_SLOW,
@@ -60,6 +61,7 @@ from .theme import (
 )
 
 __all__ = [
+    "ANIMATION_CONTROL",
     "ANIMATION_FAST",
     "ANIMATION_NORMAL",
     "ANIMATION_SLOW",

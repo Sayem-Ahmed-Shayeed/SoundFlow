@@ -47,5 +47,6 @@ SIDEBAR_WIDTH = 216  # retained for any future use; current design drops the sid
 
 # --- Common durations (ms) -------------------------------------------------
 ANIMATION_FAST = 120
+ANIMATION_CONTROL = 160
 ANIMATION_NORMAL = 200
 ANIMATION_SLOW = 320
