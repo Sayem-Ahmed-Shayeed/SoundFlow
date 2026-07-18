@@ -1,8 +1,10 @@
+import io
 import json
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from soundflow.models import ModelDownloadCancelled, ModelManagerError, ModelService
@@ -17,6 +19,110 @@ def valid_model(target: Path) -> None:
 
 
 class ModelServiceTests(unittest.TestCase):
+    def test_snapshot_reports_cached_and_live_bytes_against_fixed_total(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "tiny.partial"
+            events = []
+            calls = []
+
+            def snapshot_download(**kwargs):
+                calls.append(kwargs)
+                if kwargs.get("dry_run"):
+                    return [
+                        SimpleNamespace(
+                            file_size=100_000_000,
+                            is_cached=True,
+                            will_download=False,
+                        ),
+                        SimpleNamespace(
+                            file_size=400_000_000,
+                            is_cached=False,
+                            will_download=True,
+                        ),
+                    ]
+                bar = kwargs["tqdm_class"](
+                    total=0,
+                    unit="B",
+                    disable=False,
+                    file=io.StringIO(),
+                )
+                bar.total = 400_000_000
+                bar.update(125_000_000)
+                bar.update(275_000_000)
+                bar.update(1)
+                bar.close()
+                return str(target)
+
+            with patch(
+                "huggingface_hub.snapshot_download",
+                side_effect=snapshot_download,
+            ):
+                model_service._download_snapshot(
+                    model_service.model_spec("tiny"),
+                    target,
+                    lambda *args: events.append(args),
+                    threading.Event(),
+                )
+
+            self.assertIn(
+                ("Downloading", 45, 225_000_000, 500_000_000),
+                events,
+            )
+            self.assertEqual(
+                events[-1],
+                ("Downloading", 100, 500_000_000, 500_000_000),
+            )
+            self.assertEqual(len(calls), 2)
+            for key in ("repo_id", "local_dir", "allow_patterns", "max_workers"):
+                self.assertEqual(calls[0][key], calls[1][key])
+
+    def test_snapshot_uses_unknown_progress_when_metadata_discovery_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "tiny.partial"
+            events = []
+
+            def snapshot_download(**kwargs):
+                if kwargs.get("dry_run"):
+                    raise RuntimeError("metadata temporarily unavailable")
+                bar = kwargs["tqdm_class"](
+                    total=25_000_000,
+                    unit="B",
+                    disable=False,
+                    file=io.StringIO(),
+                )
+                bar.update(25_000_000)
+                bar.close()
+                return str(target)
+
+            with patch(
+                "huggingface_hub.snapshot_download",
+                side_effect=snapshot_download,
+            ):
+                model_service._download_snapshot(
+                    model_service.model_spec("tiny"),
+                    target,
+                    lambda *args: events.append(args),
+                    threading.Event(),
+                )
+
+            self.assertIn(("Downloading", 0, 0, 0), events)
+
+    def test_snapshot_honors_cancellation_before_metadata_discovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cancel = threading.Event()
+            cancel.set()
+
+            with patch("huggingface_hub.snapshot_download") as download:
+                with self.assertRaises(ModelDownloadCancelled):
+                    model_service._download_snapshot(
+                        model_service.model_spec("tiny"),
+                        Path(directory) / "tiny.partial",
+                        lambda *_: None,
+                        cancel,
+                    )
+
+            download.assert_not_called()
+
     def test_install_manifests_and_promotes_partial_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -31,7 +137,7 @@ class ModelServiceTests(unittest.TestCase):
             service = ModelService(root=root, downloader=downloader)
             installed = service.install(
                 "tiny",
-                progress=lambda phase, value: events.append((phase, value)),
+                progress=lambda phase, value, *_: events.append((phase, value)),
                 cancel_event=threading.Event(),
             )
             self.assertEqual(installed, root / "faster-whisper-tiny")
@@ -78,7 +184,7 @@ class ModelServiceTests(unittest.TestCase):
             def downloader(spec, target, progress, cancel_event):
                 valid_model(target)
 
-            def progress(phase, value):
+            def progress(phase, value, *_):
                 del value
                 if phase == "Verifying":
                     cancel.set()
@@ -230,7 +336,7 @@ class ModelServiceTests(unittest.TestCase):
             service = ModelService(root=root, downloader=downloader)
             installed = service.install(
                 "medium",
-                progress=lambda phase, value: events.append((phase, value)),
+                progress=lambda phase, value, *_: events.append((phase, value)),
             )
 
             self.assertEqual(installed, final)

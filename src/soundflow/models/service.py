@@ -16,7 +16,7 @@ from soundflow.models.catalog import (
     model_spec,
 )
 
-ProgressCallback = Callable[[str, int], None]
+ProgressCallback = Callable[[str, int, int, int], None]
 DownloadFunction = Callable[
     [WhisperModelSpec, Path, ProgressCallback, threading.Event], None
 ]
@@ -101,29 +101,65 @@ def _download_snapshot(
     from huggingface_hub import snapshot_download
     from tqdm.auto import tqdm
 
-    highest = 1
+    _raise_if_cancelled(cancel_event)
+    target.mkdir(parents=True, exist_ok=True)
+    download_args = {
+        "repo_id": spec.repo_id,
+        "local_dir": target,
+        "allow_patterns": list(ALLOW_PATTERNS),
+        "max_workers": 1,
+    }
+
+    try:
+        files = snapshot_download(**download_args, dry_run=True)
+    except ModelDownloadCancelled:
+        raise
+    except Exception:
+        files = []
+
+    _raise_if_cancelled(cancel_event)
+    total_bytes = sum(max(0, int(item.file_size)) for item in files)
+    cached_bytes = sum(
+        max(0, int(item.file_size))
+        for item in files
+        if item.is_cached or not item.will_download
+    )
 
     class ReportingTqdm(tqdm):
         def update(self, amount=1):
-            nonlocal highest
-            if cancel_event.is_set():
-                raise ModelDownloadCancelled("Download cancelled")
+            _raise_if_cancelled(cancel_event)
             result = super().update(amount)
-            if self.total:
-                highest = max(highest, min(95, int(self.n * 95 / self.total)))
-                progress("Downloading", highest)
+            _raise_if_cancelled(cancel_event)
+            if getattr(self, "unit", None) == "B":
+                if total_bytes > 0:
+                    completed = min(
+                        total_bytes,
+                        max(0, cached_bytes + int(self.n)),
+                    )
+                    fill = min(100, int(completed * 100 / total_bytes))
+                    progress(
+                        "Downloading",
+                        fill,
+                        completed,
+                        total_bytes,
+                    )
+                else:
+                    progress("Downloading", 0, 0, 0)
             return result
 
-    target.mkdir(parents=True, exist_ok=True)
-    snapshot_download(
-        repo_id=spec.repo_id,
-        local_dir=target,
-        allow_patterns=list(ALLOW_PATTERNS),
-        max_workers=1,
-        tqdm_class=ReportingTqdm,
-    )
-    if cancel_event.is_set():
-        raise ModelDownloadCancelled("Download cancelled")
+    if total_bytes > 0:
+        completed = min(total_bytes, max(0, cached_bytes))
+        progress(
+            "Downloading",
+            min(100, int(completed * 100 / total_bytes)),
+            completed,
+            total_bytes,
+        )
+    else:
+        progress("Downloading", 0, 0, 0)
+
+    snapshot_download(**download_args, tqdm_class=ReportingTqdm)
+    _raise_if_cancelled(cancel_event)
 
 
 class ModelService:
@@ -166,15 +202,15 @@ class ModelService:
             if _path_exists(partial):
                 _remove_path(partial)
             self.root.mkdir(parents=True, exist_ok=True)
-            progress("Preparing", 0)
+            progress("Preparing", 0, 0, 0)
             _raise_if_cancelled(cancel)
             if not final.is_symlink() and _is_valid_model(final):
                 completed = True
-                progress("Ready", 100)
+                progress("Ready", 100, 0, 0)
                 return final
             self._downloader(item, partial, progress, cancel)
             _raise_if_cancelled(cancel)
-            progress("Verifying", 96)
+            progress("Verifying", 100, 0, 0)
             _raise_if_cancelled(cancel)
             shutil.rmtree(partial / ".cache", ignore_errors=True)
             _validate_model(partial)
@@ -199,7 +235,7 @@ class ModelService:
             completed = True
             if backup is not None:
                 _remove_path(backup)
-            progress("Ready", 100)
+            progress("Ready", 100, 0, 0)
             return final
         except (ModelDownloadCancelled, ModelManagerError):
             raise
