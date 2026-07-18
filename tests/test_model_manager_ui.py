@@ -1,8 +1,13 @@
 import os
+import subprocess
+import sys
 import tempfile
 import threading
+import textwrap
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -10,7 +15,11 @@ from PySide6.QtWidgets import QApplication, QLabel, QProgressBar, QPushButton
 
 from soundflow.core.settings import Settings
 from soundflow.models.catalog import MODEL_CATALOG, managed_model_path, model_spec
-from soundflow.models.service import ModelDownloadCancelled, ModelManagerError
+from soundflow.models.service import (
+    ModelDownloadCancelled,
+    ModelManagerError,
+    ModelService,
+)
 from soundflow.preferences.model_manager import (
     ModelDownloadThread,
     ModelManagerWidget,
@@ -89,7 +98,9 @@ class ModelManagerUiTests(unittest.TestCase):
                 widget.findChild(QLabel, "modelStatus:base").text(), "Active"
             )
             self.assertFalse(
-                widget.findChild(QPushButton, "modelDelete:base").isVisible()
+                widget.findChild(QPushButton, "modelDelete:base").isVisibleTo(
+                    widget
+                )
             )
 
     def test_progress_and_errors_are_inline(self):
@@ -173,6 +184,34 @@ class ModelManagerUiTests(unittest.TestCase):
                 widget.findChild(QLabel, "modelError:base").text(),
             )
 
+    def test_symlinked_catalog_model_never_exposes_delete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "models"
+            custom = Path(directory) / "custom-model"
+            custom.mkdir()
+            (custom / "model.bin").write_bytes(b"model")
+            (custom / "config.json").write_text("{}", encoding="utf-8")
+            root.mkdir()
+            managed = managed_model_path(model_spec("base"), root)
+            managed.symlink_to(custom, target_is_directory=True)
+
+            widget = ModelManagerWidget(
+                Settings(model_path=str(Path(directory) / "other-model")),
+                service=ModelService(root),
+            )
+
+            self.assertEqual(
+                widget.findChild(QLabel, "modelStatus:base").text(),
+                "Installed",
+            )
+            self.assertFalse(
+                widget.findChild(QPushButton, "modelDelete:base").isVisibleTo(
+                    widget
+                )
+            )
+            self.assertTrue(custom.is_dir())
+            self.assertTrue((custom / "model.bin").is_file())
+
     def test_only_one_download_runs_and_shutdown_cancels_it(self):
         class BlockingService(FakeService):
             def __init__(self, root):
@@ -206,6 +245,104 @@ class ModelManagerUiTests(unittest.TestCase):
 
             self.assertIsNotNone(worker)
             self.assertFalse(worker.isRunning())
+
+    def test_non_cooperative_worker_uses_fast_shutdown_fallback(self):
+        class NonCooperativeService(FakeService):
+            def __init__(self, root):
+                super().__init__(root)
+                self.started = threading.Event()
+
+            def install(self, model_id, *, progress, cancel_event):
+                self.started.set()
+                time.sleep(0.25)
+                return managed_model_path(model_spec(model_id), self.root)
+
+        with tempfile.TemporaryDirectory() as directory:
+            service = NonCooperativeService(directory)
+            widget = ModelManagerWidget(Settings(), service=service)
+            widget.findChild(QPushButton, "modelAction:tiny").click()
+            self.assertTrue(service.started.wait(1))
+            worker = widget._worker
+
+            with patch.object(
+                ModelDownloadThread, "SHUTDOWN_WAIT_MS", 10, create=True
+            ):
+                started = time.monotonic()
+                widget.shutdown()
+                elapsed = time.monotonic() - started
+
+            self.assertLess(elapsed, 0.15)
+            self.assertIsNotNone(worker)
+            self.assertFalse(worker.isRunning())
+
+    def test_destroying_widget_with_active_worker_does_not_abort(self):
+        script = textwrap.dedent(
+            """
+            import os
+            import threading
+            from pathlib import Path
+
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+            from PySide6.QtCore import QCoreApplication, QEvent
+            from PySide6.QtWidgets import QApplication, QPushButton
+            from shiboken6 import isValid
+            from soundflow.core.settings import Settings
+            from soundflow.models.service import ModelDownloadCancelled
+            from soundflow.preferences.model_manager import ModelManagerWidget
+
+            class Service:
+                def __init__(self):
+                    self.root = Path("/tmp/soundflow-widget-destroy-test")
+                    self.started = threading.Event()
+
+                def installed_path(self, model_id):
+                    return None
+
+                def install(self, model_id, *, progress, cancel_event):
+                    self.started.set()
+                    cancel_event.wait(1)
+                    if cancel_event.is_set():
+                        raise ModelDownloadCancelled("cancelled")
+                    return self.root / model_id
+
+                def delete(self, model_id, *, active_path):
+                    raise AssertionError("delete is not part of this test")
+
+            app = QApplication.instance() or QApplication([])
+            service = Service()
+            widget = ModelManagerWidget(Settings(), service=service)
+            widget.findChild(QPushButton, "modelAction:tiny").click()
+            assert service.started.wait(1)
+            worker = widget._worker
+            widget.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            app.processEvents()
+            assert worker is not None
+            assert not worker.isRunning()
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            app.processEvents()
+            assert not isValid(worker)
+            print("widget_destroyed_worker_stopped")
+            """
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=Path(__file__).resolve().parents[1],
+            env={**os.environ, "PYTHONPATH": ".vendor/python:src"},
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        self.assertIn("widget_destroyed_worker_stopped", result.stdout)
+        self.assertNotIn("QThread: Destroyed", result.stderr)
 
 
 class ModelDownloadThreadTests(unittest.TestCase):

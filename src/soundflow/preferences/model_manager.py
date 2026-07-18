@@ -6,8 +6,9 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtCore import QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QProgressBar,
@@ -29,6 +30,8 @@ from soundflow.models.service import (
 class ModelDownloadThread(QThread):
     """Install one model without blocking Qt's main thread."""
 
+    SHUTDOWN_WAIT_MS = 5000
+
     phase_changed = Signal(str, int)
     installed = Signal(str)
     cancelled = Signal()
@@ -42,6 +45,16 @@ class ModelDownloadThread(QThread):
 
     def cancel(self) -> None:
         self._cancel_event.set()
+
+    @Slot()
+    def stop(self) -> None:
+        """Cooperatively cancel, then force a bounded shutdown if necessary."""
+        self.cancel()
+        if not self.isRunning() or self.wait(self.SHUTDOWN_WAIT_MS):
+            return
+        self.requestInterruption()
+        self.terminate()
+        self.wait()
 
     def run(self) -> None:
         try:
@@ -114,7 +127,6 @@ class ModelManagerWidget(QWidget):
             layout.addWidget(row.container)
 
         self._refresh_rows()
-        self.destroyed.connect(self._cancel_for_destruction)
 
     def _create_row(self, spec) -> _ModelRow:
         container = QWidget()
@@ -208,6 +220,10 @@ class ModelManagerWidget(QWidget):
     def _same_path(first: str | Path, second: str | Path) -> bool:
         return Path(first).expanduser().resolve() == Path(second).expanduser().resolve()
 
+    @staticmethod
+    def _same_lexical_path(first: str | Path, second: str | Path) -> bool:
+        return Path(first).expanduser().absolute() == Path(second).expanduser().absolute()
+
     def _managed_path(self, model_id: str) -> Path:
         return managed_model_path(
             next(item for item in MODEL_CATALOG if item.model_id == model_id),
@@ -221,9 +237,11 @@ class ModelManagerWidget(QWidget):
             row = self._rows[spec.model_id]
             installed = self._service.installed_path(spec.model_id)
             active = installed is not None and self._same_path(installed, active_path)
+            managed_path = self._managed_path(spec.model_id)
             managed = (
                 installed is not None
-                and self._same_path(installed, self._managed_path(spec.model_id))
+                and not managed_path.is_symlink()
+                and self._same_lexical_path(installed, managed_path)
             )
 
             if active:
@@ -276,30 +294,36 @@ class ModelManagerWidget(QWidget):
         row.error.hide()
         self._show_progress(model_id, "Preparing", 0)
 
-        worker = ModelDownloadThread(self._service, model_id, self)
+        worker = ModelDownloadThread(
+            self._service, model_id, QApplication.instance()
+        )
         self._worker = worker
         self._worker_model_id = model_id
-        worker.phase_changed.connect(
-            lambda phase, percent, item=model_id: self._show_progress(
-                item, phase, percent
-            )
-        )
-        worker.installed.connect(
-            lambda path, item=model_id: self._download_succeeded(item, path)
-        )
-        worker.cancelled.connect(
-            lambda item=model_id: self._download_cancelled(item)
-        )
-        worker.failed.connect(
-            lambda message, item=model_id: self._download_failed(item, message)
-        )
-        worker.finished.connect(
-            lambda item=model_id, current=worker: self._worker_finished(
-                item, current
-            )
-        )
+        worker.phase_changed.connect(self._worker_phase_changed)
+        worker.installed.connect(self._worker_installed)
+        worker.cancelled.connect(self._worker_cancelled)
+        worker.failed.connect(self._worker_failed)
+        worker.finished.connect(self._worker_finished)
+        worker.finished.connect(worker.deleteLater)
+        self.destroyed.connect(worker.stop)
         self._refresh_rows()
         worker.start()
+
+    def _worker_phase_changed(self, phase: str, percent: int) -> None:
+        if self.sender() is self._worker and self._worker_model_id is not None:
+            self._show_progress(self._worker_model_id, phase, percent)
+
+    def _worker_installed(self, path: str) -> None:
+        if self.sender() is self._worker and self._worker_model_id is not None:
+            self._download_succeeded(self._worker_model_id, path)
+
+    def _worker_cancelled(self) -> None:
+        if self.sender() is self._worker and self._worker_model_id is not None:
+            self._download_cancelled(self._worker_model_id)
+
+    def _worker_failed(self, message: str) -> None:
+        if self.sender() is self._worker and self._worker_model_id is not None:
+            self._download_failed(self._worker_model_id, message)
 
     def _show_progress(self, model_id: str, phase: str, percent: int) -> None:
         row = self._rows[model_id]
@@ -333,14 +357,12 @@ class ModelManagerWidget(QWidget):
     def _download_failed(self, model_id: str, message: str) -> None:
         self._show_error(model_id, message)
 
-    def _worker_finished(
-        self, model_id: str, worker: ModelDownloadThread
-    ) -> None:
-        if self._worker is worker:
-            self._worker = None
-            self._worker_model_id = None
-            worker.deleteLater()
-            self._refresh_rows()
+    def _worker_finished(self) -> None:
+        if self.sender() is not self._worker:
+            return
+        self._worker = None
+        self._worker_model_id = None
+        self._refresh_rows()
 
     def _delete(self, model_id: str) -> None:
         if self._worker is not None:
@@ -364,14 +386,10 @@ class ModelManagerWidget(QWidget):
         worker = self._worker
         if worker is None:
             return
-        worker.cancel()
-        worker.wait(5000)
-        if not worker.isRunning() and self._worker is worker:
+        worker.stop()
+        if self._worker is worker:
             self._worker = None
             self._worker_model_id = None
-
-    def _cancel_for_destruction(self) -> None:
-        self.shutdown()
 
 
 __all__ = ["ModelDownloadThread", "ModelManagerWidget"]
