@@ -110,21 +110,38 @@ class ModelManagerUiTests(unittest.TestCase):
             widget = ModelManagerWidget(
                 Settings(), service=FakeService(directory)
             )
-            widget._show_progress("tiny", "Downloading", 42)
+            widget._show_progress(
+                "tiny",
+                "Downloading",
+                45,
+                225_000_000,
+                500_000_000,
+            )
             progress = widget.findChild(QProgressBar, "modelProgress:tiny")
-            self.assertEqual(progress.value(), 42)
+            self.assertEqual(progress.value(), 45)
             self.assertTrue(progress.isTextVisible())
-            self.assertEqual(progress.format(), "%p%")
-            self.assertEqual(progress.text(), "42%")
+            self.assertEqual(progress.format(), "225.0 MB / 500.0 MB")
+            self.assertEqual(progress.text(), "225.0 MB / 500.0 MB")
+            self.assertNotIn("%", progress.text())
             self.assertEqual(
                 widget.findChild(QLabel, "modelPhase:tiny").text(),
                 "Downloading",
             )
 
-            widget._show_progress("tiny", "Downloading", 150)
-            self.assertEqual(progress.text(), "100%")
-            widget._show_progress("tiny", "Downloading", -5)
-            self.assertEqual(progress.text(), "0%")
+            widget._show_progress("tiny", "Downloading", 0, 0, 0)
+            self.assertEqual(
+                (progress.minimum(), progress.maximum()),
+                (0, 0),
+            )
+            self.assertEqual(progress.format(), "")
+
+            widget._show_progress("tiny", "Verifying", 100, 0, 0)
+            self.assertEqual(
+                (progress.minimum(), progress.maximum()),
+                (0, 100),
+            )
+            self.assertEqual(progress.value(), 100)
+            self.assertEqual(progress.format(), "")
 
             widget._show_error("tiny", "Network unavailable")
 
@@ -707,9 +724,27 @@ class ModelDownloadThreadTests(unittest.TestCase):
 
         result = self._run(Service())
 
-        self.assertEqual(result["phase"], [("Downloading", 37)])
+        self.assertEqual(result["phase"], [("Downloading", 37, 0, 0)])
         self.assertEqual(result["installed"], ["/models/tiny"])
         self.assertFalse(result["failed"])
+
+    def test_worker_forwards_exact_download_byte_counts(self):
+        class Service:
+            def install(self, model_id, *, progress, cancel_event):
+                progress(
+                    "Downloading",
+                    45,
+                    225_000_000,
+                    500_000_000,
+                )
+                return Path("/models") / model_id
+
+        result = self._run(Service())
+
+        self.assertEqual(
+            result["phase"],
+            [("Downloading", 45, 225_000_000, 500_000_000)],
+        )
 
     def test_worker_reports_expected_and_unexpected_errors_safely(self):
         class ExpectedFailure:

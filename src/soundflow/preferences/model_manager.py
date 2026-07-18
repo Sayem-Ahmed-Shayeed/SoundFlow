@@ -168,7 +168,7 @@ class ModelDownloadThread(QThread):
 
     SHUTDOWN_WAIT_MS = 5000
 
-    phase_changed = Signal(str, int)
+    phase_changed = Signal(str, int, int, int)
     installed = Signal(str)
     cancelled = Signal()
     failed = Signal(str)
@@ -198,10 +198,23 @@ class ModelDownloadThread(QThread):
         _LIVE_WORKERS.discard(self)
 
     def run(self) -> None:
+        def report_progress(
+            phase: str,
+            fill: int,
+            downloaded_bytes: int = 0,
+            total_bytes: int = 0,
+        ) -> None:
+            self.phase_changed.emit(
+                phase,
+                int(fill),
+                max(0, int(downloaded_bytes)),
+                max(0, int(total_bytes)),
+            )
+
         try:
             path = self._service.install(
                 self._model_id,
-                progress=self.phase_changed.emit,
+                progress=report_progress,
                 cancel_event=self._cancel_event,
             )
         except ModelDownloadCancelled:
@@ -334,7 +347,7 @@ class ModelManagerWidget(QWidget):
         progress.setObjectName(f"modelProgress:{spec.model_id}")
         progress.setAccessibleName(f"{spec.display_name} download progress")
         progress.setRange(0, 100)
-        progress.setFormat("%p%")
+        progress.setFormat("")
         progress.setTextVisible(True)
         progress.hide()
         progress_row.addWidget(progress, 1)
@@ -472,9 +485,21 @@ class ModelManagerWidget(QWidget):
         self._refresh_rows()
         worker.start()
 
-    def _worker_phase_changed(self, phase: str, percent: int) -> None:
+    def _worker_phase_changed(
+        self,
+        phase: str,
+        fill: int,
+        downloaded_bytes: int,
+        total_bytes: int,
+    ) -> None:
         if self.sender() is self._worker and self._worker_model_id is not None:
-            self._show_progress(self._worker_model_id, phase, percent)
+            self._show_progress(
+                self._worker_model_id,
+                phase,
+                fill,
+                downloaded_bytes,
+                total_bytes,
+            )
 
     def _worker_installed(self, path: str) -> None:
         if self.sender() is self._worker and self._worker_model_id is not None:
@@ -488,9 +513,30 @@ class ModelManagerWidget(QWidget):
         if self.sender() is self._worker and self._worker_model_id is not None:
             self._download_failed(self._worker_model_id, message)
 
-    def _show_progress(self, model_id: str, phase: str, percent: int) -> None:
+    def _show_progress(
+        self,
+        model_id: str,
+        phase: str,
+        fill: int,
+        downloaded_bytes: int = 0,
+        total_bytes: int = 0,
+    ) -> None:
         row = self._rows[model_id]
-        row.progress.setValue(max(0, min(100, int(percent))))
+        if phase == "Downloading" and total_bytes <= 0:
+            row.progress.setRange(0, 0)
+            row.progress.setFormat("")
+        else:
+            row.progress.setRange(0, 100)
+            row.progress.setValue(max(0, min(100, int(fill))))
+            if phase == "Downloading":
+                total = max(0, int(total_bytes))
+                completed = min(total, max(0, int(downloaded_bytes)))
+                row.progress.setFormat(
+                    f"{completed / 1_000_000:.1f} MB / "
+                    f"{total / 1_000_000:.1f} MB"
+                )
+            else:
+                row.progress.setFormat("")
         row.progress.show()
         row.phase.setText(phase)
         row.phase.show()
