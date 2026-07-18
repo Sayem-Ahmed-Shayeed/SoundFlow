@@ -75,9 +75,13 @@ def main(argv: list[str] | None = None) -> int:
     application.setDesktopFileName(APP_ID)
     application.setQuitOnLastWindowClosed(False)
 
-    from soundflow.design import register_application_fonts
+    from soundflow.design import (
+        install_button_motion,
+        register_application_fonts,
+    )
 
     register_application_fonts()
+    install_button_motion(application)
 
     from soundflow.ui import MainWindow
     from soundflow.preferences.model_manager import (

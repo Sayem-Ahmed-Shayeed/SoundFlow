@@ -16,6 +16,7 @@ from .fonts import (
     preferred_font,
     register_application_fonts,
 )
+from .motion import ButtonMotionFilter, install_button_motion
 from .spacing import (
     ANIMATION_CONTROL,
     ANIMATION_FAST,
@@ -66,10 +67,12 @@ __all__ = [
     "ANIMATION_NORMAL",
     "ANIMATION_SLOW",
     "BODY_FONT",
+    "ButtonMotionFilter",
     "DISPLAY_FONT",
     "MONO_FONT",
     "preferred_font",
     "register_application_fonts",
+    "install_button_motion",
     "BORDER_FOCUS",
     "BORDER_THIN",
     "CONTROL_HEIGHT_LG",
