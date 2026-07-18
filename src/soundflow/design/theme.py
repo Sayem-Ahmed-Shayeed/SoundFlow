@@ -341,6 +341,90 @@ QPushButton#systemSecondaryButton {{
 QPushButton#systemSecondaryButton:hover {{
     border-color: {accent};
 }}
+#modelManagerCard {{
+    background: {panel};
+    border: 1px solid {border};
+    border-radius: 12px;
+}}
+QWidget[objectName^="modelRow:"] {{
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 7px;
+}}
+QLabel[objectName^="modelName:"] {{
+    color: {text};
+    font-weight: 600;
+}}
+QLabel[objectName^="modelGuidance:"],
+QLabel[objectName^="modelPhase:"] {{
+    color: {muted};
+    font-size: 10px;
+}}
+QLabel[objectName^="modelStatus:"] {{
+    color: {muted};
+    font-size: 10px;
+    font-weight: 600;
+}}
+QLabel[objectName^="modelRecommended:"] {{
+    color: {accent};
+    background: {active};
+    border: 1px solid {accent};
+    border-radius: 7px;
+    padding: 1px 6px;
+    font-size: 9px;
+    font-weight: 700;
+}}
+QLabel[objectName^="modelError:"] {{
+    color: {error};
+    font-size: 10px;
+}}
+QPushButton[objectName^="modelAction:"],
+QPushButton[objectName^="modelDelete:"] {{
+    border-radius: 4px;
+    padding: 3px 9px;
+    min-height: 20px;
+    max-height: 20px;
+}}
+QPushButton[objectName^="modelAction:"] {{
+    color: {button_ink};
+    background: {accent};
+    border: 1px solid {accent};
+}}
+QPushButton[objectName^="modelAction:"]:hover,
+QPushButton[objectName^="modelAction:"]:focus {{
+    background: {panel};
+    color: {accent};
+    border-color: {accent};
+}}
+QPushButton[objectName^="modelAction:"]:disabled {{
+    color: {dim};
+    background: {panel};
+    border-color: {border};
+}}
+QPushButton[objectName^="modelDelete:"] {{
+    color: {error};
+    background: transparent;
+    border: 1px solid {error};
+}}
+QPushButton[objectName^="modelDelete:"]:hover,
+QPushButton[objectName^="modelDelete:"]:focus {{
+    color: #FFFFFF;
+    background: {error};
+    border-color: {error};
+}}
+QProgressBar[objectName^="modelProgress:"] {{
+    background: {border};
+    border: 0;
+    border-radius: 2px;
+    min-height: 4px;
+    max-height: 4px;
+    color: transparent;
+    text-align: center;
+}}
+QProgressBar[objectName^="modelProgress:"]::chunk {{
+    background: {accent};
+    border-radius: 2px;
+}}
 QLineEdit#systemDataPath, QLineEdit#compactPathField {{
     color: {text};
     background: {raised};

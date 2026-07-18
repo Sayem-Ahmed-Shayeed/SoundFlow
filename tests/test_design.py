@@ -56,6 +56,20 @@ class DesignTokenTests(unittest.TestCase):
             self.assertIn("image: url(", sheet)
             self.assertIn("QSlider::add-page:horizontal", sheet)
 
+    def test_model_manager_rules_cover_rows_progress_focus_and_delete(self) -> None:
+        from soundflow.design import stylesheet
+
+        for sheet in (stylesheet(True), stylesheet(False)):
+            self.assertIn("#modelManagerCard", sheet)
+            self.assertIn('[objectName^="modelRow:"]', sheet)
+            self.assertIn('QProgressBar[objectName^="modelProgress:"]', sheet)
+            self.assertIn('QPushButton[objectName^="modelAction:"]:focus', sheet)
+            self.assertIn('QPushButton[objectName^="modelDelete:"]', sheet)
+            self.assertIn("min-height: 20px", sheet)
+            self.assertIn("max-height: 20px", sheet)
+            self.assertIn("min-height: 4px", sheet)
+            self.assertIn("max-height: 4px", sheet)
+
     def test_spacing_grid_is_4px(self) -> None:
         from soundflow.design.spacing import SPACE_1, SPACE_2, SPACE_3, SPACE_4
         self.assertEqual(SPACE_1, 4)

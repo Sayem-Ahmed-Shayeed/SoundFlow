@@ -1,0 +1,377 @@
+"""Compact, non-blocking controls for Soundflow's local Whisper models."""
+
+from __future__ import annotations
+
+import threading
+from dataclasses import dataclass
+from pathlib import Path
+
+from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from soundflow.core.settings import Settings, default_model_path
+from soundflow.design import SPACE_1, SPACE_2, SPACE_3, SPACE_4
+from soundflow.models.catalog import MODEL_CATALOG, managed_model_path
+from soundflow.models.service import (
+    ModelDownloadCancelled,
+    ModelManagerError,
+    ModelService,
+)
+
+
+class ModelDownloadThread(QThread):
+    """Install one model without blocking Qt's main thread."""
+
+    phase_changed = Signal(str, int)
+    installed = Signal(str)
+    cancelled = Signal()
+    failed = Signal(str)
+
+    def __init__(self, service, model_id: str, parent=None) -> None:
+        super().__init__(parent)
+        self._service = service
+        self._model_id = model_id
+        self._cancel_event = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancel_event.set()
+
+    def run(self) -> None:
+        try:
+            path = self._service.install(
+                self._model_id,
+                progress=self.phase_changed.emit,
+                cancel_event=self._cancel_event,
+            )
+        except ModelDownloadCancelled:
+            self.cancelled.emit()
+        except ModelManagerError as exc:
+            self.failed.emit(str(exc))
+        except Exception:
+            self.failed.emit("The model download failed unexpectedly.")
+        else:
+            self.installed.emit(str(path))
+
+
+@dataclass(slots=True)
+class _ModelRow:
+    container: QWidget
+    status: QLabel
+    action: QPushButton
+    delete: QPushButton
+    progress: QProgressBar
+    phase: QLabel
+    error: QLabel
+
+
+class ModelManagerWidget(QWidget):
+    """Show and manage the five supported local Whisper models."""
+
+    model_path_selected = Signal(str)
+
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        service: ModelService | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setObjectName("modelManagerCard")
+        self.setAccessibleName("Whisper model manager")
+        self._settings = settings
+        self._service = service or ModelService()
+        self._rows: dict[str, _ModelRow] = {}
+        self._worker: ModelDownloadThread | None = None
+        self._worker_model_id: str | None = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(SPACE_4, SPACE_4, SPACE_4, SPACE_4)
+        layout.setSpacing(SPACE_2)
+
+        heading = QLabel("Speech recognition model")
+        heading.setObjectName("headingText")
+        layout.addWidget(heading)
+
+        description = QLabel(
+            "Choose a local Whisper model. Larger models download more data "
+            "and generally trade speed for accuracy."
+        )
+        description.setObjectName("mutedText")
+        description.setWordWrap(True)
+        layout.addWidget(description)
+
+        for spec in MODEL_CATALOG:
+            row = self._create_row(spec)
+            self._rows[spec.model_id] = row
+            layout.addWidget(row.container)
+
+        self._refresh_rows()
+        self.destroyed.connect(self._cancel_for_destruction)
+
+    def _create_row(self, spec) -> _ModelRow:
+        container = QWidget()
+        container.setObjectName(f"modelRow:{spec.model_id}")
+        container.setAccessibleName(f"{spec.display_name} model")
+        outer = QVBoxLayout(container)
+        outer.setContentsMargins(SPACE_3, SPACE_2, SPACE_3, SPACE_2)
+        outer.setSpacing(SPACE_1)
+
+        main = QHBoxLayout()
+        main.setSpacing(SPACE_2)
+
+        copy = QVBoxLayout()
+        copy.setSpacing(SPACE_1)
+        title_row = QHBoxLayout()
+        title_row.setSpacing(SPACE_2)
+        title = QLabel(spec.display_name)
+        title.setObjectName(f"modelName:{spec.model_id}")
+        title_row.addWidget(title)
+        if spec.recommended:
+            badge = QLabel("Recommended")
+            badge.setObjectName(f"modelRecommended:{spec.model_id}")
+            badge.setAccessibleName(f"{spec.display_name} is recommended")
+            title_row.addWidget(badge)
+        title_row.addStretch(1)
+        copy.addLayout(title_row)
+
+        guidance = QLabel(f"{spec.guidance} · approximately {spec.download_size}")
+        guidance.setObjectName(f"modelGuidance:{spec.model_id}")
+        guidance.setWordWrap(True)
+        copy.addWidget(guidance)
+        main.addLayout(copy, 1)
+
+        status = QLabel()
+        status.setObjectName(f"modelStatus:{spec.model_id}")
+        status.setAccessibleName(f"{spec.display_name} model status")
+        status.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        main.addWidget(status)
+
+        delete = QPushButton("Delete")
+        delete.setObjectName(f"modelDelete:{spec.model_id}")
+        delete.setAccessibleName(f"Delete {spec.display_name} model")
+        delete.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete.clicked.connect(
+            lambda _checked=False, model_id=spec.model_id: self._delete(model_id)
+        )
+        main.addWidget(delete)
+
+        action = QPushButton()
+        action.setObjectName(f"modelAction:{spec.model_id}")
+        action.setAccessibleName(f"{spec.display_name} model action")
+        action.setCursor(Qt.CursorShape.PointingHandCursor)
+        action.clicked.connect(
+            lambda _checked=False, model_id=spec.model_id: self._act(model_id)
+        )
+        main.addWidget(action)
+        outer.addLayout(main)
+
+        progress_row = QHBoxLayout()
+        progress_row.setSpacing(SPACE_2)
+        progress = QProgressBar()
+        progress.setObjectName(f"modelProgress:{spec.model_id}")
+        progress.setAccessibleName(f"{spec.display_name} download progress")
+        progress.setRange(0, 100)
+        progress.setTextVisible(False)
+        progress.hide()
+        progress_row.addWidget(progress, 1)
+
+        phase = QLabel()
+        phase.setObjectName(f"modelPhase:{spec.model_id}")
+        phase.setAccessibleName(f"{spec.display_name} download phase")
+        phase.hide()
+        progress_row.addWidget(phase)
+        outer.addLayout(progress_row)
+
+        error = QLabel()
+        error.setObjectName(f"modelError:{spec.model_id}")
+        error.setAccessibleName(f"{spec.display_name} model error")
+        error.setWordWrap(True)
+        error.hide()
+        outer.addWidget(error)
+
+        return _ModelRow(container, status, action, delete, progress, phase, error)
+
+    def _active_path(self) -> str:
+        return str(Path(self._settings.model_path or default_model_path()).expanduser())
+
+    @staticmethod
+    def _same_path(first: str | Path, second: str | Path) -> bool:
+        return Path(first).expanduser().resolve() == Path(second).expanduser().resolve()
+
+    def _managed_path(self, model_id: str) -> Path:
+        return managed_model_path(
+            next(item for item in MODEL_CATALOG if item.model_id == model_id),
+            self._service.root,
+        )
+
+    def _refresh_rows(self) -> None:
+        active_path = self._active_path()
+        busy = self._worker is not None
+        for spec in MODEL_CATALOG:
+            row = self._rows[spec.model_id]
+            installed = self._service.installed_path(spec.model_id)
+            active = installed is not None and self._same_path(installed, active_path)
+            managed = (
+                installed is not None
+                and self._same_path(installed, self._managed_path(spec.model_id))
+            )
+
+            if active:
+                row.status.setText("Active")
+                row.action.setText("Active")
+                row.action.setEnabled(False)
+            elif installed is not None:
+                row.status.setText("Installed")
+                row.action.setText("Use")
+                row.action.setEnabled(not busy)
+            else:
+                row.status.setText("Not downloaded")
+                row.action.setText("Download")
+                row.action.setEnabled(not busy)
+
+            row.delete.setVisible(bool(managed and not active))
+            row.delete.setEnabled(not busy)
+            if busy and self._worker_model_id == spec.model_id:
+                row.action.setText("Cancel")
+                row.action.setEnabled(True)
+
+    def _act(self, model_id: str) -> None:
+        if self._worker is not None:
+            if self._worker_model_id == model_id:
+                self._worker.cancel()
+                row = self._rows[model_id]
+                row.action.setText("Cancelling…")
+                row.action.setEnabled(False)
+                row.phase.setText("Cancelling")
+                row.phase.show()
+            return
+
+        installed = self._service.installed_path(model_id)
+        if installed is not None:
+            self._select(installed)
+            return
+        self._start_download(model_id)
+
+    def _select(self, path: str | Path) -> None:
+        final_path = str(Path(path).expanduser())
+        self._settings.model_path = final_path
+        self._refresh_rows()
+        self.model_path_selected.emit(final_path)
+
+    def _start_download(self, model_id: str) -> None:
+        if self._worker is not None:
+            return
+        row = self._rows[model_id]
+        row.error.clear()
+        row.error.hide()
+        self._show_progress(model_id, "Preparing", 0)
+
+        worker = ModelDownloadThread(self._service, model_id, self)
+        self._worker = worker
+        self._worker_model_id = model_id
+        worker.phase_changed.connect(
+            lambda phase, percent, item=model_id: self._show_progress(
+                item, phase, percent
+            )
+        )
+        worker.installed.connect(
+            lambda path, item=model_id: self._download_succeeded(item, path)
+        )
+        worker.cancelled.connect(
+            lambda item=model_id: self._download_cancelled(item)
+        )
+        worker.failed.connect(
+            lambda message, item=model_id: self._download_failed(item, message)
+        )
+        worker.finished.connect(
+            lambda item=model_id, current=worker: self._worker_finished(
+                item, current
+            )
+        )
+        self._refresh_rows()
+        worker.start()
+
+    def _show_progress(self, model_id: str, phase: str, percent: int) -> None:
+        row = self._rows[model_id]
+        row.progress.setValue(max(0, min(100, int(percent))))
+        row.progress.show()
+        row.phase.setText(phase)
+        row.phase.show()
+        row.error.clear()
+        row.error.hide()
+
+    def _show_error(self, model_id: str, message: str) -> None:
+        row = self._rows[model_id]
+        row.progress.hide()
+        row.phase.hide()
+        row.error.setText(message)
+        row.error.show()
+
+    def _download_succeeded(self, model_id: str, path: str) -> None:
+        row = self._rows[model_id]
+        row.progress.setValue(100)
+        row.progress.hide()
+        row.phase.hide()
+        self._select(path)
+
+    def _download_cancelled(self, model_id: str) -> None:
+        row = self._rows[model_id]
+        row.progress.hide()
+        row.phase.setText("Download cancelled")
+        row.phase.show()
+
+    def _download_failed(self, model_id: str, message: str) -> None:
+        self._show_error(model_id, message)
+
+    def _worker_finished(
+        self, model_id: str, worker: ModelDownloadThread
+    ) -> None:
+        if self._worker is worker:
+            self._worker = None
+            self._worker_model_id = None
+            worker.deleteLater()
+            self._refresh_rows()
+
+    def _delete(self, model_id: str) -> None:
+        if self._worker is not None:
+            return
+        row = self._rows[model_id]
+        row.error.clear()
+        row.error.hide()
+        try:
+            self._service.delete(
+                model_id, active_path=Path(self._active_path())
+            )
+        except ModelManagerError as exc:
+            self._show_error(model_id, str(exc))
+        except Exception:
+            self._show_error(model_id, "The model could not be deleted.")
+        else:
+            self._refresh_rows()
+
+    def shutdown(self) -> None:
+        """Cancel and briefly join a worker before this widget is destroyed."""
+        worker = self._worker
+        if worker is None:
+            return
+        worker.cancel()
+        worker.wait(5000)
+        if not worker.isRunning() and self._worker is worker:
+            self._worker = None
+            self._worker_model_id = None
+
+    def _cancel_for_destruction(self) -> None:
+        self.shutdown()
+
+
+__all__ = ["ModelDownloadThread", "ModelManagerWidget"]
