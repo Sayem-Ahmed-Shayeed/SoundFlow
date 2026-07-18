@@ -6,7 +6,12 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtCore import QAbstractAnimation, QCoreApplication, QEvent
+    from PySide6.QtCore import (
+        QAbstractAnimation,
+        QCoreApplication,
+        QEasingCurve,
+        QEvent,
+    )
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication
 
@@ -90,6 +95,39 @@ class MotionUiTests(unittest.TestCase):
             QAbstractAnimation.State.Stopped,
         )
         self.assertEqual(status._status_effect.opacity(), 1.0)
+
+    def test_new_status_message_fades_and_interruption_keeps_latest_text(self):
+        status = StatusBar()
+        status.show()
+        self.application.processEvents()
+
+        status.set_status("Listening", "recording")
+
+        self.assertEqual(status._label_animation.duration(), ANIMATION_NORMAL)
+        self.assertEqual(
+            status._label_animation.easingCurve().type(),
+            QEasingCurve.Type.OutCubic,
+        )
+        self.assertEqual(
+            status._label_animation.state(),
+            QAbstractAnimation.State.Running,
+        )
+        QTest.qWait(ANIMATION_NORMAL // 2)
+        status.set_status("Creating transcript", "draining")
+        QTest.qWait(ANIMATION_NORMAL + 30)
+
+        self.assertEqual(status._status_label.text(), "Creating transcript")
+        self.assertAlmostEqual(status._label_effect.opacity(), 1.0)
+        self.assertEqual(
+            status._label_animation.state(),
+            QAbstractAnimation.State.Stopped,
+        )
+
+        status.set_status("Creating transcript", "ready")
+        self.assertEqual(
+            status._label_animation.state(),
+            QAbstractAnimation.State.Stopped,
+        )
 
     def test_dictation_copy_and_badge_follow_runtime_state(self):
         page = DictationPage()

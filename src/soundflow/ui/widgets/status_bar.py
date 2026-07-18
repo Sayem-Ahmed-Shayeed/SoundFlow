@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from soundflow.design import (
+    ANIMATION_NORMAL,
     BODY_FONT,
     FONT_SMALL,
     SPACE_3,
@@ -64,6 +65,16 @@ class StatusBar(QWidget):
         self._status_label.setObjectName("statusBarLabel")
         self._status_label.setFont(font)
         self._status_label.setMinimumWidth(150)
+        self._label_effect = QGraphicsOpacityEffect(self._status_label)
+        self._label_effect.setOpacity(1.0)
+        self._status_label.setGraphicsEffect(self._label_effect)
+        self._label_animation = QPropertyAnimation(
+            self._label_effect,
+            b"opacity",
+            self,
+        )
+        self._label_animation.setDuration(ANIMATION_NORMAL)
+        self._label_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         self._offline_dot = QLabel("\u2726")
         self._offline_dot.setObjectName("statusBarAccent")
@@ -95,7 +106,17 @@ class StatusBar(QWidget):
 
     # ------------------------------------------------------------------
     def set_status(self, label: str, state: str = "ready") -> None:
-        self._status_label.setText(label)
+        if label != self._status_label.text():
+            running = (
+                self._label_animation.state()
+                == QPropertyAnimation.State.Running
+            )
+            start = self._label_effect.opacity() if running else 0.55
+            self._label_animation.stop()
+            self._status_label.setText(label)
+            self._label_animation.setStartValue(start)
+            self._label_animation.setEndValue(1.0)
+            self._label_animation.start()
         self._status_dot.setProperty("state", state)
         # Force re-evaluation of the dynamic property by re-applying stylesheet
         self._status_dot.style().unpolish(self._status_dot)
