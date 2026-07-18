@@ -397,6 +397,72 @@ class ModelManagerUiTests(unittest.TestCase):
         self.assertIn("widget_destroyed_worker_stopped", result.stdout)
         self.assertNotIn("QThread: Destroyed", result.stderr)
 
+    def test_application_quit_waits_for_slow_cooperative_worker(self):
+        script = textwrap.dedent(
+            """
+            import os
+            import threading
+            import time
+            from pathlib import Path
+
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+            from PySide6.QtCore import QTimer
+            from PySide6.QtWidgets import QApplication, QPushButton
+            from soundflow.core.settings import Settings
+            from soundflow.models.service import ModelDownloadCancelled
+            from soundflow.preferences.model_manager import ModelManagerWidget
+
+            class SlowCooperativeService:
+                def __init__(self):
+                    self.root = Path("/tmp/soundflow-application-quit-test")
+                    self.started = threading.Event()
+
+                def installed_path(self, model_id):
+                    return None
+
+                def install(self, model_id, *, progress, cancel_event):
+                    self.started.set()
+                    cancel_event.wait(2)
+                    if cancel_event.is_set():
+                        time.sleep(0.15)
+                        raise ModelDownloadCancelled("cancelled")
+                    return self.root / model_id
+
+                def delete(self, model_id, *, active_path):
+                    raise AssertionError("delete is not part of this test")
+
+            app = QApplication.instance() or QApplication([])
+            service = SlowCooperativeService()
+            widget = ModelManagerWidget(Settings(), service=service)
+            widget.findChild(QPushButton, "modelAction:tiny").click()
+            assert service.started.wait(1)
+            worker = widget._worker
+            QTimer.singleShot(0, app.quit)
+            result = app.exec()
+            assert worker is not None
+            assert not worker.isRunning()
+            print(f"application_quit_clean:{result}")
+            """
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=Path(__file__).resolve().parents[1],
+            env={**os.environ, "PYTHONPATH": ".vendor/python:src"},
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        self.assertIn("application_quit_clean:0", result.stdout)
+        self.assertNotIn("QThread: Destroyed", result.stderr)
+
 
 class ModelDownloadThreadTests(unittest.TestCase):
     @classmethod

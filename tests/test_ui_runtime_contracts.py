@@ -7,7 +7,7 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import QCoreApplication, QEvent, Qt
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QLabel
 
@@ -31,6 +31,20 @@ class UiRuntimeContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.application = QApplication.instance() or QApplication([])
+
+    def tearDown(self):
+        windows = list(self._windows)
+        self._windows.clear()
+        for window in windows:
+            window.no_hotkeys = True
+        self.application.processEvents()
+        for window in windows:
+            window.shutdown()
+            window.hide()
+        self.application.processEvents()
+        for window in windows:
+            window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def test_silence_timeout_participates_in_runtime_signature(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -115,6 +129,37 @@ class UiRuntimeContractTests(unittest.TestCase):
                 store.load().model_path, "/tmp/faster-whisper-medium"
             )
 
+    def test_model_selection_coalesces_pending_full_form_save(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SettingsStore(Path(directory) / "settings.json")
+            settings = Settings()
+            with patch(
+                "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
+                return_value=[],
+            ):
+                page = PreferencesPage(settings, store)
+            saved = []
+            page.settings_saved.connect(lambda: saved.append(True))
+            device_index = page.dictation_tab._device.findData("cuda")
+
+            with patch.object(store, "save", wraps=store.save) as save:
+                page.dictation_tab._device.setCurrentIndex(device_index)
+                self.assertTrue(page._save_timer.isActive())
+                page.dictation_tab._model_manager.model_path_selected.emit(
+                    "/tmp/faster-whisper-medium"
+                )
+                self.assertFalse(page._save_timer.isActive())
+                QTest.qWait(180)
+                self.application.processEvents()
+
+            loaded = store.load()
+            self.assertEqual(loaded.inference_device, "cuda")
+            self.assertEqual(
+                loaded.model_path, "/tmp/faster-whisper-medium"
+            )
+            self.assertEqual(save.call_count, 1)
+            self.assertEqual(saved, [True])
+
     def test_model_switch_defers_rebuild_while_recording(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SettingsStore(Path(directory) / "settings.json")
@@ -130,6 +175,26 @@ class UiRuntimeContractTests(unittest.TestCase):
                 window.state.stop()
                 window._pipeline_finished()
                 rebuild.assert_called_once()
+
+    def test_reverting_runtime_signature_clears_deferred_rebuild(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SettingsStore(Path(directory) / "settings.json")
+            window = MainWindow(Settings(), store, demo_mode=True, no_hotkeys=True)
+            self._windows.append(window)
+            original_model_path = window.settings.model_path
+            window.state.start()
+            with patch.object(window, "_rebuild_runtime") as rebuild:
+                window.settings.model_path = "/tmp/faster-whisper-base"
+                window._preferences_saved()
+                self.assertTrue(window._pending_runtime_rebuild)
+
+                window.settings.model_path = original_model_path
+                window._preferences_saved()
+                self.assertFalse(window._pending_runtime_rebuild)
+
+                window.state.stop()
+                window._pipeline_finished()
+                rebuild.assert_not_called()
 
     def test_preferences_shutdown_delegates_to_model_manager(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -150,16 +215,28 @@ class UiRuntimeContractTests(unittest.TestCase):
             store = SettingsStore(Path(directory) / "settings.json")
             window = MainWindow(Settings(), store, demo_mode=True, no_hotkeys=True)
             self._windows.append(window)
+            order = []
             with (
-                patch.object(window.preferences_page, "shutdown") as shutdown,
+                patch.object(
+                    window.preferences_page,
+                    "shutdown",
+                    side_effect=lambda: order.append("preferences"),
+                ) as shutdown,
+                patch.object(
+                    window._history_store,
+                    "close",
+                    side_effect=lambda: order.append("history"),
+                ),
                 patch(
                     "soundflow.ui.main_window.LegacyMainWindow.shutdown",
                     autospec=True,
+                    side_effect=lambda _window: order.append("runtime"),
                 ) as runtime_shutdown,
             ):
                 window.shutdown()
             shutdown.assert_called_once_with()
             runtime_shutdown.assert_called_once_with(window)
+            self.assertEqual(order, ["preferences", "history", "runtime"])
 
     def test_shortcut_summary_tracks_picker_and_reset(self):
         tab = ShortcutsTab(Settings(push_to_talk_hotkey="ctrl+alt+space"))

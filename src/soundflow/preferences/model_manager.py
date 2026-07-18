@@ -27,6 +27,26 @@ from soundflow.models.service import (
 )
 
 _LIVE_WORKERS: set[ModelDownloadThread] = set()
+_APP_SHUTDOWN_HOOK_PROPERTY = "soundflowModelWorkerShutdownHook"
+
+
+def _join_workers_at_app_exit() -> None:
+    """Cancel and join every model worker during final Qt teardown only."""
+    workers = tuple(_LIVE_WORKERS)
+    for worker in workers:
+        worker.cancel()
+    for worker in workers:
+        if worker.isRunning():
+            worker.wait()
+    _LIVE_WORKERS.difference_update(workers)
+
+
+def _register_worker(worker: ModelDownloadThread) -> None:
+    app = QApplication.instance()
+    if app is not None and not app.property(_APP_SHUTDOWN_HOOK_PROPERTY):
+        app.aboutToQuit.connect(_join_workers_at_app_exit)
+        app.setProperty(_APP_SHUTDOWN_HOOK_PROPERTY, True)
+    _LIVE_WORKERS.add(worker)
 
 
 class ModelDownloadThread(QThread):
@@ -313,6 +333,7 @@ class ModelManagerWidget(QWidget):
         worker.finished.connect(self._worker_finished)
         worker.finished.connect(worker.deleteLater)
         self.destroyed.connect(worker.stop)
+        _register_worker(worker)
         self._refresh_rows()
         worker.start()
 

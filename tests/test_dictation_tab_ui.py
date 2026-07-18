@@ -12,6 +12,7 @@ try:
         QLineEdit,
         QProgressBar,
         QPushButton,
+        QScrollArea,
         QWidget,
     )
 
@@ -98,6 +99,43 @@ class DictationTabUiTests(unittest.TestCase):
         self.assertEqual(tab._model.text(), "/tmp/faster-whisper-base")
         self.assertEqual(changes, ["/tmp/faster-whisper-base"])
 
+    def test_browse_refreshes_the_model_manager_active_row(self):
+        managed_path = "/tmp/faster-whisper-base"
+        custom_path = "/tmp/custom-whisper-model"
+        with patch(
+            "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
+            return_value=[],
+        ):
+            tab = DictationTab(Settings(model_path=managed_path))
+        manager = tab._model_manager
+
+        with patch.object(
+            manager._service,
+            "installed_path",
+            side_effect=(
+                lambda model_id: managed_path if model_id == "base" else None
+            ),
+        ):
+            manager._refresh_rows()
+            self.assertEqual(
+                manager.findChild(QLabel, "modelStatus:base").text(),
+                "Active",
+            )
+            with patch(
+                "soundflow.preferences.tabs.dictation.QFileDialog.getExistingDirectory",
+                return_value=custom_path,
+            ):
+                tab._browse_model()
+
+            self.assertEqual(tab._settings.model_path, custom_path)
+            self.assertEqual(
+                manager.findChild(QLabel, "modelStatus:base").text(),
+                "Installed",
+            )
+            use = manager.findChild(QPushButton, "modelAction:base")
+            self.assertEqual(use.text(), "Use")
+            self.assertTrue(use.isEnabled())
+
     def test_model_rows_remain_readable_at_minimum_window_geometry(self):
         with patch(
             "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
@@ -116,7 +154,16 @@ class DictationTabUiTests(unittest.TestCase):
         self.assertTrue(
             all(row.height() >= row.minimumSizeHint().height() for row in rows)
         )
-        self.assertIsNotNone(tab.findChild(QPushButton, "compactBrowseButton"))
+        scroll = tab.findChild(QScrollArea, "dictationScroll")
+        browse = tab.findChild(QPushButton, "compactBrowseButton")
+        self.assertIsNotNone(scroll)
+        self.assertIsNotNone(browse)
+        self.assertGreater(scroll.verticalScrollBar().maximum(), 0)
+        scroll.verticalScrollBar().setValue(
+            scroll.verticalScrollBar().maximum()
+        )
+        self.application.processEvents()
+        self.assertTrue(browse.isVisibleTo(scroll.viewport()))
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 try:
+    from PySide6.QtCore import QCoreApplication, QEvent
     from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
     from soundflow.core.settings import Settings, SettingsStore
@@ -29,6 +30,22 @@ class UiTests(unittest.TestCase):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         cls.application = QApplication.instance() or QApplication([])
         cls.application.setQuitOnLastWindowClosed(False)
+
+    def tearDown(self):
+        windows = list(self._windows)
+        self._windows.clear()
+        for window in windows:
+            window.no_hotkeys = True
+        self.application.processEvents()
+        for window in windows:
+            window.shutdown()
+            window.hide()
+        self.application.processEvents()
+        for window in windows:
+            window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        while self._temps:
+            self._temps.pop().cleanup()
 
     def test_shortcut_picker_round_trip(self):
         picker = ShortcutPicker("ctrl+alt+space")

@@ -101,6 +101,7 @@ class DictationTab(QWidget):
         self._model.setPlaceholderText("Path to faster-whisper model")
         self._model.setFont(QFont(BODY_FONT, FONT_BODY))
         self._model.setFixedHeight(CONTROL_HEIGHT_SM)
+        self._model.editingFinished.connect(self._custom_model_path_edited)
         model_row.addWidget(self._model, 1)
         browse = QPushButton("Browse")
         browse.setObjectName("compactBrowseButton")
@@ -180,6 +181,10 @@ class DictationTab(QWidget):
         self._model.setText(path)
         self._settings.model_path = path
         self.model_path_changed.emit(path)
+
+    def _custom_model_path_edited(self) -> None:
+        self._settings.model_path = self._model.text().strip()
+        self._model_manager._refresh_rows()
 
     def write_back(self, settings) -> None:
         settings.model_path = self._model.text().strip()

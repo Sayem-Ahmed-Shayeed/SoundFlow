@@ -88,10 +88,9 @@ class PreferencesPage(QWidget):
         self.settings_saved.emit()
 
     def _persist_model_path(self, path: str) -> None:
-        self._settings.model_path = path
-        self._settings.normalized()
-        self._store.save(self._settings)
-        self.settings_saved.emit()
+        self._save_timer.stop()
+        self.dictation_tab._model.setText(path)
+        self.save()
 
     def shutdown(self) -> None:
         self.dictation_tab.shutdown()

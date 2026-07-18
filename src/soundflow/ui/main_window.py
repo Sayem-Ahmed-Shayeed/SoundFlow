@@ -341,14 +341,13 @@ class MainWindow(LegacyMainWindow):
         self.apply_appearance(self.settings.appearance)
         self.dictation_page.set_language(self.settings.language)
         signature = self._runtime_settings_signature()
-        if (
-            signature != self._last_runtime_signature
-            and self.state.state in {DictationState.IDLE, DictationState.ERROR}
-        ):
+        if signature == self._last_runtime_signature:
+            self._pending_runtime_rebuild = False
+        elif self.state.state in {DictationState.IDLE, DictationState.ERROR}:
             self._rebuild_runtime()
             self._last_runtime_signature = signature
             self._pending_runtime_rebuild = False
-        elif signature != self._last_runtime_signature:
+        else:
             self._pending_runtime_rebuild = True
         self._update_meta()
 

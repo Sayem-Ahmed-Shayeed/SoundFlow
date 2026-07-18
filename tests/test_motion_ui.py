@@ -6,7 +6,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtCore import QAbstractAnimation
+    from PySide6.QtCore import QAbstractAnimation, QCoreApplication, QEvent
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication
 
@@ -29,6 +29,20 @@ class MotionUiTests(unittest.TestCase):
     def setUpClass(cls):
         cls.application = QApplication.instance() or QApplication([])
         cls.application.setQuitOnLastWindowClosed(False)
+
+    def tearDown(self):
+        windows = list(self._windows)
+        self._windows.clear()
+        for window in windows:
+            window.no_hotkeys = True
+        self.application.processEvents()
+        for window in windows:
+            window.shutdown()
+            window.hide()
+        self.application.processEvents()
+        for window in windows:
+            window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def test_navigation_uses_a_short_fade_transition(self):
         with tempfile.TemporaryDirectory() as directory:
