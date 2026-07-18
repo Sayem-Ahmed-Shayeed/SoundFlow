@@ -10,13 +10,13 @@ manually entering model directories.
 
 The model manager supports exactly these multilingual models:
 
-| Model ID | Display name | Guidance |
-| --- | --- | --- |
-| `tiny` | Tiny | Fastest, lowest resource use |
-| `base` | Base | Fast and lightweight |
-| `small` | Small | Recommended balance |
-| `medium` | Medium | Higher accuracy, heavier |
-| `large-v3-turbo` | Large-v3 Turbo | Best quality, highest resource use |
+| Model ID | Display name | Approx. download | Guidance |
+| --- | --- | ---: | --- |
+| `tiny` | Tiny | 78 MB | Fastest, lowest resource use |
+| `base` | Base | 148 MB | Fast and lightweight |
+| `small` | Small | 486 MB | Recommended balance |
+| `medium` | Medium | 1.53 GB | Higher accuracy, heavier |
+| `large-v3-turbo` | Large-v3 Turbo | 1.62 GB | Best quality, highest resource use |
 
 Custom local model directories remain supported through the existing Browse
 control. English-only, Distil, and arbitrary Hugging Face model identifiers are
