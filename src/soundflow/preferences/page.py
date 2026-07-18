@@ -43,9 +43,11 @@ class PreferencesPage(QWidget):
         self.tabs = QTabWidget()
         self.tabs.setObjectName("preferencesTabs")
         self.general_tab = GeneralTab(settings)
+        self.dictation_tab = DictationTab(settings)
+        self.dictation_tab.model_path_changed.connect(self._persist_model_path)
         self._tab_widgets = [
             self.general_tab,
-            DictationTab(settings),
+            self.dictation_tab,
             PlaybackTab(settings),
             ShortcutsTab(settings),
             SystemTab(settings),
@@ -84,6 +86,15 @@ class PreferencesPage(QWidget):
         self._settings.normalized()
         self._store.save(self._settings)
         self.settings_saved.emit()
+
+    def _persist_model_path(self, path: str) -> None:
+        self._settings.model_path = path
+        self._settings.normalized()
+        self._store.save(self._settings)
+        self.settings_saved.emit()
+
+    def shutdown(self) -> None:
+        self.dictation_tab.shutdown()
 
 
 __all__ = ["PreferencesPage"]

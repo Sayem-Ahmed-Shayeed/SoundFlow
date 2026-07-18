@@ -33,7 +33,6 @@ class ModelDownloadThread(QThread):
     """Install one model without blocking Qt's main thread."""
 
     SHUTDOWN_WAIT_MS = 5000
-    TERMINATE_WAIT_MS = 100
 
     phase_changed = Signal(str, int)
     installed = Signal(str)
@@ -52,14 +51,11 @@ class ModelDownloadThread(QThread):
 
     @Slot()
     def stop(self) -> None:
-        """Cooperatively cancel, then force a bounded shutdown if necessary."""
+        """Cooperatively cancel, retaining a slow worker until it exits."""
         self.cancel()
         if not self.isRunning() or self.wait(self.SHUTDOWN_WAIT_MS):
             return
         self.requestInterruption()
-        self.terminate()
-        if self.wait(self.TERMINATE_WAIT_MS):
-            return
         self.setParent(None)
         _LIVE_WORKERS.add(self)
 

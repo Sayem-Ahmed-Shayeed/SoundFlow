@@ -99,6 +99,68 @@ class UiRuntimeContractTests(unittest.TestCase):
             self.application.processEvents()
             self.assertEqual(store.load().model_path, "/tmp/new-model")
 
+    def test_model_manager_selection_is_saved_immediately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SettingsStore(Path(directory) / "settings.json")
+            settings = Settings()
+            with patch(
+                "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
+                return_value=[],
+            ):
+                page = PreferencesPage(settings, store)
+            page.dictation_tab.model_path_changed.emit(
+                "/tmp/faster-whisper-medium"
+            )
+            self.assertEqual(
+                store.load().model_path, "/tmp/faster-whisper-medium"
+            )
+
+    def test_model_switch_defers_rebuild_while_recording(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SettingsStore(Path(directory) / "settings.json")
+            window = MainWindow(Settings(), store, demo_mode=True, no_hotkeys=True)
+            self._windows.append(window)
+            window.state.start()
+            with patch.object(window, "_rebuild_runtime") as rebuild:
+                window.preferences_page.dictation_tab.model_path_changed.emit(
+                    "/tmp/faster-whisper-base"
+                )
+                self.assertTrue(window._pending_runtime_rebuild)
+                rebuild.assert_not_called()
+                window.state.stop()
+                window._pipeline_finished()
+                rebuild.assert_called_once()
+
+    def test_preferences_shutdown_delegates_to_model_manager(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SettingsStore(Path(directory) / "settings.json")
+            with patch(
+                "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
+                return_value=[],
+            ):
+                page = PreferencesPage(Settings(), store)
+            with patch.object(
+                page.dictation_tab._model_manager, "shutdown"
+            ) as manager_shutdown:
+                page.shutdown()
+            manager_shutdown.assert_called_once_with()
+
+    def test_window_shutdown_delegates_to_preferences(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SettingsStore(Path(directory) / "settings.json")
+            window = MainWindow(Settings(), store, demo_mode=True, no_hotkeys=True)
+            self._windows.append(window)
+            with (
+                patch.object(window.preferences_page, "shutdown") as shutdown,
+                patch(
+                    "soundflow.ui.main_window.LegacyMainWindow.shutdown",
+                    autospec=True,
+                ) as runtime_shutdown,
+            ):
+                window.shutdown()
+            shutdown.assert_called_once_with()
+            runtime_shutdown.assert_called_once_with(window)
+
     def test_shortcut_summary_tracks_picker_and_reset(self):
         tab = ShortcutsTab(Settings(push_to_talk_hotkey="ctrl+alt+space"))
         tab._picker.set_shortcut("ctrl+shift+v")

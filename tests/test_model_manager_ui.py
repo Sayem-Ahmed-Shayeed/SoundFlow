@@ -248,7 +248,7 @@ class ModelManagerUiTests(unittest.TestCase):
             self.assertIsNotNone(worker)
             self.assertFalse(worker.isRunning())
 
-    def test_non_cooperative_worker_uses_fast_shutdown_fallback(self):
+    def test_non_cooperative_worker_is_retained_without_forced_termination(self):
         class NonCooperativeService(FakeService):
             def __init__(self, root):
                 super().__init__(root)
@@ -266,8 +266,11 @@ class ModelManagerUiTests(unittest.TestCase):
             self.assertTrue(service.started.wait(1))
             worker = widget._worker
 
-            with patch.object(
-                ModelDownloadThread, "SHUTDOWN_WAIT_MS", 10, create=True
+            with (
+                patch.object(ModelDownloadThread, "SHUTDOWN_WAIT_MS", 10),
+                patch.object(
+                    ModelDownloadThread, "terminate", autospec=True
+                ) as terminate,
             ):
                 started = time.monotonic()
                 widget.shutdown()
@@ -275,9 +278,15 @@ class ModelManagerUiTests(unittest.TestCase):
 
             self.assertLess(elapsed, 0.15)
             self.assertIsNotNone(worker)
-            self.assertFalse(worker.isRunning())
+            terminate.assert_not_called()
+            self.assertTrue(worker.isRunning())
+            self.assertIsNone(worker.parent())
+            self.assertIn(worker, model_manager._LIVE_WORKERS)
+            self.assertTrue(worker.wait(1000))
+            self.app.processEvents()
+            self.assertNotIn(worker, model_manager._LIVE_WORKERS)
 
-    def test_shutdown_retains_worker_when_terminate_does_not_stop_it(self):
+    def test_shutdown_retains_worker_until_late_worker_exits(self):
         class TerminationDisabledService(FakeService):
             def __init__(self, root):
                 super().__init__(root)
@@ -296,16 +305,7 @@ class ModelManagerUiTests(unittest.TestCase):
             self.assertTrue(service.started.wait(1))
             worker = widget._worker
 
-            with (
-                patch.object(ModelDownloadThread, "SHUTDOWN_WAIT_MS", 10),
-                patch.object(
-                    ModelDownloadThread,
-                    "TERMINATE_WAIT_MS",
-                    10,
-                    create=True,
-                ),
-                patch.object(ModelDownloadThread, "terminate", autospec=True),
-            ):
+            with patch.object(ModelDownloadThread, "SHUTDOWN_WAIT_MS", 10):
                 started = time.monotonic()
                 widget.shutdown()
                 elapsed = time.monotonic() - started

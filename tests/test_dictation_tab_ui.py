@@ -56,7 +56,12 @@ class DictationTabUiTests(unittest.TestCase):
             self.assertEqual(path.height(), CONTROL_HEIGHT_SM)
             self.assertEqual(browse.height(), CONTROL_HEIGHT_SM)
             self.assertTrue(all(field.height() == path.height() for field in fields))
-            self.assertFalse(tab.findChildren(QProgressBar))
+            self.assertFalse(
+                any(
+                    progress.isVisibleTo(tab)
+                    for progress in tab.findChildren(QProgressBar)
+                )
+            )
             card = tab.findChild(QWidget, "preferencesCard")
             labels = [
                 label for label in card.findChildren(QLabel)
@@ -68,6 +73,50 @@ class DictationTabUiTests(unittest.TestCase):
             )
         finally:
             self.application.setStyleSheet(previous_stylesheet)
+
+    def test_dictation_tab_embeds_five_model_rows(self):
+        with patch(
+            "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
+            return_value=[],
+        ):
+            tab = DictationTab(Settings())
+        rows = [
+            child for child in tab.findChildren(QWidget)
+            if child.objectName().startswith("modelRow:")
+        ]
+        self.assertEqual(len(rows), 5)
+
+    def test_model_selection_updates_custom_path_field(self):
+        with patch(
+            "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
+            return_value=[],
+        ):
+            tab = DictationTab(Settings())
+        changes = []
+        tab.model_path_changed.connect(changes.append)
+        tab._model_manager.model_path_selected.emit("/tmp/faster-whisper-base")
+        self.assertEqual(tab._model.text(), "/tmp/faster-whisper-base")
+        self.assertEqual(changes, ["/tmp/faster-whisper-base"])
+
+    def test_model_rows_remain_readable_at_minimum_window_geometry(self):
+        with patch(
+            "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
+            return_value=[],
+        ):
+            tab = DictationTab(Settings())
+        tab.resize(664, 379)
+        tab.show()
+        self.application.processEvents()
+
+        rows = [
+            child for child in tab.findChildren(QWidget)
+            if child.objectName().startswith("modelRow:")
+        ]
+        self.assertTrue(rows)
+        self.assertTrue(
+            all(row.height() >= row.minimumSizeHint().height() for row in rows)
+        )
+        self.assertIsNotNone(tab.findChild(QPushButton, "compactBrowseButton"))
 
 
 if __name__ == "__main__":

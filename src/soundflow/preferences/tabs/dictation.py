@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
+    QFrame,
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -29,10 +33,13 @@ from soundflow.design import (
     SPACE_3,
     SPACE_4,
 )
+from soundflow.preferences.model_manager import ModelManagerWidget
 
 
 class DictationTab(QWidget):
     """Dictation preferences tab."""
+
+    model_path_changed = Signal(str)
 
     def __init__(self, settings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -40,11 +47,36 @@ class DictationTab(QWidget):
         self._settings = settings
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(SPACE_4, SPACE_4, SPACE_4, SPACE_4)
-        outer.setSpacing(SPACE_4)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("dictationScroll")
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.viewport().setObjectName("dictationScrollViewport")
+
+        content = QWidget()
+        content.setObjectName("dictationContent")
+        content.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Minimum,
+        )
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(SPACE_4, SPACE_4, SPACE_4, SPACE_4)
+        content_layout.setSpacing(SPACE_4)
+        content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
 
         card = QWidget()
         card.setObjectName("preferencesCard")
+        card.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Minimum,
+        )
         layout = QVBoxLayout(card)
         layout.setContentsMargins(SPACE_3, SPACE_3, SPACE_3, SPACE_3)
         layout.setSpacing(SPACE_2)
@@ -53,6 +85,10 @@ class DictationTab(QWidget):
         title.setFont(QFont(BODY_FONT, FONT_HEADING))
         title.setObjectName("headingText")
         layout.addWidget(title)
+
+        self._model_manager = ModelManagerWidget(settings)
+        self._model_manager.model_path_selected.connect(self._model_selected)
+        layout.addWidget(self._model_manager)
 
         form = QFormLayout()
         form.setSpacing(SPACE_2)
@@ -129,8 +165,10 @@ class DictationTab(QWidget):
         form.addRow("Microphone", self._mic)
 
         layout.addLayout(form)
-        outer.addWidget(card)
-        outer.addStretch(1)
+        content_layout.addWidget(card)
+        content_layout.addStretch(1)
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
 
     def _browse_model(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Choose model directory")
@@ -138,11 +176,19 @@ class DictationTab(QWidget):
             self._model.setText(path)
             self._model.editingFinished.emit()
 
+    def _model_selected(self, path: str) -> None:
+        self._model.setText(path)
+        self._settings.model_path = path
+        self.model_path_changed.emit(path)
+
     def write_back(self, settings) -> None:
         settings.model_path = self._model.text().strip()
         settings.language = self._language.currentData() or "auto"
         settings.inference_device = self._device.currentData() or "auto"
         settings.microphone = self._mic.currentData()
+
+    def shutdown(self) -> None:
+        self._model_manager.shutdown()
 
 
 __all__ = ["DictationTab"]

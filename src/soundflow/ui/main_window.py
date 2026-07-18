@@ -416,6 +416,7 @@ class MainWindow(LegacyMainWindow):
             event.accept()
 
     def shutdown(self) -> None:
+        self.preferences_page.shutdown()
         self._history_store.close()
         super().shutdown()
 
