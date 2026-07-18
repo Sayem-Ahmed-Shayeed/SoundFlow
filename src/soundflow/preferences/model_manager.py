@@ -365,6 +365,15 @@ class ModelManagerWidget(QWidget):
     def _same_lexical_path(first: str | Path, second: str | Path) -> bool:
         return Path(first).expanduser().absolute() == Path(second).expanduser().absolute()
 
+    @staticmethod
+    def _contains_path(parent: str | Path, child: str | Path) -> bool:
+        resolved_parent = Path(parent).expanduser().resolve()
+        resolved_child = Path(child).expanduser().resolve()
+        return (
+            resolved_child == resolved_parent
+            or resolved_child.is_relative_to(resolved_parent)
+        )
+
     def _managed_path(self, model_id: str) -> Path:
         return managed_model_path(
             next(item for item in MODEL_CATALOG if item.model_id == model_id),
@@ -384,6 +393,10 @@ class ModelManagerWidget(QWidget):
                 and not managed_path.is_symlink()
                 and self._same_lexical_path(installed, managed_path)
             )
+            protects_active = (
+                installed is not None
+                and self._contains_path(installed, active_path)
+            )
 
             if active:
                 row.status.setText("Active")
@@ -398,7 +411,7 @@ class ModelManagerWidget(QWidget):
                 row.action.setText("Download")
                 row.action.setEnabled(not busy)
 
-            row.delete.setVisible(bool(managed and not active))
+            row.delete.setVisible(bool(managed and not protects_active))
             row.delete.setEnabled(not busy)
             if busy and self._worker_model_id == spec.model_id:
                 row.action.setText("Cancel")

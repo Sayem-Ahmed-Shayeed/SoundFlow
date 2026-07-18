@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from soundflow.models import ModelDownloadCancelled, ModelManagerError, ModelService
+from soundflow.models import service as model_service
 
 
 def valid_model(target: Path) -> None:
@@ -65,6 +66,70 @@ class ModelServiceTests(unittest.TestCase):
                 service.install("medium", progress=lambda *_: None)
             self.assertFalse((root / "faster-whisper-medium.partial").exists())
 
+    def test_cancel_at_verifying_never_promotes_partial_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            final = root / "faster-whisper-base"
+            final.mkdir()
+            marker = final / "active-custom-marker.txt"
+            marker.write_text("keep", encoding="utf-8")
+            cancel = threading.Event()
+
+            def downloader(spec, target, progress, cancel_event):
+                valid_model(target)
+
+            def progress(phase, value):
+                del value
+                if phase == "Verifying":
+                    cancel.set()
+
+            service = ModelService(root=root, downloader=downloader)
+            with self.assertRaises(ModelDownloadCancelled):
+                service.install(
+                    "base",
+                    progress=progress,
+                    cancel_event=cancel,
+                )
+
+            self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
+            self.assertFalse((root / "faster-whisper-base.partial").exists())
+            self.assertFalse((final / "model.bin").exists())
+
+    def test_cancel_after_manifest_keeps_previous_target_untouched(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            final = root / "faster-whisper-base"
+            final.mkdir()
+            marker = final / "active-custom-marker.txt"
+            marker.write_text("keep", encoding="utf-8")
+            cancel = threading.Event()
+
+            def downloader(spec, target, progress, cancel_event):
+                valid_model(target)
+
+            original_write_manifest = model_service._write_manifest
+
+            def write_manifest_then_cancel(path, model_id):
+                original_write_manifest(path, model_id)
+                cancel.set()
+
+            service = ModelService(root=root, downloader=downloader)
+            with patch.object(
+                model_service,
+                "_write_manifest",
+                side_effect=write_manifest_then_cancel,
+            ):
+                with self.assertRaises(ModelDownloadCancelled):
+                    service.install(
+                        "base",
+                        progress=lambda *_: None,
+                        cancel_event=cancel,
+                    )
+
+            self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
+            self.assertFalse((root / "faster-whisper-base.partial").exists())
+            self.assertFalse((final / "model.bin").exists())
+
     def test_delete_refuses_active_model(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -75,6 +140,21 @@ class ModelServiceTests(unittest.TestCase):
                 service.delete("tiny", active_path=target)
             service.delete("tiny", active_path=root / "faster-whisper-small")
             self.assertFalse(target.exists())
+
+    def test_delete_refuses_managed_parent_of_active_custom_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "faster-whisper-tiny"
+            valid_model(target)
+            active = target / "custom-active"
+            valid_model(active)
+
+            service = ModelService(root=root)
+            with self.assertRaisesRegex(ModelManagerError, "active"):
+                service.delete("tiny", active_path=active)
+
+            self.assertTrue((target / "model.bin").is_file())
+            self.assertTrue((active / "model.bin").is_file())
 
     def test_delete_rejects_symlinked_catalog_entry_without_deleting_target(self):
         with tempfile.TemporaryDirectory() as directory:

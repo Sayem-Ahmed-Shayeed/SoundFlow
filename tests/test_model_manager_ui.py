@@ -214,6 +214,28 @@ class ModelManagerUiTests(unittest.TestCase):
             self.assertTrue(custom.is_dir())
             self.assertTrue((custom / "model.bin").is_file())
 
+    def test_managed_parent_of_active_custom_model_never_exposes_delete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "models"
+            target = managed_model_path(model_spec("base"), root)
+            target.mkdir(parents=True)
+            (target / "model.bin").write_bytes(b"parent model")
+            (target / "config.json").write_text("{}", encoding="utf-8")
+            active = target / "custom-active"
+            active.mkdir()
+            (active / "model.bin").write_bytes(b"active model")
+            (active / "config.json").write_text("{}", encoding="utf-8")
+
+            widget = ModelManagerWidget(
+                Settings(model_path=str(active)),
+                service=ModelService(root),
+            )
+
+            delete = widget.findChild(QPushButton, "modelDelete:base")
+            self.assertFalse(delete.isVisibleTo(widget))
+            self.assertTrue((target / "model.bin").is_file())
+            self.assertTrue((active / "model.bin").is_file())
+
     def test_only_one_download_runs_and_shutdown_cancels_it(self):
         class BlockingService(FakeService):
             def __init__(self, root):

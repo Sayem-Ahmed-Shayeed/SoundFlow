@@ -87,6 +87,11 @@ def _remove_path(path: Path) -> None:
         shutil.rmtree(path)
 
 
+def _raise_if_cancelled(cancel_event: threading.Event) -> None:
+    if cancel_event.is_set():
+        raise ModelDownloadCancelled("Download cancelled")
+
+
 def _download_snapshot(
     spec: WhisperModelSpec,
     target: Path,
@@ -162,25 +167,28 @@ class ModelService:
                 _remove_path(partial)
             self.root.mkdir(parents=True, exist_ok=True)
             progress("Preparing", 0)
-            if cancel.is_set():
-                raise ModelDownloadCancelled("Download cancelled")
+            _raise_if_cancelled(cancel)
             if not final.is_symlink() and _is_valid_model(final):
                 completed = True
                 progress("Ready", 100)
                 return final
             self._downloader(item, partial, progress, cancel)
-            if cancel.is_set():
-                raise ModelDownloadCancelled("Download cancelled")
+            _raise_if_cancelled(cancel)
             progress("Verifying", 96)
+            _raise_if_cancelled(cancel)
             shutil.rmtree(partial / ".cache", ignore_errors=True)
             _validate_model(partial)
+            _raise_if_cancelled(cancel)
             _write_manifest(partial, item.model_id)
+            _raise_if_cancelled(cancel)
 
             backup = None
+            _raise_if_cancelled(cancel)
             if _path_exists(final):
                 backup = final.with_name(f"{final.name}.backup-{uuid.uuid4().hex}")
                 final.replace(backup)
             try:
+                _raise_if_cancelled(cancel)
                 partial.replace(final)
             except Exception:
                 if backup is not None:
@@ -212,7 +220,8 @@ class ModelService:
         active = active_path.expanduser().resolve()
         if target.is_symlink() or target.parent.resolve() != root:
             raise ModelManagerError("Soundflow can only delete managed models.")
-        if target.resolve() == active:
+        resolved_target = target.resolve()
+        if active == resolved_target or active.is_relative_to(resolved_target):
             raise ModelManagerError("The active model cannot be deleted.")
         if target.exists():
             shutil.rmtree(target)
