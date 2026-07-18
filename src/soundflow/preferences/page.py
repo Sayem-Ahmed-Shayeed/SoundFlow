@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QVBoxLayout, QWidget,
 )
 
-from soundflow.design import DISPLAY_FONT, FONT_TITLE
+from soundflow.design import BODY_FONT, DISPLAY_FONT, FONT_BODY, FONT_TITLE
 from soundflow.preferences.tabs import (
     DictationTab,
     GeneralTab,
@@ -34,12 +34,17 @@ class PreferencesPage(QWidget):
         title.setObjectName("displayText")
         title.setFont(QFont(DISPLAY_FONT, FONT_TITLE))
         layout.addWidget(title)
+        subtitle = QLabel("Tune recognition, behavior, shortcuts, and system readiness")
+        subtitle.setObjectName("mutedText")
+        subtitle.setFont(QFont(BODY_FONT, FONT_BODY))
+        layout.addWidget(subtitle)
         body = QHBoxLayout()
         body.setSpacing(14)
         self.tabs = QTabWidget()
         self.tabs.setObjectName("preferencesTabs")
+        self.general_tab = GeneralTab(settings)
         self._tab_widgets = [
-            GeneralTab(settings),
+            self.general_tab,
             DictationTab(settings),
             PlaybackTab(settings),
             ShortcutsTab(settings),
@@ -53,9 +58,6 @@ class PreferencesPage(QWidget):
             self.tabs.addTab(widget, label)
         body.addWidget(self.tabs, 1)
         layout.addLayout(body, 1)
-        saved = QLabel("✓  Changes are saved automatically")
-        saved.setObjectName("savedStatus")
-        layout.addWidget(saved)
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(120)
@@ -68,6 +70,7 @@ class PreferencesPage(QWidget):
             slider.valueChanged.connect(self._queue_save)
         for line_edit in self.findChildren(QLineEdit):
             line_edit.editingFinished.connect(self._queue_save)
+        self.general_tab.appearance_changed.connect(self._queue_save)
 
     def _queue_save(self, *args) -> None:
         del args

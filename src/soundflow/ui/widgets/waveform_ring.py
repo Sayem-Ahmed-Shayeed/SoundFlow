@@ -13,6 +13,7 @@ States:
 
 from __future__ import annotations
 
+import math
 from collections import deque
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QPen
@@ -32,10 +33,11 @@ class WaveformRing(QWidget):
 
         self._levels: deque[float] = deque([0.0] * self.BAR_COUNT, maxlen=self.BAR_COUNT)
         self._state = "idle"
+        self._phase = 0.0
 
         self._timer = QTimer(self)
         self._timer.setInterval(self.FRAME_MS)
-        self._timer.timeout.connect(self._decay)
+        self._timer.timeout.connect(self._tick)
         self._timer.start()
 
     # ------------------------------------------------------------------
@@ -51,14 +53,15 @@ class WaveformRing(QWidget):
             self._levels.append(clamped)
             self.update()
 
-    def _decay(self) -> None:
-        # Smooth decay back toward rest so the ring looks alive even between updates.
-        if self._state == "recording":
-            return
-        if any(abs(v) > 0.01 for v in self._levels):
+    def _tick(self) -> None:
+        # Keep the hero subtly alive and decay audio energy between sessions.
+        self._phase += 0.075
+        if self._state != "recording" and any(
+            abs(v) > 0.01 for v in self._levels
+        ):
             for i in range(self.BAR_COUNT):
                 self._levels[i] *= 0.92
-            self.update()
+        self.update()
 
     # ------------------------------------------------------------------
     def paintEvent(self, event) -> None:  # noqa: D401, N802 (Qt override)
@@ -72,13 +75,14 @@ class WaveformRing(QWidget):
         dark = bool(appearance) if appearance is not None else (
             self.palette().color(self.palette().ColorRole.Window).lightness() < 128
         )
-        accent = QColor("#91A187" if dark else "#74836A")
-        quiet = QColor("#53604D" if dark else "#B7C0B1")
-        centre = QColor("#1E201B" if dark else "#FBF9F4")
+        accent = QColor("#9B72FF" if dark else "#7657F6")
+        quiet = QColor("#47516A" if dark else "#CBD1DF")
+        centre = QColor("#111A2B" if dark else "#FFFFFF")
         # Central microphone control and glow.
-        centre_radius = 52
+        ambient = (math.sin(self._phase) + 1.0) / 2.0
+        centre_radius = 54 + int(ambient * (3 if self._state != "idle" else 1))
         glow = QColor(accent)
-        glow.setAlpha(75)
+        glow.setAlpha(54 + int(ambient * (72 if self._state != "idle" else 20)))
         fill = QColor(accent)
         fill.setAlpha(18)
         painter.setPen(QPen(glow, 2))
@@ -109,7 +113,8 @@ class WaveformRing(QWidget):
         for side in (-1, 1):
             for i in range(32):
                 level = self._levels[(i * 2) % len(self._levels)]
-                pulse = 3 + level * 28
+                idle_wave = (math.sin(self._phase + i * 0.52) + 1.0) * 0.9
+                pulse = 3 + level * 28 + idle_wave
                 x = cx + side * (64 + (i / 31.0) * span)
                 painter.drawRoundedRect(
                     int(x - bar_width / 2), int(cy - pulse / 2),

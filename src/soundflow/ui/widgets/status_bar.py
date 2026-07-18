@@ -11,9 +11,15 @@ text.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QGraphicsOpacityEffect,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QWidget,
+)
 
 from soundflow.design import (
     BODY_FONT,
@@ -42,10 +48,22 @@ class StatusBar(QWidget):
         self._status_dot.setObjectName("statusDot")
         self._status_dot.setFont(font)
         self._status_dot.setProperty("state", "ready")
+        self._status_effect = QGraphicsOpacityEffect(self._status_dot)
+        self._status_effect.setOpacity(1.0)
+        self._status_dot.setGraphicsEffect(self._status_effect)
+        self._pulse_animation = QPropertyAnimation(
+            self._status_effect, b"opacity", self
+        )
+        self._pulse_animation.setDuration(920)
+        self._pulse_animation.setStartValue(1.0)
+        self._pulse_animation.setEndValue(0.34)
+        self._pulse_animation.setEasingCurve(QEasingCurve.Type.InOutSine)
+        self._pulse_animation.setLoopCount(-1)
 
         self._status_label = QLabel("System Ready")
         self._status_label.setObjectName("statusBarLabel")
         self._status_label.setFont(font)
+        self._status_label.setMinimumWidth(150)
 
         self._offline_dot = QLabel("\u2726")
         self._offline_dot.setObjectName("statusBarAccent")
@@ -82,6 +100,12 @@ class StatusBar(QWidget):
         # Force re-evaluation of the dynamic property by re-applying stylesheet
         self._status_dot.style().unpolish(self._status_dot)
         self._status_dot.style().polish(self._status_dot)
+        if state in {"recording", "draining", "connecting"}:
+            if self._pulse_animation.state() != QPropertyAnimation.State.Running:
+                self._pulse_animation.start()
+        else:
+            self._pulse_animation.stop()
+            self._status_effect.setOpacity(1.0)
 
     def set_language(self, label: str) -> None:
         self._language.setText(label)

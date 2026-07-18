@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 try:
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
     from soundflow.core.settings import Settings, SettingsStore
     from soundflow.ui import (
@@ -38,7 +38,7 @@ class UiTests(unittest.TestCase):
 
     def test_appearance_selector_round_trip(self):
         changes: list[str] = []
-        selector = AppearanceSelector("system")
+        selector = AppearanceSelector("light")
         selector.changed.connect(changes.append)
         selector.set_value("dark")
         self.assertEqual(selector.value(), "dark")
@@ -48,6 +48,11 @@ class UiTests(unittest.TestCase):
         overlay = RecordingOverlay()
         overlay.show_recording("ctrl+alt+space")
         self.assertEqual(overlay.keycap.text(), "CTRL + ALT + SPACE")
+        self.assertLessEqual(overlay.width(), 300)
+        self.assertLessEqual(overlay.height(), 52)
+        self.assertEqual(overlay.label.text(), "Listening")
+        overlay.show_processing()
+        self.assertEqual(overlay.label.text(), "Transcribing")
         overlay.hide()
         overlay.close()
 
@@ -62,6 +67,11 @@ class UiTests(unittest.TestCase):
             set(window._page_indices),
             {"dictation", "history", "playground", "preferences"},
         )
+        self.assertIsNone(window.sidebar.findChild(QWidget, "privacyCard"))
+        self.assertIsNone(
+            window.preferences_page.findChild(QLabel, "savedStatus")
+        )
+        self.assertTrue(window.persistent_status.isHidden())
         window.navigate("history")
         self.assertEqual(window.pages.currentWidget(), window.history_page)
 
@@ -84,8 +94,14 @@ class UiTests(unittest.TestCase):
         self._windows.append(window)
         window.apply_appearance("dark")
         self.assertTrue(window.property("darkAppearance"))
+        self.assertEqual(
+            window.preferences_page.general_tab._theme.value(), "dark"
+        )
         window.apply_appearance("light")
         self.assertFalse(window.property("darkAppearance"))
+        self.assertEqual(
+            window.preferences_page.general_tab._theme.value(), "light"
+        )
         injector = FakeInjector()
         window.injector = injector
         window._set_hotkey_indicator("error", "setup required", retry="hotkey")

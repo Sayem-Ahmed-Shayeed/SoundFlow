@@ -1,10 +1,12 @@
-"""Warm minimal theme tokens and stylesheet generator.
+"""Professional layered theme tokens and stylesheet generator.
 
-Stone surfaces and ink typography keep the interface quiet, while a muted
-sage accent identifies selection, focus, recording, and ready states.
+True-black surfaces, neutral typography, and a focused violet accent give
+the app a crisp desktop-tool character without sacrificing readability.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from .fonts import BODY_FONT, DISPLAY_FONT, MONO_FONT
 from .spacing import (
@@ -27,21 +29,21 @@ from .spacing import (
 )
 
 # --- Palette ---------------------------------------------------------------
-# Dark theme: warm charcoal stone with soft limestone type.
-FG_CREAM = "#EEEADF"
-FG_MUTED = "#A6A094"
-FG_DIM = "#76746B"
-BG_BLACK = "#161713"
-BG_PANEL = "#1E201B"
-BG_RAISED = "#292B25"
-BORDER = "#383A32"
+# Dark theme: true-black canvas with subtly lifted neutral surfaces.
+FG_CREAM = "#F4F7FF"
+FG_MUTED = "#A9A9B2"
+FG_DIM = "#777781"
+BG_BLACK = "#000000"
+BG_PANEL = "#0A0A0C"
+BG_RAISED = "#151519"
+BORDER = "#29292F"
 
 # Shared semantic colors.
-ACCENT = "#91A187"
+ACCENT = "#9B72FF"
 BORDER_FOCUS = ACCENT
-SUCCESS = "#91A187"
-WARNING = "#C4A46B"
-ERROR = "#C47C70"
+SUCCESS = "#55D68B"
+WARNING = "#E9B96E"
+ERROR = "#F0787F"
 
 # Backwards-compatibility aliases used by the legacy stylesheet generator.
 PRIMARY_TEXT = FG_CREAM
@@ -71,20 +73,26 @@ def stylesheet(dark: bool) -> str:
 
 def _shell_stylesheet(dark: bool) -> str:
     """Screenshot-specific shell rules layered over the shared controls."""
-    bg = BG_BLACK if dark else "#F3F0E8"
-    sidebar = "#1A1B17" if dark else "#EAE6DC"
-    panel = BG_PANEL if dark else "#FBF9F4"
-    raised = BG_RAISED if dark else "#E4E1D8"
-    text = FG_CREAM if dark else "#22231F"
-    muted = FG_MUTED if dark else "#6E7067"
-    border = BORDER if dark else "#D4CFC3"
-    accent = ACCENT if dark else "#74836A"
-    active = "#30372C" if dark else "#DCE3D7"
-    dim = FG_DIM if dark else "#85857D"
-    hover_border = "#55594C" if dark else "#B9B6AA"
-    error = ERROR if dark else "#9A584D"
-    warning = WARNING if dark else "#8B6D3D"
-    button_ink = "#171914" if dark else "#F8F6F0"
+    bg = BG_BLACK if dark else "#F5F7FB"
+    sidebar = "#050506" if dark else "#EDF1F7"
+    panel = BG_PANEL if dark else "#FFFFFF"
+    raised = BG_RAISED if dark else "#E8ECF4"
+    text = FG_CREAM if dark else "#172033"
+    muted = FG_MUTED if dark else "#647089"
+    border = BORDER if dark else "#D7DEEA"
+    accent = ACCENT if dark else "#7657F6"
+    active = "#211B3D" if dark else "#E9E4FF"
+    dim = FG_DIM if dark else "#8791A6"
+    hover_border = "#45454D" if dark else "#BAC4D5"
+    error = ERROR if dark else "#C4515B"
+    warning = WARNING if dark else "#A8762F"
+    button_ink = "#0A0F1A" if dark else "#FFFFFF"
+    chevron = (
+        Path(__file__).resolve().parents[1]
+        / "assets"
+        / "icons"
+        / "chevron-down.svg"
+    ).as_posix()
     return f"""
 QMainWindow, #appSurface, #contentSurface, QStackedWidget {{
     background: {bg};
@@ -96,16 +104,17 @@ QLabel, QCheckBox, QRadioButton {{
 }}
 #appSurface {{
     border: 1px solid {border};
-    border-radius: 14px;
+    border-radius: 16px;
 }}
 #sideBar {{
     background: {sidebar};
     border-right: 1px solid {border};
-    border-top-left-radius: 14px;
+    border-top-left-radius: 16px;
+    border-bottom-left-radius: 16px;
 }}
 #brandMark {{
     color: {accent};
-    font-size: 23px;
+    font-size: 25px;
     font-weight: 700;
 }}
 #brand {{
@@ -116,27 +125,29 @@ QLabel, QCheckBox, QRadioButton {{
 QPushButton#sideNavButton {{
     color: {muted};
     background: transparent;
-    border: 0;
-    border-radius: 7px;
+    border: 1px solid transparent;
+    border-radius: 9px;
     padding: 10px 12px;
     text-align: left;
-    min-height: 22px;
+    min-height: 24px;
 }}
 QPushButton#sideNavButton:hover {{
     color: {text};
     background: {raised};
+    border-color: {border};
 }}
 QPushButton#sideNavButton[active="true"] {{
-    color: {accent};
+    color: {text};
     background: {active};
-    border-left: 3px solid {accent};
+    border: 1px solid {accent};
 }}
+#railSection {{ color: {dim}; font-size: 9px; font-weight: 700; }}
 #privacyCard {{
     background: {panel};
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: 10px;
 }}
-#privacyPill {{ color: {accent}; font-weight: 600; }}
+#privacyPill {{ color: {SUCCESS}; font-weight: 600; }}
 #privacyPill {{ font-size: 10px; }}
 #railCaption {{ color: {muted}; font-size: 9px; }}
 #dictationPage, #historyPage, #playgroundPage, #preferencesPage,
@@ -153,11 +164,27 @@ QPushButton#sideNavButton[active="true"] {{
 #headingText {{ color: {text}; }}
 #mutedText, #captionText {{ color: {muted}; }}
 #dimText, #systemLastChecked {{ color: {dim}; }}
+#dictationHero {{
+    background: {panel};
+    border: 1px solid {border};
+    border-radius: 16px;
+}}
+#dictationStateBadge {{
+    color: {SUCCESS};
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 10px;
+    padding: 4px 11px;
+    font-size: 10px;
+    font-weight: 700;
+}}
+#dictationStateBadge[state="recording"] {{ color: {accent}; border-color: {accent}; }}
+#dictationStateBadge[state="draining"] {{ color: {warning}; border-color: {warning}; }}
 #historyCard, #preferencesCard, #localDataCard,
 QPushButton#quickActionCard {{
     background: {panel};
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: 12px;
 }}
 QPushButton#quickActionCard {{
     padding: 0;
@@ -178,6 +205,16 @@ QPushButton#quickActionCard {{
     font-weight: 600;
     padding: 8px 2px 2px 2px;
 }}
+#resultCount {{
+    color: {muted};
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 10px;
+    padding: 3px 9px;
+    font-size: 10px;
+    min-height: 18px;
+    max-height: 18px;
+}}
 QPushButton#historyAction {{
     color: {muted};
     background: transparent;
@@ -191,6 +228,53 @@ QPushButton#historyAction:hover {{
     background: {raised};
 }}
 #historyFeedback[state="error"] {{ color: {error}; }}
+QDialog#deleteTranscriptDialog {{
+    background: transparent;
+}}
+QFrame#deleteDialogSurface {{
+    background: {panel};
+    border: 1px solid {border};
+    border-radius: 14px;
+}}
+QLabel#deleteDialogTitle {{
+    color: {text};
+    font-size: 16px;
+    font-weight: 700;
+}}
+QLabel#deleteDialogCopy {{
+    color: {text};
+    font-size: 12px;
+}}
+QLabel#deleteDialogWarning {{
+    color: {muted};
+    font-size: 11px;
+}}
+QPushButton#deleteDialogCancel,
+QPushButton#destructiveButton {{
+    border-radius: 7px;
+    padding: 4px 14px;
+    min-height: 24px;
+    max-height: 24px;
+}}
+QPushButton#deleteDialogCancel {{
+    color: {text};
+    background: {raised};
+    border: 1px solid {border};
+}}
+QPushButton#deleteDialogCancel:hover,
+QPushButton#deleteDialogCancel:focus {{
+    background: {panel};
+    border-color: {accent};
+}}
+QPushButton#destructiveButton {{
+    color: #FFFFFF;
+    background: {error};
+    border: 1px solid {error};
+}}
+QPushButton#destructiveButton:hover {{
+    background: #A93F49;
+    border-color: #A93F49;
+}}
 #toggleRow {{ background: transparent; min-height: 44px; }}
 #toggleRowTitle {{ color: {text}; font-size: 13px; }}
 #systemCheckRow, #systemPathBlock {{
@@ -210,8 +294,8 @@ QLineEdit#systemModelPath {{
     border-radius: 0;
     padding: 3px 7px;
     font-family: "{MONO_FONT}";
-    min-height: 22px;
-    max-height: 28px;
+    min-height: 20px;
+    max-height: 20px;
 }}
 #systemStatusPill {{
     color: {muted};
@@ -268,15 +352,149 @@ QLineEdit#systemDataPath, QLineEdit#compactPathField {{
     max-height: 20px;
 }}
 QComboBox#compactShortcutField, QComboBox#compactPreferenceField {{
-    padding: 3px 7px;
+    color: {text};
+    background: {panel};
+    border: 1px solid {border};
+    padding: 3px 30px 3px 9px;
     min-height: 20px;
     max-height: 20px;
-    border-radius: 4px;
+    border-radius: 7px;
+}}
+QComboBox#compactShortcutField:hover,
+QComboBox#compactPreferenceField:hover {{
+    border-color: {hover_border};
+}}
+QComboBox#compactShortcutField:focus,
+QComboBox#compactPreferenceField:focus {{
+    border-color: {accent};
+}}
+QComboBox#compactShortcutField::drop-down,
+QComboBox#compactPreferenceField::drop-down {{
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 28px;
+    border: 0;
+    background: transparent;
+}}
+QComboBox#compactShortcutField::down-arrow,
+QComboBox#compactPreferenceField::down-arrow {{
+    image: url("{chevron}");
+    width: 9px;
+    height: 6px;
+}}
+QComboBox#compactShortcutField QAbstractItemView,
+QComboBox#compactPreferenceField QAbstractItemView {{
+    background: {panel};
+    color: {text};
+    border: 1px solid {border};
+    border-radius: 7px;
+    padding: 5px;
+    selection-background-color: {raised};
+    selection-color: {text};
+    outline: 0;
+}}
+QPushButton#compactBrowseButton {{
+    color: {text};
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 7px;
+    padding: 3px 12px;
+    min-height: 20px;
+    max-height: 20px;
+}}
+QPushButton#compactBrowseButton:hover {{
+    border-color: {accent};
+    background: {panel};
+}}
+QPushButton#textActionButton {{
+    color: {accent};
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 4px 9px;
+    min-height: 22px;
+}}
+QPushButton#textActionButton:hover,
+QPushButton#textActionButton:focus {{
+    color: {text};
+    background: {raised};
+    border-color: {border};
+}}
+QFrame#segmentedControl {{
+    background: {raised};
+    border: 1px solid {border};
+    border-radius: 9px;
+}}
+QFrame#segmentedControl QPushButton {{
+    color: {muted};
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 2px 18px;
+    min-height: 22px;
+    max-height: 22px;
+}}
+QFrame#segmentedControl QPushButton:hover {{
+    color: {text};
+    background: {panel};
+}}
+QFrame#segmentedControl QPushButton:checked {{
+    color: {button_ink};
+    background: {accent};
+}}
+#recordingOverlay {{
+    background: transparent;
+}}
+QFrame#overlayPanel {{
+    background: #101012;
+    border: 1px solid #34343A;
+    border-radius: 16px;
+}}
+QLabel#overlayTitle {{
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 700;
+}}
+QLabel#overlayHint {{
+    color: #9A9AA3;
+    font-size: 9px;
+}}
+QLabel#overlayKeycap {{
+    color: #D9D9E0;
+    background: #1C1C20;
+    border: 1px solid #38383F;
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-family: "{MONO_FONT}";
+    font-size: 8px;
+    font-weight: 700;
+}}
+QSlider::groove:horizontal {{
+    height: 4px;
+    background: {border};
+    border: 0;
+    border-radius: 2px;
+}}
+QSlider::add-page:horizontal {{
+    background: {border};
+    border-radius: 2px;
+}}
+QSlider::sub-page:horizontal {{
+    background: {accent};
+    border-radius: 2px;
+}}
+QSlider::handle:horizontal {{
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    background: {accent};
+    border: 0;
+    border-radius: 7px;
 }}
 #historySearch, #playgroundCommand {{
     background: {panel};
     border: 1px solid {border};
-    border-radius: 7px;
+    border-radius: 10px;
     color: {text};
 }}
 #preferencesTabs::pane {{ border: 0; background: transparent; }}
@@ -285,7 +503,7 @@ QComboBox#compactShortcutField, QComboBox#compactPreferenceField {{
     background: transparent;
     border: 0;
     border-bottom: 2px solid transparent;
-    padding: 9px 13px;
+    padding: 10px 14px;
 }}
 #preferencesTabs QTabBar::tab:selected {{
     color: {accent};
@@ -294,8 +512,8 @@ QComboBox#compactShortcutField, QComboBox#compactPreferenceField {{
 #statusBar {{
     background: {sidebar};
     border-top: 1px solid {border};
-    border-bottom-left-radius: 14px;
-    border-bottom-right-radius: 14px;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
 }}
 #statusBarLabel {{ color: {muted}; font-size: 10px; }}
 #statusDot[state="ready"] {{ color: {accent}; }}
@@ -313,6 +531,15 @@ QComboBox#compactShortcutField, QComboBox#compactPreferenceField {{
     color: {muted};
     background: transparent;
     border: 0;
+}}
+QPushButton[objectName^="windowChrome"]:hover {{
+    color: {text};
+    background: {raised};
+    border-radius: 7px;
+}}
+QPushButton[objectName="windowChrome:close"]:hover {{
+    color: #FFFFFF;
+    background: {error};
 }}
 QPushButton[chrome="true"] {{
     color: {muted};
@@ -333,7 +560,10 @@ QPushButton#presetChip {{
     color: {muted};
     background: {panel};
     border: 1px solid {border};
-    min-height: 26px;
+    min-height: 20px;
+    max-height: 20px;
+    border-radius: 7px;
+    padding: 2px 14px;
 }}
 QPushButton#presetChip:checked {{
     color: {button_ink};
@@ -412,9 +642,9 @@ QPushButton, #actionButton {{
     background-color: {BG_PANEL};
     color: {FG_CREAM};
     border: 1px solid {BORDER};
-    border-radius: 4px;
-    padding: 3px 7px;
-    min-height: 20px;
+    border-radius: 8px;
+    padding: 6px 12px;
+    min-height: 28px;
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
 }}
@@ -672,117 +902,117 @@ QMenu::separator {{
 def _light_stylesheet() -> str:
     return f"""
 QWidget {{
-    background-color: #F3F0E8;
-    color: #22231F;
+    background-color: #F5F7FB;
+    color: #172033;
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
 }}
 QMainWindow, QDialog {{
-    background-color: #F3F0E8;
+    background-color: #F5F7FB;
 }}
 #sideBar, #topBar, #statusBar {{
-    background-color: #EAE6DC;
+    background-color: #EDF1F7;
     border: none;
 }}
 #panel {{
-    background-color: #FBF9F4;
-    border: 1px solid #D4CFC3;
+    background-color: #FFFFFF;
+    border: 1px solid #D7DEEA;
     border-radius: {RADIUS_LG}px;
 }}
 #displayText {{
     font-family: "{DISPLAY_FONT}";
     font-size: {FONT_DISPLAY}px;
-    color: #22231F;
+    color: #172033;
     background: transparent;
 }}
 #titleText {{
     font-family: "{DISPLAY_FONT}";
     font-size: {FONT_TITLE}px;
-    color: #22231F;
+    color: #172033;
     background: transparent;
 }}
 #headingText {{
     font-family: "{BODY_FONT}";
     font-size: {FONT_HEADING}px;
-    color: #22231F;
+    color: #172033;
     background: transparent;
 }}
 #mutedText, #captionText {{
-    color: #6E7067;
+    color: #647089;
     font-size: {FONT_SMALL}px;
     background: transparent;
 }}
 #dimText {{
-    color: #85857D;
+    color: #8791A6;
     font-size: {FONT_TINY}px;
     background: transparent;
 }}
 QPushButton, #actionButton {{
-    background-color: #FBF9F4;
-    color: #22231F;
-    border: 1px solid #D4CFC3;
-    border-radius: 4px;
-    padding: 3px 7px;
-    min-height: 20px;
+    background-color: #FFFFFF;
+    color: #172033;
+    border: 1px solid #D7DEEA;
+    border-radius: 8px;
+    padding: 6px 12px;
+    min-height: 28px;
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
 }}
 QPushButton:hover {{
-    background-color: #E4E1D8;
-    border-color: #B9B6AA;
+    background-color: #E8ECF4;
+    border-color: #BAC4D5;
 }}
 QPushButton:primary, QPushButton#accentButton, QPushButton#primaryButton {{
-    background-color: #74836A;
-    color: #F8F6F0;
-    border: 1px solid #74836A;
+    background-color: #7657F6;
+    color: #FFFFFF;
+    border: 1px solid #7657F6;
 }}
 QPushButton#quietButton {{
     background-color: transparent;
     border: 1px solid transparent;
-    color: #6E7067;
+    color: #647089;
 }}
 QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox {{
-    background-color: #FBF9F4;
-    color: #22231F;
-    border: 1px solid #D4CFC3;
+    background-color: #FFFFFF;
+    color: #172033;
+    border: 1px solid #D7DEEA;
     border-radius: {RADIUS_MD}px;
     padding: {SPACE_2}px {SPACE_3}px;
-    selection-background-color: #74836A;
-    selection-color: #F8F6F0;
+    selection-background-color: #7657F6;
+    selection-color: #FFFFFF;
     font-family: "{BODY_FONT}";
     font-size: {FONT_BODY}px;
     min-height: {CONTROL_HEIGHT_MD}px;
 }}
 QCheckBox::indicator {{
-    background-color: #FBF9F4;
-    border: 1px solid #D4CFC3;
+    background-color: #FFFFFF;
+    border: 1px solid #D7DEEA;
 }}
 QCheckBox::indicator:checked {{
-    background-color: #74836A;
-    border-color: #74836A;
+    background-color: #7657F6;
+    border-color: #7657F6;
 }}
-QSlider::sub-page:horizontal {{ background: #74836A; }}
-QSlider::handle:horizontal {{ background: #74836A; }}
-QProgressBar::chunk {{ background-color: #74836A; }}
-QTabBar::tab {{ color: #6E7067; }}
-QTabBar::tab:selected {{ color: #74836A; border-bottom: 2px solid #74836A; }}
-#statusBar {{ border-top: 1px solid #D4CFC3; color: #6E7067; }}
+QSlider::sub-page:horizontal {{ background: #7657F6; }}
+QSlider::handle:horizontal {{ background: #7657F6; }}
+QProgressBar::chunk {{ background-color: #7657F6; }}
+QTabBar::tab {{ color: #647089; }}
+QTabBar::tab:selected {{ color: #7657F6; border-bottom: 2px solid #7657F6; }}
+#statusBar {{ border-top: 1px solid #D7DEEA; color: #647089; }}
 #keyCap {{
-    background-color: #FBF9F4;
-    color: #22231F;
-    border: 1px solid #D4CFC3;
+    background-color: #FFFFFF;
+    color: #172033;
+    border: 1px solid #D7DEEA;
 }}
 #keyCap[held="true"] {{
-    background-color: #74836A;
-    color: #F8F6F0;
-    border-color: #74836A;
+    background-color: #7657F6;
+    color: #FFFFFF;
+    border-color: #7657F6;
 }}
-#statusDot[state="ready"] {{ color: #74836A; }}
-#statusDot[state="recording"] {{ color: #74836A; }}
-#statusDot[state="draining"] {{ color: #6E7067; }}
-#statusDot[state="error"] {{ color: #9A584D; }}
-#statusDot[state="setup"] {{ color: #6E7067; }}
-#statusDot[state="connecting"] {{ color: #6E7067; }}
+#statusDot[state="ready"] {{ color: #31B86B; }}
+#statusDot[state="recording"] {{ color: #7657F6; }}
+#statusDot[state="draining"] {{ color: #647089; }}
+#statusDot[state="error"] {{ color: #C4515B; }}
+#statusDot[state="setup"] {{ color: #647089; }}
+#statusDot[state="connecting"] {{ color: #647089; }}
 """
 
 

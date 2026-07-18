@@ -4,11 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QElapsedTimer, QPoint, QTimer, Qt, Slot
+from PySide6.QtCore import (
+    QEasingCurve,
+    QElapsedTimer,
+    QPoint,
+    QPropertyAnimation,
+    QTimer,
+    Qt,
+    Slot,
+)
 from PySide6.QtGui import QFont, QMouseEvent
 from PySide6.QtWidgets import (
-    QApplication, QHBoxLayout, QLabel, QProgressBar, QPushButton,
-    QStackedWidget, QStyle, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
+    QApplication, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QProgressBar,
+    QPushButton, QStackedWidget, QStyle, QSystemTrayIcon, QTextEdit,
+    QVBoxLayout, QWidget,
 )
 
 from soundflow._legacy.ui_module import (
@@ -17,7 +26,7 @@ from soundflow._legacy.ui_module import (
 )
 from soundflow.core.settings import SettingsStore, default_model_path
 from soundflow.core.state import DictationState
-from soundflow.design import BODY_FONT
+from soundflow.design import ANIMATION_NORMAL, BODY_FONT
 from soundflow.history import HistoryPage, HistoryStore
 from soundflow.playground import PlaygroundPage
 from soundflow.preferences import PreferencesPage
@@ -46,6 +55,8 @@ class MainWindow(LegacyMainWindow):
         self._pending_runtime_rebuild = False
         self._drag_origin: QPoint | None = None
         self._current_page = "dictation"
+        self._page_effect: QGraphicsOpacityEffect | None = None
+        self._page_animation: QPropertyAnimation | None = None
         super().__init__(*args, **kwargs)
         self._last_runtime_signature = self._runtime_settings_signature()
         self.playground_page.set_injector(self.injector)
@@ -99,17 +110,13 @@ class MainWindow(LegacyMainWindow):
         body.addWidget(content, 1)
         outer.addLayout(body, 1)
         self.persistent_status = StatusBar()
-        outer.addWidget(self.persistent_status)
+        self.persistent_status.hide()
         self.setCentralWidget(surface)
 
         self.sidebar.page_requested.connect(self.navigate)
         self.dictation_page.language_changed.connect(self._language_changed)
         self.dictation_page.dictation_toggled.connect(self.toggle_dictation)
-        self.history_page.insert_at_cursor.connect(self._insert_at_cursor)
         self.playground_page.insert_requested.connect(self._insert_at_cursor)
-        self.persistent_status.gear_clicked.connect(
-            lambda: self.navigate("preferences")
-        )
         self.window_chrome.minimize.connect(self.showMinimized)
         self.window_chrome.maximize.connect(self._toggle_maximized)
         self.window_chrome.close.connect(self.close)
@@ -139,20 +146,67 @@ class MainWindow(LegacyMainWindow):
         self.language_picker = self.dictation_page.language_picker
         self.overlay = RecordingOverlay()
 
+    def apply_appearance(self, appearance: str) -> None:
+        """Apply the palette and keep the Preferences selector synchronized."""
+        super().apply_appearance(appearance)
+        preferences = getattr(self, "preferences_page", None)
+        if preferences is not None:
+            preferences.general_tab._theme.set_value(
+                self.settings.appearance, emit=False
+            )
+
     @Slot(str)
     def navigate(self, key: str) -> None:
         index = self._page_indices.get(key)
         if index is None:
+            return
+        if key == self._current_page and self.pages.currentIndex() == index:
             return
         if self._current_page == "preferences" and key != "preferences":
             self._save_preferences()
         self._current_page = key
         self.sidebar.select(key)
         self.pages.setCurrentIndex(index)
+        self._animate_page_in(self.pages.currentWidget())
         if key == "history":
             self.history_page.refresh()
         elif key == "dictation":
             self.dictation_page.setFocus()
+
+    def _animate_page_in(self, page: QWidget) -> None:
+        """Give navigation a restrained fade rather than an abrupt swap."""
+        if self._page_animation is not None:
+            self._page_animation.stop()
+        if self._page_effect is not None:
+            try:
+                owner = self._page_effect.parent()
+            except RuntimeError:
+                owner = None
+            if isinstance(owner, QWidget) and owner.graphicsEffect() is self._page_effect:
+                owner.setGraphicsEffect(None)
+            self._page_effect = None
+
+        effect = QGraphicsOpacityEffect(page)
+        effect.setOpacity(0.18)
+        page.setGraphicsEffect(effect)
+        animation = QPropertyAnimation(effect, b"opacity", self)
+        animation.setDuration(ANIMATION_NORMAL)
+        animation.setStartValue(0.18)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        def finish() -> None:
+            if self._page_effect is effect:
+                self._page_effect = None
+            if self._page_animation is animation:
+                self._page_animation = None
+            if page.graphicsEffect() is effect:
+                page.setGraphicsEffect(None)
+
+        animation.finished.connect(finish)
+        self._page_effect = effect
+        self._page_animation = animation
+        animation.start()
 
     @Slot(str)
     def _language_changed(self, language: str) -> None:

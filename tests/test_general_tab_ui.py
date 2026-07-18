@@ -8,6 +8,7 @@ try:
         QApplication,
         QComboBox,
         QLabel,
+        QPushButton,
         QScrollArea,
         QWidget,
     )
@@ -28,7 +29,7 @@ class GeneralTabUiTests(unittest.TestCase):
     def setUpClass(cls):
         cls.application = QApplication.instance() or QApplication([])
 
-    def test_general_tab_scrolls_and_uses_compact_theme_field(self):
+    def test_general_tab_scrolls_and_uses_segmented_theme_toggle(self):
         previous_stylesheet = self.application.styleSheet()
         self.application.setStyleSheet(stylesheet(True))
         try:
@@ -41,10 +42,23 @@ class GeneralTabUiTests(unittest.TestCase):
             self.assertIsNotNone(scroll)
             self.assertGreater(scroll.verticalScrollBar().maximum(), 0)
 
-            theme = tab.findChild(QComboBox, "compactPreferenceField")
+            self.assertIsNone(tab.findChild(QComboBox, "compactPreferenceField"))
+            theme = tab.findChild(QWidget, "segmentedControl")
             self.assertIsNotNone(theme)
-            self.assertLessEqual(theme.height(), CONTROL_HEIGHT_SM)
-            self.assertLessEqual(theme.width(), 320)
+            buttons = theme.findChildren(QPushButton)
+            self.assertEqual([button.text() for button in buttons], ["Light", "Dark"])
+            self.assertEqual(sum(button.isChecked() for button in buttons), 1)
+            self.assertLessEqual(theme.height(), CONTROL_HEIGHT_SM + 4)
+            presets = tab.findChildren(QPushButton, "presetChip")
+            self.assertEqual(len(presets), 3)
+            self.assertTrue(
+                all(preset.height() == buttons[0].height() for preset in presets)
+            )
+
+            buttons[1].click()
+            updated = Settings(appearance="light")
+            tab.write_back(updated)
+            self.assertEqual(updated.appearance, "dark")
 
             cards = tab.findChildren(QWidget, "preferencesCard")
             self.assertTrue(cards)

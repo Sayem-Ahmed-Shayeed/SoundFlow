@@ -17,6 +17,9 @@ from .fonts import (
     register_application_fonts,
 )
 from .spacing import (
+    ANIMATION_FAST,
+    ANIMATION_NORMAL,
+    ANIMATION_SLOW,
     BORDER_FOCUS,
     BORDER_THIN,
     CONTROL_HEIGHT_LG,
@@ -57,6 +60,9 @@ from .theme import (
 )
 
 __all__ = [
+    "ANIMATION_FAST",
+    "ANIMATION_NORMAL",
+    "ANIMATION_SLOW",
     "BODY_FONT",
     "DISPLAY_FONT",
     "MONO_FONT",

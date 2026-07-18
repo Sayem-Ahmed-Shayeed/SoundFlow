@@ -244,7 +244,7 @@ class ShortcutPicker(QWidget):
 class WaveformWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setFixedSize(92, 30)
+        self.setFixedSize(44, 24)
         self._level = 0.15
         self._phase = 0
         self._timer = QTimer(self)
@@ -272,13 +272,13 @@ class WaveformWidget(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor("#f1f3f5"))
-        bar_width = 4
-        gap = 4
+        bar_width = 3
+        gap = 3
         center = self.height() / 2
-        for index in range(11):
+        for index in range(7):
             wave = abs(((index + self._phase) % 8) - 3.5) / 3.5
-            height = 5 + self._level * (20 - 10 * wave)
-            x = index * (bar_width + gap) + 2
+            height = 4 + self._level * (17 - 8 * wave)
+            x = index * (bar_width + gap) + 1
             painter.drawRoundedRect(
                 int(x),
                 int(center - height / 2),
@@ -392,28 +392,28 @@ class RecordingOverlay(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setFixedSize(360, 72)
+        self.setFixedSize(284, 48)
         panel = QFrame(self)
         panel.setObjectName("overlayPanel")
         panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        panel.setGeometry(0, 0, 360, 72)
+        panel.setGeometry(0, 0, 284, 48)
         layout = QHBoxLayout(panel)
-        layout.setContentsMargins(18, 12, 16, 12)
-        layout.setSpacing(13)
+        layout.setContentsMargins(12, 7, 11, 7)
+        layout.setSpacing(9)
         self.waveform = WaveformWidget()
         self.label = QLabel("Listening")
         self.label.setObjectName("overlayTitle")
         self.hint = QLabel("Release to insert")
         self.hint.setObjectName("overlayHint")
         words = QVBoxLayout()
-        words.setSpacing(1)
+        words.setSpacing(0)
         words.addWidget(self.label)
         words.addWidget(self.hint)
         layout.addWidget(self.waveform)
         layout.addLayout(words)
-        layout.addStretch(1)
         self.keycap = QLabel("CTRL + SPACE")
         self.keycap.setObjectName("overlayKeycap")
+        self.keycap.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.keycap)
         self._opacity = QGraphicsOpacityEffect(panel)
         panel.setGraphicsEffect(self._opacity)

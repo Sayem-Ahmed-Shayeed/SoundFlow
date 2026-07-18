@@ -44,8 +44,17 @@ class DesignTokenTests(unittest.TestCase):
     def test_dark_stylesheet_contains_cream_and_black(self) -> None:
         from soundflow.design import BG_BLACK, FG_CREAM, stylesheet
         sheet = stylesheet(True)
+        self.assertEqual(BG_BLACK, "#000000")
         self.assertIn(BG_BLACK, sheet)
         self.assertIn(FG_CREAM, sheet)
+
+    def test_compact_dropdowns_have_a_consistent_chevron(self) -> None:
+        from soundflow.design import stylesheet
+        for sheet in (stylesheet(True), stylesheet(False)):
+            self.assertIn("QComboBox#compactPreferenceField::down-arrow", sheet)
+            self.assertIn("QComboBox#compactShortcutField::down-arrow", sheet)
+            self.assertIn("image: url(", sheet)
+            self.assertIn("QSlider::add-page:horizontal", sheet)
 
     def test_spacing_grid_is_4px(self) -> None:
         from soundflow.design.spacing import SPACE_1, SPACE_2, SPACE_3, SPACE_4

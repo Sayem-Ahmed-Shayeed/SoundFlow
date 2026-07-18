@@ -4,7 +4,9 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QWidget
+    from PySide6.QtWidgets import (
+        QApplication, QComboBox, QLabel, QPushButton, QWidget,
+    )
 
     from soundflow.core.settings import Settings
     from soundflow.design import CONTROL_HEIGHT_SM, stylesheet
@@ -37,7 +39,10 @@ class ShortcutsTabUiTests(unittest.TestCase):
                 all(field.height() <= CONTROL_HEIGHT_SM for field in fields)
             )
             self.assertLessEqual(fields[0].width(), 128)
-            self.assertLessEqual(fields[1].width(), 96)
+            self.assertGreaterEqual(fields[1].width(), 112)
+            reset = tab.findChild(QPushButton, "textActionButton")
+            self.assertIsNotNone(reset)
+            self.assertEqual(reset.text(), "Reset to default")
             cards = tab.findChildren(QWidget, "preferencesCard")
             self.assertEqual(len(cards), 2)
             for card in cards:

@@ -5,7 +5,8 @@ from datetime import datetime
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPushButton
+    import soundflow.history.page as history_page
     from soundflow.history.models import TranscriptEntry
     from soundflow.history.page import TranscriptCard
     HAS_QT = True
@@ -40,7 +41,7 @@ class HistoryCardTests(unittest.TestCase):
         card.cancel_edit()
         self.assertFalse(card.body_label.isHidden())
 
-    def test_edit_mode_hides_insert_and_copies_current_editor_text(self):
+    def test_edit_mode_has_no_insert_action_and_copies_current_editor_text(self):
         entry = TranscriptEntry(
             id=8,
             created_at=datetime.now(),
@@ -51,7 +52,7 @@ class HistoryCardTests(unittest.TestCase):
         )
         card = TranscriptCard(entry)
         card.begin_edit()
-        self.assertTrue(card.insert_button.isHidden())
+        self.assertFalse(hasattr(card, "insert_button"))
         self.assertTrue(card.copy_button.isEnabled())
 
         card.editor.setPlainText("Edited but not saved yet.")
@@ -62,7 +63,31 @@ class HistoryCardTests(unittest.TestCase):
         )
 
         card.cancel_edit()
-        self.assertFalse(card.insert_button.isHidden())
+        self.assertFalse(hasattr(card, "insert_button"))
+
+    def test_delete_confirmation_is_compact_and_uses_clear_actions(self):
+        dialog_class = getattr(history_page, "DeleteTranscriptDialog", None)
+        self.assertIsNotNone(dialog_class)
+
+        dialog = dialog_class("What's up, man")
+        dialog.show()
+        self.app.processEvents()
+
+        self.assertEqual(dialog.objectName(), "deleteTranscriptDialog")
+        self.assertLessEqual(dialog.width(), 420)
+        title = dialog.findChild(QLabel, "deleteDialogTitle")
+        copy = dialog.findChild(QLabel, "deleteDialogCopy")
+        cancel = dialog.findChild(QPushButton, "deleteDialogCancel")
+        delete = dialog.findChild(QPushButton, "destructiveButton")
+        self.assertEqual(title.text(), "Delete transcript?")
+        self.assertIn("What's up, man", copy.text())
+        self.assertEqual(cancel.text(), "Cancel")
+        self.assertEqual(delete.text(), "Delete")
+        self.assertTrue(cancel.isDefault())
+        self.assertFalse(delete.isDefault())
+
+        delete.click()
+        self.assertEqual(dialog.result(), QDialog.DialogCode.Accepted)
 
 
 if __name__ == "__main__":

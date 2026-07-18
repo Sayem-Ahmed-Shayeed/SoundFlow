@@ -27,6 +27,18 @@ class ToggleSwitch(QCheckBox):
     def hitButton(self, position) -> bool:
         return self.rect().contains(position)
 
+    @staticmethod
+    def color_tokens(*, dark: bool, checked: bool) -> tuple[str, str, str]:
+        if checked:
+            return (
+                ("#9B72FF", "#A987FF", "#FFFFFF")
+                if dark else ("#7657F6", "#6848E8", "#FFFFFF")
+            )
+        return (
+            ("#242429", "#3A3A42", "#B7B7C0")
+            if dark else ("#D9DBE2", "#B9BCC6", "#FFFFFF")
+        )
+
     def paintEvent(self, event) -> None:
         del event
         painter = QPainter(self)
@@ -35,15 +47,12 @@ class ToggleSwitch(QCheckBox):
         dark = bool(appearance) if appearance is not None else (
             self.palette().color(self.palette().ColorRole.Window).lightness() < 128
         )
-        track = QColor("#91A187" if dark else "#74836A") if self.isChecked() else QColor(
-            "#30322B" if dark else "#D8D5CC"
+        track_token, border_token, thumb_token = self.color_tokens(
+            dark=dark, checked=self.isChecked()
         )
-        border = QColor("#AAB7A2" if dark else "#68765F") if self.isChecked() else QColor(
-            "#4A4D42" if dark else "#B8B5AA"
-        )
-        thumb = QColor("#F7F4EC") if self.isChecked() else QColor(
-            "#AAA79D" if dark else "#74766E"
-        )
+        track = QColor(track_token)
+        border = QColor(border_token)
+        thumb = QColor(thumb_token)
         if not self.isEnabled():
             painter.setOpacity(0.5)
         painter.setPen(QPen(border, 1))

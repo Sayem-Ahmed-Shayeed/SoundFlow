@@ -9,7 +9,9 @@ try:
         QApplication,
         QComboBox,
         QLabel,
+        QLineEdit,
         QProgressBar,
+        QPushButton,
         QWidget,
     )
 
@@ -47,6 +49,13 @@ class DictationTabUiTests(unittest.TestCase):
             self.assertTrue(
                 all(field.height() <= CONTROL_HEIGHT_SM for field in fields)
             )
+            path = tab.findChild(QLineEdit, "compactPathField")
+            browse = tab.findChild(QPushButton, "compactBrowseButton")
+            self.assertIsNotNone(path)
+            self.assertIsNotNone(browse)
+            self.assertEqual(path.height(), CONTROL_HEIGHT_SM)
+            self.assertEqual(browse.height(), CONTROL_HEIGHT_SM)
+            self.assertTrue(all(field.height() == path.height() for field in fields))
             self.assertFalse(tab.findChildren(QProgressBar))
             card = tab.findChild(QWidget, "preferencesCard")
             labels = [

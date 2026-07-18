@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QWidget
+
+from soundflow.design import CONTROL_HEIGHT_SM
 
 
 class AppearanceSelector(QFrame):
@@ -12,18 +14,17 @@ class AppearanceSelector(QFrame):
     def __init__(self, value: str = "dark", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("segmentedControl")
-        self._value = value if value in {"system", "light", "dark"} else "dark"
+        self._value = value if value in {"light", "dark"} else "dark"
         self._buttons: dict[str, QPushButton] = {}
         layout = QHBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(0)
-        for label, token in (
-            ("System", "system"),
-            ("Light", "light"),
-            ("Dark", "dark"),
-        ):
+        for label, token in (("Light", "light"), ("Dark", "dark")):
             button = QPushButton(label)
             button.setCheckable(True)
+            button.setFixedHeight(CONTROL_HEIGHT_SM)
+            button.setAccessibleName(f"Use {label.lower()} appearance")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.clicked.connect(
                 lambda _checked=False, selected=token: self.set_value(selected)
             )

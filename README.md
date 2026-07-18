@@ -8,20 +8,19 @@ Repository: [Sayem-Ahmed-Shayeed/SoundFlow](https://github.com/Sayem-Ahmed-Shaye
 
 Implemented now:
 
-- Click-based start and stop
-- Global toggle dictation shortcut
-- Global push-to-talk with press and release handling
-- Native Wayland global shortcut support through the desktop portal
-- A compact recording overlay that appears above the current application
+- Redesigned modular UI with sidebar navigation across Dictation, History, and Playground pages
+- Design token system — dark/light theming, Roboto fonts, spacing scale, Qt stylesheet engine
+- Dictation page with waveform ring, voice orb, animated record button, and status indicators
+- Editable history page with transcript cards, copy, clear, TXT, Markdown, and DOCX export
+- Preferences dialog with five tabs: General, Dictation, Playback, Shortcuts, and System readiness
+- Appearance selector (dark / light / follow system)
+- Click-based start/stop, global toggle, and push-to-talk with press-and-release handling
+- Native Wayland global shortcut support through the XDG desktop portal
 - Automatic paste at the active cursor when push-to-talk is released
 - Phrase-by-phrase transcription while recording continues
 - Explicitly local `faster-whisper` model loading
-- Editable transcript, copy, clear, TXT, Markdown, and DOCX export
-- Insert into the focused application through clipboard paste
-- Microphone, language, inference, endpoint, and shortcut settings
 - System tray operation
 - A demo backend for testing UI and control flow without a model
-- Windows and Linux/X11 hotkeys
 
 Wayland deliberately blocks arbitrary global keyboard capture and input injection. Soundflow uses
 the XDG GlobalShortcuts and RemoteDesktop portals, which require one-time desktop approval.
@@ -176,24 +175,60 @@ Project layout:
 
 ```text
 src/soundflow/
-├── app.py              command-line and Qt startup
-├── ui.py               main window, settings, and tray
-├── audio.py            sounddevice microphone adapter
-├── transcription.py    capture/segment/inference workers
-├── hotkeys.py          Windows and X11 shortcut listener
-├── injector.py         focused-application paste adapter
-└── core/
-    ├── state.py        dictation state machine
-    ├── segmenter.py    phrase endpoint detector
-    ├── settings.py     atomic local JSON settings
-    └── export.py       TXT, Markdown, and DOCX export
+├── app.py                  command-line and Qt startup
+├── audio.py                sounddevice microphone adapter
+├── hotkeys.py              Windows/X11/Wayland shortcut listener
+├── injector.py             focused-application paste adapter
+├── portal.py               XDG desktop portal integration
+├── transcription.py        capture/segment/inference workers
+├── assets/
+│   └── fonts/              bundled Roboto (Regular, Medium, Bold)
+├── core/
+│   ├── state.py            dictation state machine
+│   ├── segmenter.py        phrase endpoint detector
+│   ├── settings.py         atomic local JSON settings
+│   └── export.py           TXT, Markdown, and DOCX export
+├── design/
+│   ├── theme.py            colour palette, dark/light stylesheets
+│   ├── fonts.py            preferred font resolution
+│   └── spacing.py          4-px spacing scale, radii, font sizes
+├── history/
+│   ├── page.py             transcript history page
+│   ├── models.py           transcript data model
+│   └── store.py            in-memory transcript store
+├── playground/
+│   ├── page.py             demo/testing playground page
+│   └── actions.py          playground action definitions
+├── preferences/
+│   ├── dialog.py           preferences dialog shell
+│   ├── system_check.py     system readiness checks
+│   └── tabs/
+│       ├── dictation.py    microphone, language, endpoint settings
+│       ├── general.py      start minimised, appearance, profile
+│       ├── playback.py     playback and audio output settings
+│       ├── shortcuts.py    global hotkey configuration
+│       └── system.py       system status and readiness checks
+├── ui/
+│   ├── main_window.py      top-level window with sidebar + page stack
+│   ├── pages/
+│   │   └── dictation_page.py
+│   └── widgets/
+│       ├── sidebar.py, top_tab_bar.py, status_bar.py
+│       ├── waveform_ring.py, voice_orb.py
+│       ├── toggle_switch.py, compat.py
+│       └── window_chrome.py
+├── _legacy/
+│   └── ui_module.py        backward-compat re-exports
+└── utils/
+    └── files.py            file I/O helpers
 ```
 
 ## Known MVP constraints
 
 - The microphone must accept 16 kHz mono input. Production should capture the device's preferred
   format and resample.
-- Global hotkeys use `pynput`; Wayland portal support is not yet implemented.
+- Wayland global shortcuts and keyboard injection require the XDG GlobalShortcuts and
+  RemoteDesktop portals, which need one-time desktop approval.
 - Automatic insertion is clipboard plus simulated paste. On Wayland it may fall back to leaving
   the transcript on the clipboard.
 - CUDA works only when the installed CTranslate2 build and NVIDIA runtime are compatible. CPU

@@ -31,6 +31,16 @@ class ToggleSwitchTests(unittest.TestCase):
         self.assertFalse(switch.isChecked())
         self.assertEqual(switch.accessibleName(), "Auto-save transcripts")
 
+    def test_switch_palette_uses_neutral_off_and_violet_on_states(self):
+        self.assertEqual(
+            ToggleSwitch.color_tokens(dark=False, checked=False),
+            ("#D9DBE2", "#B9BCC6", "#FFFFFF"),
+        )
+        self.assertEqual(
+            ToggleSwitch.color_tokens(dark=True, checked=True),
+            ("#9B72FF", "#A987FF", "#FFFFFF"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

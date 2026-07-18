@@ -109,7 +109,7 @@ class ShortcutsTab(QWidget):
         self._picker.modifiers.setObjectName("compactShortcutField")
         self._picker.modifiers.setFixedSize(128, CONTROL_HEIGHT_SM)
         self._picker.key.setObjectName("compactShortcutField")
-        self._picker.key.setFixedSize(96, CONTROL_HEIGHT_SM)
+        self._picker.key.setFixedSize(112, CONTROL_HEIGHT_SM)
         self._picker.modifiers.currentIndexChanged.connect(
             self._sync_shortcut_summary
         )
@@ -132,7 +132,7 @@ class ShortcutsTab(QWidget):
 
         # Reset
         reset_btn = QPushButton("Reset to default")
-        reset_btn.setObjectName("quietButton")
+        reset_btn.setObjectName("textActionButton")
         reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         reset_btn.clicked.connect(self._reset)
         outer.addWidget(reset_btn, 0, Qt.AlignmentFlag.AlignLeft)

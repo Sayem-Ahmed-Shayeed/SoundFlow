@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -17,7 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from soundflow.ui.widgets import PreferenceToggleRow
+from soundflow.ui.widgets import AppearanceSelector, PreferenceToggleRow
 
 from soundflow.design import (
     BODY_FONT,
@@ -40,6 +39,8 @@ _PRESETS = (
 
 class GeneralTab(QWidget):
     """General preferences tab."""
+
+    appearance_changed = Signal(str)
 
     def __init__(self, settings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -76,13 +77,9 @@ class GeneralTab(QWidget):
         appearance_row.setSpacing(SPACE_3)
         theme_label = QLabel("Theme")
         theme_label.setFont(QFont(BODY_FONT, FONT_BODY))
-        self._theme = QComboBox()
-        self._theme.setObjectName("compactPreferenceField")
-        self._theme.setFixedHeight(CONTROL_HEIGHT_SM)
-        self._theme.setMaximumWidth(320)
-        self._theme.addItem("Dark", "dark")
-        self._theme.addItem("Light", "light")
-        self._theme.setCurrentIndex(0 if settings.appearance == "dark" else 1)
+        self._theme = AppearanceSelector(settings.appearance)
+        self._theme.setMaximumWidth(190)
+        self._theme.changed.connect(self.appearance_changed)
         appearance_row.addWidget(theme_label)
         appearance_row.addWidget(self._theme, 1)
         appearance_row.addStretch(1)
@@ -187,7 +184,7 @@ class GeneralTab(QWidget):
 
     # ------------------------------------------------------------------
     def write_back(self, settings) -> None:
-        settings.appearance = self._theme.currentData() or "dark"
+        settings.appearance = self._theme.value()
         settings.silence_duration_ms = int(self._silence.value())
         settings.auto_copy = self._auto_copy.isChecked()
         settings.start_minimized = self._start_minimized.isChecked()

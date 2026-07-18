@@ -16,10 +16,11 @@ Layout (top to bottom):
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QSizePolicy,
@@ -35,6 +36,7 @@ from soundflow.design import (
     FONT_DISPLAY,
     FONT_SMALL,
     FONT_TITLE,
+    ANIMATION_FAST,
     MONO_FONT,
     SPACE_2,
     SPACE_3,
@@ -88,14 +90,29 @@ class DictationPage(QWidget):
         outer.addLayout(header)
 
         # --- Hero block -------------------------------------------------
-        hero = QVBoxLayout()
-        hero.setSpacing(SPACE_4)
+        self._hero_panel = QWidget()
+        self._hero_panel.setObjectName("dictationHero")
+        self._hero_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        hero = QVBoxLayout(self._hero_panel)
+        hero.setContentsMargins(SPACE_8, SPACE_6, SPACE_8, SPACE_6)
+        hero.setSpacing(SPACE_3)
+        hero.addStretch(1)
 
-        prompt = QLabel("Start speaking")
-        prompt.setFont(QFont(DISPLAY_FONT, FONT_TITLE))
-        prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        prompt.setObjectName("headingText")
-        hero.addWidget(prompt)
+        self._state_badge = QLabel("●  READY")
+        self._state_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._state_badge.setObjectName("dictationStateBadge")
+        self._state_badge.setProperty("state", "idle")
+        hero.addWidget(
+            self._state_badge,
+            0,
+            Qt.AlignmentFlag.AlignHCenter,
+        )
+
+        self._prompt = QLabel("Start speaking")
+        self._prompt.setFont(QFont(DISPLAY_FONT, FONT_TITLE))
+        self._prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._prompt.setObjectName("headingText")
+        hero.addWidget(self._prompt)
 
         self._hero = QLabel("Press Space or hold Ctrl + Alt + Space")
         hero_font = QFont(DISPLAY_FONT, FONT_DISPLAY)
@@ -103,6 +120,15 @@ class DictationPage(QWidget):
         self._hero.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._hero.setObjectName("displayText")
         hero.addWidget(self._hero)
+        self._hero_effect = QGraphicsOpacityEffect(self._hero)
+        self._hero.setGraphicsEffect(self._hero_effect)
+        self._hero_animation = QPropertyAnimation(
+            self._hero_effect, b"opacity", self
+        )
+        self._hero_animation.setDuration(ANIMATION_FAST)
+        self._hero_animation.setStartValue(0.25)
+        self._hero_animation.setEndValue(1.0)
+        self._hero_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         self._ring = WaveformRing()
         self._ring.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -114,8 +140,6 @@ class DictationPage(QWidget):
         self._ring.installEventFilter(self)
         self._ring.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         hero.addWidget(self._ring)
-
-        outer.addLayout(hero)
 
         # --- Shortcut hint ---------------------------------------------
         hint_row = QHBoxLayout()
@@ -138,7 +162,7 @@ class DictationPage(QWidget):
         hint_row.addWidget(tail)
         hint_row.addStretch(1)
 
-        outer.addLayout(hint_row)
+        hero.addLayout(hint_row)
 
         # --- Subtle model/device row -----------------------------------
         meta_row = QHBoxLayout()
@@ -151,9 +175,9 @@ class DictationPage(QWidget):
         meta_row.addWidget(self._meta)
 
         meta_row.addStretch(1)
-        outer.addLayout(meta_row)
-
-        outer.addStretch(1)
+        hero.addLayout(meta_row)
+        hero.addStretch(1)
+        outer.addWidget(self._hero_panel, 1)
 
         self._state = "idle"
         self._shortcut_display = "Ctrl + Alt + SPACE"
@@ -164,13 +188,26 @@ class DictationPage(QWidget):
             return
         self._state = state
         if state == "recording":
+            self._state_badge.setText("●  LIVE")
+            self._state_badge.setProperty("state", "recording")
+            self._prompt.setText("Speak naturally")
             self._hero.setText(HERO_RECORDING)
         elif state == "draining":
+            self._state_badge.setText("✦  PROCESSING")
+            self._state_badge.setProperty("state", "draining")
+            self._prompt.setText("Creating your transcript")
             self._hero.setText(HERO_DRAINING)
         else:
+            self._state_badge.setText("●  READY")
+            self._state_badge.setProperty("state", "idle")
+            self._prompt.setText("Start speaking")
             self._hero.setText(
                 f"Press Space or hold {self._shortcut_display}"
             )
+        self._state_badge.style().unpolish(self._state_badge)
+        self._state_badge.style().polish(self._state_badge)
+        self._hero_animation.stop()
+        self._hero_animation.start()
         self._ring.set_state(state)
 
     def push_level(self, level: float) -> None:

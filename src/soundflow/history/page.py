@@ -8,7 +8,9 @@ from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -40,12 +42,69 @@ from soundflow.history.models import TranscriptEntry
 from soundflow.history.store import HistoryStore
 
 
+class DeleteTranscriptDialog(QDialog):
+    """Compact, branded confirmation for a destructive history action."""
+
+    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("deleteTranscriptDialog")
+        self.setModal(True)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setFixedWidth(400)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        surface = QFrame()
+        surface.setObjectName("deleteDialogSurface")
+        surface.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        content = QVBoxLayout(surface)
+        content.setContentsMargins(SPACE_6, SPACE_6, SPACE_6, SPACE_6)
+        content.setSpacing(SPACE_3)
+
+        heading = QLabel("Delete transcript?")
+        heading.setObjectName("deleteDialogTitle")
+        content.addWidget(heading)
+
+        message = QLabel(f'Delete “{title}”?')
+        message.setObjectName("deleteDialogCopy")
+        message.setTextFormat(Qt.TextFormat.PlainText)
+        message.setWordWrap(True)
+        content.addWidget(message)
+
+        warning = QLabel("This action cannot be undone.")
+        warning.setObjectName("deleteDialogWarning")
+        content.addWidget(warning)
+
+        actions = QHBoxLayout()
+        actions.setSpacing(SPACE_2)
+        actions.addStretch(1)
+        cancel = QPushButton("Cancel")
+        cancel.setObjectName("deleteDialogCancel")
+        cancel.setDefault(True)
+        cancel.setAutoDefault(True)
+        cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel.clicked.connect(self.reject)
+        actions.addWidget(cancel)
+
+        delete = QPushButton("Delete")
+        delete.setObjectName("destructiveButton")
+        delete.setAutoDefault(False)
+        delete.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete.clicked.connect(self.accept)
+        actions.addWidget(delete)
+        content.addLayout(actions)
+        outer.addWidget(surface)
+
+
 class TranscriptCard(QWidget):
     """Full transcript card with inline editing and visible common actions."""
 
     save_requested = Signal(int, str)
     delete_requested = Signal(int)
-    insert_requested = Signal(str)
     export_requested = Signal(int)
 
     def __init__(self, entry: TranscriptEntry, parent: QWidget | None = None) -> None:
@@ -102,15 +161,10 @@ class TranscriptCard(QWidget):
         actions.setSpacing(SPACE_2)
         self.edit_button = self._button("✎  Edit", "Edit transcript")
         self.copy_button = self._button("Copy", "Copy transcript")
-        self.insert_button = self._button("Insert", "Insert transcript at cursor")
         self.edit_button.clicked.connect(self.begin_edit)
         self.copy_button.clicked.connect(self.copy_text)
-        self.insert_button.clicked.connect(
-            lambda: self.insert_requested.emit(self.entry.body)
-        )
         actions.addWidget(self.edit_button)
         actions.addWidget(self.copy_button)
-        actions.addWidget(self.insert_button)
         actions.addStretch(1)
 
         self.save_button = self._button("Save", "Save transcript changes")
@@ -149,7 +203,6 @@ class TranscriptCard(QWidget):
         self.editor.show()
         self.edit_button.hide()
         self.copy_button.setEnabled(True)
-        self.insert_button.hide()
         self.save_button.show()
         self.cancel_button.show()
         self.editor.setFocus()
@@ -160,8 +213,6 @@ class TranscriptCard(QWidget):
         self.body_label.show()
         self.edit_button.show()
         self.copy_button.setEnabled(True)
-        self.insert_button.show()
-        self.insert_button.setEnabled(True)
         self.save_button.hide()
         self.cancel_button.hide()
         self.feedback.hide()
@@ -207,8 +258,6 @@ class TranscriptCard(QWidget):
 class HistoryPage(QWidget):
     """Searchable, date-grouped, full-text transcript history."""
 
-    insert_at_cursor = Signal(str)
-
     def __init__(self, store: HistoryStore, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("historyPage")
@@ -219,14 +268,26 @@ class HistoryPage(QWidget):
         outer.setContentsMargins(SPACE_8, SPACE_4, SPACE_8, SPACE_6)
         outer.setSpacing(SPACE_4)
         title_row = QHBoxLayout()
+        title_copy = QVBoxLayout()
+        title_copy.setSpacing(SPACE_2)
         title = QLabel("History")
         title.setFont(QFont(DISPLAY_FONT, FONT_TITLE))
         title.setObjectName("displayText")
-        title_row.addWidget(title)
+        title_copy.addWidget(title)
+        subtitle = QLabel("Search, edit, and reuse your saved dictations")
+        subtitle.setObjectName("mutedText")
+        subtitle.setFont(QFont(BODY_FONT, FONT_SMALL))
+        title_copy.addWidget(subtitle)
+        title_row.addLayout(title_copy)
         title_row.addStretch(1)
         self.result_count = QLabel()
-        self.result_count.setObjectName("mutedText")
-        title_row.addWidget(self.result_count)
+        self.result_count.setObjectName("resultCount")
+        self.result_count.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
+        title_row.addWidget(
+            self.result_count, 0, Qt.AlignmentFlag.AlignVCenter
+        )
         outer.addLayout(title_row)
 
         self.search = QLineEdit()
@@ -237,6 +298,7 @@ class HistoryPage(QWidget):
         outer.addWidget(self.search)
 
         self.scroll = QScrollArea()
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll.setWidgetResizable(True)
         self.scroll.setObjectName("historyScroll")
         self.scroll.setHorizontalScrollBarPolicy(
@@ -270,6 +332,7 @@ class HistoryPage(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+        self.cards.setStretch(0, 1)
 
         query = self.search.text().strip()
         entries = self._store.list_entries(query)
@@ -286,7 +349,8 @@ class HistoryPage(QWidget):
             empty.setObjectName("mutedText")
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty.setWordWrap(True)
-            self.cards.insertWidget(0, empty)
+            self.cards.insertWidget(0, empty, 1)
+            self.cards.setStretch(1, 0)
             return
 
         groups: dict[str, list[TranscriptEntry]] = {}
@@ -310,7 +374,6 @@ class HistoryPage(QWidget):
                     lambda entry_id, text, source=card:
                     self._save_entry(source, entry_id, text)
                 )
-                card.insert_requested.connect(self.insert_at_cursor)
                 card.export_requested.connect(self._export_entry)
                 card.delete_requested.connect(self._delete_entry)
                 self.cards.insertWidget(self.cards.count() - 1, card)
@@ -332,14 +395,8 @@ class HistoryPage(QWidget):
         entry = self._store.get(entry_id)
         if entry is None:
             return
-        answer = QMessageBox.question(
-            self,
-            "Delete transcript?",
-            f'Delete “{entry.title}”? This cannot be undone.',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Cancel,
-        )
-        if answer == QMessageBox.StandardButton.Yes:
+        dialog = DeleteTranscriptDialog(entry.title, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self._store.delete(entry_id)
             self.refresh()
 
@@ -361,4 +418,4 @@ class HistoryPage(QWidget):
             QMessageBox.warning(self, "Export failed", str(exc))
 
 
-__all__ = ["HistoryPage", "TranscriptCard"]
+__all__ = ["DeleteTranscriptDialog", "HistoryPage", "TranscriptCard"]
