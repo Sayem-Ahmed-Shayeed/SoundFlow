@@ -4,6 +4,7 @@ import hashlib
 import json
 import shutil
 import threading
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 
@@ -73,6 +74,17 @@ def _write_manifest(path: Path, model_id: str) -> None:
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def _path_exists(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
 
 
 def _download_snapshot(
@@ -146,12 +158,16 @@ class ModelService:
         partial = final.with_name(final.name + ".partial")
         completed = False
         try:
-            if partial.exists():
-                shutil.rmtree(partial)
+            if _path_exists(partial):
+                _remove_path(partial)
             self.root.mkdir(parents=True, exist_ok=True)
             progress("Preparing", 0)
             if cancel.is_set():
                 raise ModelDownloadCancelled("Download cancelled")
+            if not final.is_symlink() and _is_valid_model(final):
+                completed = True
+                progress("Ready", 100)
+                return final
             self._downloader(item, partial, progress, cancel)
             if cancel.is_set():
                 raise ModelDownloadCancelled("Download cancelled")
@@ -159,10 +175,22 @@ class ModelService:
             shutil.rmtree(partial / ".cache", ignore_errors=True)
             _validate_model(partial)
             _write_manifest(partial, item.model_id)
-            if final.exists():
-                shutil.rmtree(final)
-            partial.replace(final)
+
+            backup = None
+            if _path_exists(final):
+                backup = final.with_name(f"{final.name}.backup-{uuid.uuid4().hex}")
+                final.replace(backup)
+            try:
+                partial.replace(final)
+            except Exception:
+                if backup is not None:
+                    if _path_exists(final):
+                        _remove_path(final)
+                    backup.replace(final)
+                raise
             completed = True
+            if backup is not None:
+                _remove_path(backup)
             progress("Ready", 100)
             return final
         except (ModelDownloadCancelled, ModelManagerError):
@@ -172,16 +200,19 @@ class ModelService:
         except Exception as exc:
             raise ModelManagerError("Could not download the model.") from exc
         finally:
-            if not completed and partial.exists():
-                shutil.rmtree(partial, ignore_errors=True)
+            if not completed and _path_exists(partial):
+                if partial.is_symlink() or partial.is_file():
+                    partial.unlink(missing_ok=True)
+                else:
+                    shutil.rmtree(partial, ignore_errors=True)
 
     def delete(self, model_id: str, *, active_path: Path) -> None:
-        target = managed_model_path(model_spec(model_id), self.root).resolve()
+        target = managed_model_path(model_spec(model_id), self.root).expanduser()
         root = self.root.expanduser().resolve()
         active = active_path.expanduser().resolve()
-        if target == active:
-            raise ModelManagerError("The active model cannot be deleted.")
-        if target.parent != root:
+        if target.is_symlink() or target.parent.resolve() != root:
             raise ModelManagerError("Soundflow can only delete managed models.")
+        if target.resolve() == active:
+            raise ModelManagerError("The active model cannot be deleted.")
         if target.exists():
             shutil.rmtree(target)

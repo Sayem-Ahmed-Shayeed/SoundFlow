@@ -3,6 +3,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from soundflow.models import ModelDownloadCancelled, ModelManagerError, ModelService
 
@@ -48,7 +49,7 @@ class ModelServiceTests(unittest.TestCase):
             def cancelled(spec, target, progress, cancel_event):
                 target.mkdir(parents=True)
                 (target / "partial.bin").write_bytes(b"partial")
-                raise ModelDownloadCancelled("Download cancelled")
+                cancel_event.set()
 
             service = ModelService(root=root, downloader=cancelled)
             with self.assertRaises(ModelDownloadCancelled):
@@ -74,3 +75,66 @@ class ModelServiceTests(unittest.TestCase):
                 service.delete("tiny", active_path=target)
             service.delete("tiny", active_path=root / "faster-whisper-small")
             self.assertFalse(target.exists())
+
+    def test_delete_rejects_symlinked_catalog_entry_without_deleting_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            custom = root / "custom-model"
+            valid_model(custom)
+            target = root / "faster-whisper-tiny"
+            target.symlink_to(custom, target_is_directory=True)
+
+            service = ModelService(root=root)
+            with self.assertRaisesRegex(ModelManagerError, "managed models"):
+                service.delete("tiny", active_path=root / "faster-whisper-small")
+
+            self.assertTrue(target.is_symlink())
+            self.assertTrue((custom / "model.bin").is_file())
+
+    def test_install_restores_invalid_existing_directory_when_promotion_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            final = root / "faster-whisper-base"
+            final.mkdir()
+            marker = final / "keep-me.txt"
+            marker.write_text("previous content", encoding="utf-8")
+
+            def downloader(spec, target, progress, cancel_event):
+                valid_model(target)
+
+            original_replace = Path.replace
+
+            def fail_partial_promotion(source, target):
+                if source.name.endswith(".partial"):
+                    raise OSError("simulated promotion failure")
+                return original_replace(source, target)
+
+            service = ModelService(root=root, downloader=downloader)
+            with patch.object(Path, "replace", new=fail_partial_promotion):
+                with self.assertRaisesRegex(ModelManagerError, "promotion failure"):
+                    service.install("base", progress=lambda *_: None)
+
+            self.assertEqual(marker.read_text(encoding="utf-8"), "previous content")
+            self.assertFalse((root / "faster-whisper-base.partial").exists())
+            self.assertEqual(list(root.glob("faster-whisper-base.backup-*")), [])
+
+    def test_install_does_not_overwrite_valid_existing_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            final = root / "faster-whisper-medium"
+            valid_model(final)
+            (final / "model.bin").write_bytes(b"existing weights")
+
+            def downloader(spec, target, progress, cancel_event):
+                self.fail("downloader must not run for an installed valid model")
+
+            events = []
+            service = ModelService(root=root, downloader=downloader)
+            installed = service.install(
+                "medium",
+                progress=lambda phase, value: events.append((phase, value)),
+            )
+
+            self.assertEqual(installed, final)
+            self.assertEqual((final / "model.bin").read_bytes(), b"existing weights")
+            self.assertEqual(events[-1], ("Ready", 100))
