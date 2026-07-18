@@ -164,22 +164,55 @@ QPushButton#sideNavButton[active="true"] {{
 #headingText {{ color: {text}; }}
 #mutedText, #captionText {{ color: {muted}; }}
 #dimText, #systemLastChecked {{ color: {dim}; }}
-#dictationHero {{
+#dictationEyebrow {{
+    color: {accent};
+    font-size: 10px;
+    font-weight: 700;
+}}
+#dictationTitle {{
+    color: {text};
+    font-family: "Outfit";
+    font-size: 34px;
+    font-weight: 700;
+}}
+#dictationStage {{
     background: {panel};
     border: 1px solid {border};
     border-radius: 16px;
+}}
+#dictationInstruction {{
+    color: {text};
+    font-family: "Outfit";
+    font-size: 22px;
+    font-weight: 600;
 }}
 #dictationStateBadge {{
     color: {SUCCESS};
     background: {raised};
     border: 1px solid {border};
-    border-radius: 10px;
-    padding: 4px 11px;
+    border-radius: 12px;
+    padding: 5px 12px;
     font-size: 10px;
     font-weight: 700;
 }}
 #dictationStateBadge[state="recording"] {{ color: {accent}; border-color: {accent}; }}
 #dictationStateBadge[state="draining"] {{ color: {warning}; border-color: {warning}; }}
+#dictationMetaRail {{
+    background: {panel};
+    border: 1px solid {border};
+    border-radius: 12px;
+}}
+#dictationMetaLabel {{
+    color: {dim};
+    font-size: 9px;
+    font-weight: 700;
+}}
+#dictationMetaValue {{
+    color: {muted};
+    font-family: "{MONO_FONT}";
+    font-size: 11px;
+    font-weight: 500;
+}}
 #historyCard, #preferencesCard, #localDataCard,
 QPushButton#quickActionCard {{
     background: {panel};

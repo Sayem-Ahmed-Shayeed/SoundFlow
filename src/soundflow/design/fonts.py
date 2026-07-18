@@ -31,7 +31,7 @@ def preferred_font(candidates: tuple[str, ...]) -> str:
 
 
 def register_application_fonts() -> tuple[int, ...]:
-    """Register Soundflow's bundled Geist faces with the active Qt app."""
+    """Register Soundflow's bundled Geist and Outfit faces with the active Qt app."""
 
     global _REGISTERED_FONT_IDS
     if _REGISTERED_FONT_IDS is not None:
@@ -57,6 +57,7 @@ def register_application_fonts() -> tuple[int, ...]:
                 "Geist-Bold.ttf",
                 "GeistMono-Regular.ttf",
                 "GeistMono-Medium.ttf",
+                "Outfit-Variable.ttf",
             )
         )
         if font_id >= 0
@@ -66,5 +67,6 @@ def register_application_fonts() -> tuple[int, ...]:
 
 
 DISPLAY_FONT = "Geist"
+HOME_DISPLAY_FONT = "Outfit"
 BODY_FONT = "Geist"
 MONO_FONT = "Geist Mono"

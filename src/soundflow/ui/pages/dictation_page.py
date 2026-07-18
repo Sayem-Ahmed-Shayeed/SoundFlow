@@ -1,18 +1,4 @@
-"""Dictation page — redesigned home surface.
-
-Layout (top to bottom):
-
-* Page header — ``Dictation`` title + ``English ▾`` language picker +
-  :class:`WindowChrome` for inline min/max/close.
-* Hero — large centered text:
-
-    - idle:       "Start speaking"
-    - recording:  "I'm listening…"
-    - draining:   "Almost done…"
-
-* :class:`WaveformRing` driven by ``UiBridge.level``.
-* Footer hint — ``Press [Space] to start/stop`` + subtle model/device row.
-"""
+"""Focused dictation home surface with a single recorder action."""
 
 from __future__ import annotations
 
@@ -31,13 +17,15 @@ from PySide6.QtWidgets import (
 
 from soundflow.design import (
     BODY_FONT,
-    DISPLAY_FONT,
     FONT_BODY,
     FONT_DISPLAY,
     FONT_SMALL,
+    FONT_TINY,
     FONT_TITLE,
+    HOME_DISPLAY_FONT,
     ANIMATION_FAST,
     MONO_FONT,
+    SPACE_1,
     SPACE_2,
     SPACE_3,
     SPACE_4,
@@ -63,16 +51,43 @@ class DictationPage(QWidget):
         self.setObjectName("dictationPage")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._state = "idle"
+        self._shortcut_display = "Ctrl + Alt + SPACE"
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(SPACE_8, SPACE_4, SPACE_8, SPACE_6)
-        outer.setSpacing(SPACE_4)
+        outer.setContentsMargins(SPACE_8, SPACE_2, SPACE_8, SPACE_6)
+        outer.setSpacing(SPACE_6)
 
-        # --- Header row -------------------------------------------------
+        # --- Page identity and live state -------------------------------
         header = QHBoxLayout()
-        header.setSpacing(SPACE_3)
+        header.setSpacing(SPACE_6)
 
+        identity = QVBoxLayout()
+        identity.setSpacing(SPACE_1)
+        self._eyebrow = QLabel("VOICE DICTATION")
+        self._eyebrow.setObjectName("dictationEyebrow")
+        self._eyebrow.setFont(QFont(BODY_FONT, FONT_TINY))
+        identity.addWidget(self._eyebrow)
+
+        self._prompt = QLabel("Turn speech into text")
+        prompt_font = QFont(HOME_DISPLAY_FONT, FONT_DISPLAY)
+        prompt_font.setWeight(QFont.Weight.Bold)
+        self._prompt.setFont(prompt_font)
+        self._prompt.setObjectName("dictationTitle")
+        identity.addWidget(self._prompt)
+
+        self._intro = QLabel("Speak naturally. Soundflow types wherever you work.")
+        self._intro.setObjectName("mutedText")
+        self._intro.setFont(QFont(BODY_FONT, FONT_BODY))
+        identity.addWidget(self._intro)
+        header.addLayout(identity)
         header.addStretch(1)
+
+        self._state_badge = QLabel("●  READY")
+        self._state_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._state_badge.setObjectName("dictationStateBadge")
+        self._state_badge.setProperty("state", "idle")
+        header.addWidget(self._state_badge, 0, Qt.AlignmentFlag.AlignTop)
 
         self._language = QComboBox()
         self._language.setObjectName("languagePicker")
@@ -89,38 +104,24 @@ class DictationPage(QWidget):
 
         outer.addLayout(header)
 
-        # --- Hero block -------------------------------------------------
+        # --- Recorder stage ---------------------------------------------
         self._hero_panel = QWidget()
-        self._hero_panel.setObjectName("dictationHero")
+        self._hero_panel.setObjectName("dictationStage")
         self._hero_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         hero = QVBoxLayout(self._hero_panel)
-        hero.setContentsMargins(SPACE_8, SPACE_6, SPACE_8, SPACE_6)
-        hero.setSpacing(SPACE_3)
+        hero.setContentsMargins(SPACE_8, SPACE_4, SPACE_8, SPACE_4)
+        hero.setSpacing(SPACE_2)
         hero.addStretch(1)
 
-        self._state_badge = QLabel("●  READY")
-        self._state_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._state_badge.setObjectName("dictationStateBadge")
-        self._state_badge.setProperty("state", "idle")
-        hero.addWidget(
-            self._state_badge,
-            0,
-            Qt.AlignmentFlag.AlignHCenter,
-        )
-
-        self._prompt = QLabel("Start speaking")
-        self._prompt.setFont(QFont(DISPLAY_FONT, FONT_TITLE))
-        self._prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._prompt.setObjectName("headingText")
-        hero.addWidget(self._prompt)
-
-        self._hero = QLabel("Press Space or hold Ctrl + Alt + Space")
-        hero_font = QFont(DISPLAY_FONT, FONT_DISPLAY)
+        self._hero = QLabel("Click the microphone or press Space")
+        hero_font = QFont(HOME_DISPLAY_FONT, FONT_TITLE)
+        hero_font.setWeight(QFont.Weight.DemiBold)
         self._hero.setFont(hero_font)
         self._hero.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._hero.setObjectName("displayText")
+        self._hero.setObjectName("dictationInstruction")
         hero.addWidget(self._hero)
         self._hero_effect = QGraphicsOpacityEffect(self._hero)
+        self._hero_effect.setOpacity(1.0)
         self._hero.setGraphicsEffect(self._hero_effect)
         self._hero_animation = QPropertyAnimation(
             self._hero_effect, b"opacity", self
@@ -141,46 +142,49 @@ class DictationPage(QWidget):
         self._ring.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         hero.addWidget(self._ring)
 
-        # --- Shortcut hint ---------------------------------------------
-        hint_row = QHBoxLayout()
-        hint_row.setSpacing(SPACE_2)
-
-        hint_row.addStretch(1)
-        hint_label = QLabel("Press")
-        hint_label.setFont(QFont(BODY_FONT, FONT_BODY))
-        hint_label.setObjectName("mutedText")
-        hint_row.addWidget(hint_label)
-
-        keycap = QLabel("Space")
-        keycap.setObjectName("keyCap")
-        keycap.setFont(QFont(MONO_FONT, FONT_SMALL))
-        hint_row.addWidget(keycap)
-
-        tail = QLabel("to start/stop")
-        tail.setFont(QFont(BODY_FONT, FONT_BODY))
-        tail.setObjectName("mutedText")
-        hint_row.addWidget(tail)
-        hint_row.addStretch(1)
-
-        hero.addLayout(hint_row)
-
-        # --- Subtle model/device row -----------------------------------
-        meta_row = QHBoxLayout()
-        meta_row.setSpacing(SPACE_4)
-        meta_row.addStretch(1)
-
-        self._meta = QLabel("")
-        self._meta.setObjectName("dimText")
-        self._meta.setFont(QFont(BODY_FONT, FONT_SMALL))
-        meta_row.addWidget(self._meta)
-
-        meta_row.addStretch(1)
-        hero.addLayout(meta_row)
+        supporting = QLabel("Release the shortcut to transcribe and insert.")
+        supporting.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        supporting.setObjectName("mutedText")
+        supporting.setFont(QFont(BODY_FONT, FONT_SMALL))
+        hero.addWidget(supporting)
         hero.addStretch(1)
+
         outer.addWidget(self._hero_panel, 1)
 
-        self._state = "idle"
-        self._shortcut_display = "Ctrl + Alt + SPACE"
+        # --- Compact technical rail ------------------------------------
+        rail = QWidget()
+        rail.setObjectName("dictationMetaRail")
+        rail.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        meta_row = QHBoxLayout(rail)
+        meta_row.setContentsMargins(SPACE_4, SPACE_3, SPACE_4, SPACE_3)
+        meta_row.setSpacing(SPACE_8)
+
+        shortcut_stack = QVBoxLayout()
+        shortcut_stack.setSpacing(SPACE_1)
+        shortcut_label = QLabel("GLOBAL SHORTCUT")
+        shortcut_label.setObjectName("dictationMetaLabel")
+        shortcut_stack.addWidget(shortcut_label)
+        self._shortcut_value = QLabel(self._shortcut_display)
+        self._shortcut_value.setObjectName("dictationMetaValue")
+        self._shortcut_value.setFont(QFont(MONO_FONT, FONT_SMALL))
+        shortcut_stack.addWidget(self._shortcut_value)
+        meta_row.addLayout(shortcut_stack)
+
+        meta_row.addStretch(1)
+
+        model_stack = QVBoxLayout()
+        model_stack.setSpacing(SPACE_1)
+        model_label = QLabel("ACTIVE MODEL")
+        model_label.setObjectName("dictationMetaLabel")
+        model_stack.addWidget(model_label)
+        self._model_value = QLabel("Loading model details…")
+        self._model_value.setObjectName("dictationMetaValue")
+        self._model_value.setFont(QFont(MONO_FONT, FONT_SMALL))
+        model_stack.addWidget(self._model_value)
+        meta_row.addLayout(model_stack)
+        outer.addWidget(rail)
+
+        self._shortcut_value.setText(self._shortcut_display)
 
     # ------------------------------------------------------------------
     def set_state(self, state: str) -> None:
@@ -200,9 +204,9 @@ class DictationPage(QWidget):
         else:
             self._state_badge.setText("●  READY")
             self._state_badge.setProperty("state", "idle")
-            self._prompt.setText("Start speaking")
+            self._prompt.setText("Turn speech into text")
             self._hero.setText(
-                f"Press Space or hold {self._shortcut_display}"
+                f"Click the microphone or hold {self._shortcut_display}"
             )
         self._state_badge.style().unpolish(self._state_badge)
         self._state_badge.style().polish(self._state_badge)
@@ -214,16 +218,17 @@ class DictationPage(QWidget):
         self._ring.push_level(level)
 
     def set_meta(self, text: str) -> None:
-        self._meta.setText(text)
+        self._model_value.setText(text)
 
     def set_shortcut(self, shortcut: str) -> None:
         try:
             self._shortcut_display = display_hotkey(shortcut)
         except ValueError:
             self._shortcut_display = "Ctrl + Alt + SPACE"
+        self._shortcut_value.setText(self._shortcut_display)
         if self._state == "idle":
             self._hero.setText(
-                f"Press Space or hold {self._shortcut_display}"
+                f"Click the microphone or hold {self._shortcut_display}"
             )
 
     def set_language(self, language: str) -> None:

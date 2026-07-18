@@ -269,6 +269,17 @@ class UiRuntimeContractTests(unittest.TestCase):
         page.set_shortcut("ctrl+shift+v")
         self.assertIn("Ctrl + Shift + V", page._hero.text())
 
+    def test_dictation_home_has_a_clear_recorder_hierarchy(self):
+        page = DictationPage()
+
+        self.assertEqual(page._eyebrow.text(), "VOICE DICTATION")
+        self.assertEqual(page._prompt.text(), "Turn speech into text")
+        self.assertEqual(page._prompt.font().family(), "Outfit")
+        self.assertEqual(page._shortcut_value.font().family(), "Geist Mono")
+        self.assertEqual(page._model_value.font().family(), "Geist Mono")
+        self.assertEqual(page._hero_panel.objectName(), "dictationStage")
+        self.assertEqual(page._hero_effect.opacity(), 1.0)
+
     def test_window_chrome_keeps_28px_targets(self):
         chrome = WindowChrome()
         chrome.show()

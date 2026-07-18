@@ -12,6 +12,7 @@ No magic numbers should appear in widget code. Import from this package.
 from .fonts import (
     BODY_FONT,
     DISPLAY_FONT,
+    HOME_DISPLAY_FONT,
     MONO_FONT,
     preferred_font,
     register_application_fonts,
@@ -69,6 +70,7 @@ __all__ = [
     "BODY_FONT",
     "ButtonMotionFilter",
     "DISPLAY_FONT",
+    "HOME_DISPLAY_FONT",
     "MONO_FONT",
     "preferred_font",
     "register_application_fonts",

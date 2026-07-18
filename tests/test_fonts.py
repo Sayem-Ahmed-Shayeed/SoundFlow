@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 from soundflow.design.fonts import (
     BODY_FONT,
     DISPLAY_FONT,
+    HOME_DISPLAY_FONT,
     MONO_FONT,
     register_application_fonts,
 )
@@ -25,12 +26,14 @@ class FontTests(unittest.TestCase):
 
         self.assertEqual(BODY_FONT, "Geist")
         self.assertEqual(DISPLAY_FONT, "Geist")
+        self.assertEqual(HOME_DISPLAY_FONT, "Outfit")
         self.assertEqual(MONO_FONT, "Geist Mono")
-        self.assertEqual(len(font_ids), 6)
+        self.assertEqual(len(font_ids), 7)
         self.assertIn("Geist", QFontDatabase.families())
         self.assertIn("Geist Mono", QFontDatabase.families())
+        self.assertIn("Outfit", QFontDatabase.families())
 
-    def test_only_geist_font_assets_are_bundled(self):
+    def test_only_approved_font_assets_are_bundled(self):
         font_dir = (
             Path(__file__).resolve().parents[1]
             / "src"
@@ -50,6 +53,8 @@ class FontTests(unittest.TestCase):
                 "Geist-Bold.ttf",
                 "GeistMono-Regular.ttf",
                 "GeistMono-Medium.ttf",
+                "OUTFIT-OFL.txt",
+                "Outfit-Variable.ttf",
             },
         )
         self.assertFalse(any("Roboto" in name for name in names))
