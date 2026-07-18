@@ -397,7 +397,7 @@ class ModelManagerUiTests(unittest.TestCase):
         self.assertIn("widget_destroyed_worker_stopped", result.stdout)
         self.assertNotIn("QThread: Destroyed", result.stderr)
 
-    def test_application_quit_waits_for_slow_cooperative_worker(self):
+    def test_routed_quit_keeps_event_loop_responsive_until_worker_finishes(self):
         script = textwrap.dedent(
             """
             import os
@@ -409,13 +409,17 @@ class ModelManagerUiTests(unittest.TestCase):
 
             from PySide6.QtCore import QTimer
             from PySide6.QtWidgets import QApplication, QPushButton
+            from shiboken6 import isValid
             from soundflow.core.settings import Settings
             from soundflow.models.service import ModelDownloadCancelled
-            from soundflow.preferences.model_manager import ModelManagerWidget
+            from soundflow.preferences.model_manager import (
+                ModelManagerWidget,
+                request_application_quit,
+            )
 
-            class SlowCooperativeService:
+            class TemporarilyNonCooperativeService:
                 def __init__(self):
-                    self.root = Path("/tmp/soundflow-application-quit-test")
+                    self.root = Path("/tmp/soundflow-routed-quit-test")
                     self.started = threading.Event()
 
                 def installed_path(self, model_id):
@@ -423,9 +427,10 @@ class ModelManagerUiTests(unittest.TestCase):
 
                 def install(self, model_id, *, progress, cancel_event):
                     self.started.set()
-                    cancel_event.wait(2)
+                    deadline = time.monotonic() + 0.25
+                    while time.monotonic() < deadline:
+                        time.sleep(0.01)
                     if cancel_event.is_set():
-                        time.sleep(0.15)
                         raise ModelDownloadCancelled("cancelled")
                     return self.root / model_id
 
@@ -433,16 +438,23 @@ class ModelManagerUiTests(unittest.TestCase):
                     raise AssertionError("delete is not part of this test")
 
             app = QApplication.instance() or QApplication([])
-            service = SlowCooperativeService()
+            service = TemporarilyNonCooperativeService()
             widget = ModelManagerWidget(Settings(), service=service)
             widget.findChild(QPushButton, "modelAction:tiny").click()
             assert service.started.wait(1)
             worker = widget._worker
-            QTimer.singleShot(0, app.quit)
+            heartbeats = []
+            quit_emissions = []
+            app.aboutToQuit.connect(lambda: quit_emissions.append(True))
+            QTimer.singleShot(40, lambda: heartbeats.append(True))
+            QTimer.singleShot(0, request_application_quit)
+            QTimer.singleShot(10, request_application_quit)
             result = app.exec()
             assert worker is not None
-            assert not worker.isRunning()
-            print(f"application_quit_clean:{result}")
+            assert not isValid(worker) or not worker.isRunning()
+            assert heartbeats == [True]
+            assert quit_emissions == [True]
+            print(f"routed_quit_responsive:{result}")
             """
         )
 
@@ -460,7 +472,158 @@ class ModelManagerUiTests(unittest.TestCase):
             0,
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
         )
-        self.assertIn("application_quit_clean:0", result.stdout)
+        self.assertIn("routed_quit_responsive:0", result.stdout)
+        self.assertNotIn("QThread: Destroyed", result.stderr)
+
+    def test_direct_quit_fallback_remains_responsive_and_safe(self):
+        script = textwrap.dedent(
+            """
+            import os
+            import threading
+            import time
+            from pathlib import Path
+
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+            from PySide6.QtCore import QTimer
+            from PySide6.QtWidgets import QApplication, QPushButton
+            from shiboken6 import isValid
+            from soundflow.core.settings import Settings
+            from soundflow.models.service import ModelDownloadCancelled
+            from soundflow.preferences.model_manager import ModelManagerWidget
+
+            class TemporarilyNonCooperativeService:
+                def __init__(self):
+                    self.root = Path("/tmp/soundflow-direct-quit-test")
+                    self.started = threading.Event()
+
+                def installed_path(self, model_id):
+                    return None
+
+                def install(self, model_id, *, progress, cancel_event):
+                    self.started.set()
+                    deadline = time.monotonic() + 0.25
+                    while time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    if cancel_event.is_set():
+                        raise ModelDownloadCancelled("cancelled")
+                    return self.root / model_id
+
+                def delete(self, model_id, *, active_path):
+                    raise AssertionError("delete is not part of this test")
+
+            app = QApplication.instance() or QApplication([])
+            service = TemporarilyNonCooperativeService()
+            widget = ModelManagerWidget(Settings(), service=service)
+            widget.findChild(QPushButton, "modelAction:tiny").click()
+            assert service.started.wait(1)
+            worker = widget._worker
+            heartbeats = []
+            shutdown_states = []
+
+            def late_widget_shutdown():
+                shutdown_states.append(
+                    app.property("soundflowModelQuitStatus")
+                )
+                widget.shutdown()
+
+            app.aboutToQuit.connect(late_widget_shutdown)
+            QTimer.singleShot(40, lambda: heartbeats.append(True))
+            QTimer.singleShot(0, app.quit)
+            result = app.exec()
+            assert worker is not None
+            assert not isValid(worker) or not worker.isRunning()
+            assert heartbeats == [True]
+            assert shutdown_states == ["ready-to-quit"]
+            print(f"direct_quit_responsive:{result}")
+            """
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=Path(__file__).resolve().parents[1],
+            env={**os.environ, "PYTHONPATH": ".vendor/python:src"},
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        self.assertIn("direct_quit_responsive:0", result.stdout)
+        self.assertNotIn("QThread: Destroyed", result.stderr)
+
+    def test_routed_quit_exits_promptly_for_cooperative_worker(self):
+        script = textwrap.dedent(
+            """
+            import os
+            import threading
+            import time
+            from pathlib import Path
+
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+            from PySide6.QtCore import QTimer
+            from PySide6.QtWidgets import QApplication, QPushButton
+            from shiboken6 import isValid
+            from soundflow.core.settings import Settings
+            from soundflow.models.service import ModelDownloadCancelled
+            from soundflow.preferences.model_manager import (
+                ModelManagerWidget,
+                request_application_quit,
+            )
+
+            class CooperativeService:
+                def __init__(self):
+                    self.root = Path("/tmp/soundflow-fast-quit-test")
+                    self.started = threading.Event()
+
+                def installed_path(self, model_id):
+                    return None
+
+                def install(self, model_id, *, progress, cancel_event):
+                    self.started.set()
+                    cancel_event.wait(2)
+                    raise ModelDownloadCancelled("cancelled")
+
+                def delete(self, model_id, *, active_path):
+                    raise AssertionError("delete is not part of this test")
+
+            app = QApplication.instance() or QApplication([])
+            service = CooperativeService()
+            widget = ModelManagerWidget(Settings(), service=service)
+            widget.findChild(QPushButton, "modelAction:tiny").click()
+            assert service.started.wait(1)
+            worker = widget._worker
+            QTimer.singleShot(0, request_application_quit)
+            started = time.monotonic()
+            result = app.exec()
+            elapsed = time.monotonic() - started
+            assert worker is not None
+            assert not isValid(worker) or not worker.isRunning()
+            assert elapsed < 0.5
+            print(f"cooperative_quit_fast:{result}")
+            """
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=Path(__file__).resolve().parents[1],
+            env={**os.environ, "PYTHONPATH": ".vendor/python:src"},
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        self.assertIn("cooperative_quit_fast:0", result.stdout)
         self.assertNotIn("QThread: Destroyed", result.stderr)
 
 

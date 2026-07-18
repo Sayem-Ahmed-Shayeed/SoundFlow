@@ -412,7 +412,9 @@ class MainWindow(LegacyMainWindow):
                 2500,
             )
         else:
-            event.accept()
+            event.ignore()
+            self.hide()
+            self._request_application_quit()
 
     def shutdown(self) -> None:
         self.preferences_page.shutdown()

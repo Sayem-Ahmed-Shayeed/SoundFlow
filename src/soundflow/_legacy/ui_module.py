@@ -1328,7 +1328,7 @@ class MainWindow(QMainWindow):
         toggle_action = QAction("Start / stop dictation", self)
         toggle_action.triggered.connect(self.toggle_dictation)
         quit_action = QAction("Quit", self)
-        quit_action.triggered.connect(QApplication.instance().quit)
+        quit_action.triggered.connect(self._request_application_quit)
         menu.addAction(show_action)
         menu.addAction(toggle_action)
         menu.addSeparator()
@@ -1796,6 +1796,11 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
+    def _request_application_quit(self) -> None:
+        from soundflow.preferences.model_manager import request_application_quit
+
+        request_application_quit()
+
     def closeEvent(self, event) -> None:
         if QSystemTrayIcon.isSystemTrayAvailable():
             event.ignore()
@@ -1807,8 +1812,9 @@ class MainWindow(QMainWindow):
                 2500,
             )
         else:
-            event.accept()
-            QApplication.instance().quit()
+            event.ignore()
+            self.hide()
+            self._request_application_quit()
 
     def shutdown(self) -> None:
         if self.hotkeys:

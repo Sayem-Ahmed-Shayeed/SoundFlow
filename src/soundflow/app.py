@@ -80,6 +80,12 @@ def main(argv: list[str] | None = None) -> int:
     register_application_fonts()
 
     from soundflow.ui import MainWindow
+    from soundflow.preferences.model_manager import (
+        install_application_quit_coordinator,
+        request_application_quit,
+    )
+
+    install_application_quit_coordinator()
 
     server_name = (
         str(Path(tempfile.gettempdir()) / f"soundflow-{os.getuid()}.sock")
@@ -129,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     if setup_required or (not settings.start_minimized and not args.background):
         window.show()
     if args.smoke_test:
-        QTimer.singleShot(300, application.quit)
+        QTimer.singleShot(300, request_application_quit)
     return application.exec()
 
 def _run_inference_self_test(path: Path) -> int:

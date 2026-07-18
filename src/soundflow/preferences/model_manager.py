@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt, Signal, Slot
+from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -26,27 +28,139 @@ from soundflow.models.service import (
     ModelService,
 )
 
+LOGGER = logging.getLogger(__name__)
 _LIVE_WORKERS: set[ModelDownloadThread] = set()
-_APP_SHUTDOWN_HOOK_PROPERTY = "soundflowModelWorkerShutdownHook"
+_QUIT_COORDINATOR_ATTRIBUTE = "_soundflow_model_quit_coordinator"
+_QUIT_STATUS_PROPERTY = "soundflowModelQuitStatus"
+_QUIT_POLL_MS = 20
+_QUIT_PENDING_NOTICE_MS = 5000
 
 
-def _join_workers_at_app_exit() -> None:
-    """Cancel and join every model worker during final Qt teardown only."""
-    workers = tuple(_LIVE_WORKERS)
-    for worker in workers:
-        worker.cancel()
-    for worker in workers:
-        if worker.isRunning():
-            worker.wait()
-    _LIVE_WORKERS.difference_update(workers)
+def _running_workers() -> tuple[ModelDownloadThread, ...]:
+    return tuple(worker for worker in _LIVE_WORKERS if worker.isRunning())
+
+
+class _ApplicationQuitCoordinator(QObject):
+    """Keep Qt responsive while model workers finish before final quit."""
+
+    def __init__(self, app: QApplication) -> None:
+        super().__init__(app)
+        self._app = app
+        self._pending = False
+        self._final_quit_started = False
+        self._pending_since = 0.0
+        self._pending_notice_logged = False
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(_QUIT_POLL_MS)
+        self._poll_timer.timeout.connect(self._poll)
+        app.aboutToQuit.connect(self._finish_direct_quit_safely)
+
+    def request_quit(self) -> None:
+        if self._pending or self._final_quit_started:
+            return
+        self._pending = True
+        self._pending_since = time.monotonic()
+        self._pending_notice_logged = False
+        self._app.setProperty(_QUIT_STATUS_PROPERTY, "waiting-for-model-workers")
+        self._cancel_running_workers()
+        if _running_workers():
+            self._poll_timer.start()
+        else:
+            self._finish_routed_quit()
+
+    def worker_registered(self, worker: ModelDownloadThread) -> None:
+        if self._pending or self._final_quit_started:
+            worker.cancel()
+
+    def _cancel_running_workers(self) -> None:
+        for worker in _running_workers():
+            worker.cancel()
+
+    def _report_pending_if_needed(self) -> None:
+        elapsed_ms = (time.monotonic() - self._pending_since) * 1000
+        if not self._pending_notice_logged and elapsed_ms >= _QUIT_PENDING_NOTICE_MS:
+            self._pending_notice_logged = True
+            LOGGER.warning(
+                "Soundflow is still waiting for a model download worker to stop"
+            )
+
+    @Slot()
+    def _poll(self) -> None:
+        self._cancel_running_workers()
+        if not _running_workers():
+            self._finish_routed_quit()
+            return
+        self._report_pending_if_needed()
+
+    def _finish_routed_quit(self) -> None:
+        if self._final_quit_started:
+            return
+        self._poll_timer.stop()
+        self._pending = False
+        self._final_quit_started = True
+        self._app.setProperty(_QUIT_STATUS_PROPERTY, "ready-to-quit")
+        self._app.quit()
+
+    @Slot()
+    def _finish_direct_quit_safely(self) -> None:
+        """Fallback for external quit requests that bypass the coordinator."""
+        if not _running_workers():
+            return
+        self._pending = True
+        self._pending_since = time.monotonic()
+        self._pending_notice_logged = False
+        self._app.setProperty(_QUIT_STATUS_PROPERTY, "waiting-for-model-workers")
+        self._cancel_running_workers()
+
+        fallback_loop = QEventLoop()
+        fallback_poll = QTimer()
+        fallback_poll.setInterval(_QUIT_POLL_MS)
+
+        def poll_until_safe() -> None:
+            self._cancel_running_workers()
+            if not _running_workers():
+                fallback_loop.quit()
+                return
+            self._report_pending_if_needed()
+
+        fallback_poll.timeout.connect(poll_until_safe)
+        fallback_poll.start()
+        poll_until_safe()
+        if _running_workers():
+            fallback_loop.exec()
+        fallback_poll.stop()
+        self._pending = False
+        self._app.setProperty(_QUIT_STATUS_PROPERTY, "ready-to-quit")
+
+
+def _quit_coordinator() -> _ApplicationQuitCoordinator | None:
+    app = QApplication.instance()
+    if app is None:
+        return None
+    coordinator = getattr(app, _QUIT_COORDINATOR_ATTRIBUTE, None)
+    if coordinator is None:
+        coordinator = _ApplicationQuitCoordinator(app)
+        setattr(app, _QUIT_COORDINATOR_ATTRIBUTE, coordinator)
+    return coordinator
+
+
+def request_application_quit() -> None:
+    """Begin the responsive, cooperative application shutdown handshake."""
+    coordinator = _quit_coordinator()
+    if coordinator is not None:
+        coordinator.request_quit()
+
+
+def install_application_quit_coordinator() -> None:
+    """Install the direct-quit fallback before other teardown slots."""
+    _quit_coordinator()
 
 
 def _register_worker(worker: ModelDownloadThread) -> None:
-    app = QApplication.instance()
-    if app is not None and not app.property(_APP_SHUTDOWN_HOOK_PROPERTY):
-        app.aboutToQuit.connect(_join_workers_at_app_exit)
-        app.setProperty(_APP_SHUTDOWN_HOOK_PROPERTY, True)
     _LIVE_WORKERS.add(worker)
+    coordinator = _quit_coordinator()
+    if coordinator is not None:
+        coordinator.worker_registered(worker)
 
 
 class ModelDownloadThread(QThread):
@@ -421,4 +535,9 @@ class ModelManagerWidget(QWidget):
             self._worker_model_id = None
 
 
-__all__ = ["ModelDownloadThread", "ModelManagerWidget"]
+__all__ = [
+    "install_application_quit_coordinator",
+    "ModelDownloadThread",
+    "ModelManagerWidget",
+    "request_application_quit",
+]
