@@ -8,7 +8,17 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import (
+    QEasingCurve,
+    QEventLoop,
+    QObject,
+    QPropertyAnimation,
+    QThread,
+    QTimer,
+    Qt,
+    Signal,
+    Slot,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -20,7 +30,13 @@ from PySide6.QtWidgets import (
 )
 
 from soundflow.core.settings import Settings, default_model_path
-from soundflow.design import SPACE_1, SPACE_2, SPACE_3, SPACE_4
+from soundflow.design import (
+    ANIMATION_CONTROL,
+    SPACE_1,
+    SPACE_2,
+    SPACE_3,
+    SPACE_4,
+)
 from soundflow.models.catalog import MODEL_CATALOG, managed_model_path
 from soundflow.models.service import (
     ModelDownloadCancelled,
@@ -234,6 +250,7 @@ class _ModelRow:
     action: QPushButton
     delete: QPushButton
     progress: QProgressBar
+    progress_animation: QPropertyAnimation
     phase: QLabel
     error: QLabel
 
@@ -351,6 +368,13 @@ class ModelManagerWidget(QWidget):
         progress.setTextVisible(True)
         progress.hide()
         progress_row.addWidget(progress, 1)
+        progress_animation = QPropertyAnimation(
+            progress,
+            b"value",
+            progress,
+        )
+        progress_animation.setDuration(ANIMATION_CONTROL)
+        progress_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         phase = QLabel()
         phase.setObjectName(f"modelPhase:{spec.model_id}")
@@ -366,7 +390,16 @@ class ModelManagerWidget(QWidget):
         error.hide()
         outer.addWidget(error)
 
-        return _ModelRow(container, status, action, delete, progress, phase, error)
+        return _ModelRow(
+            container,
+            status,
+            action,
+            delete,
+            progress,
+            progress_animation,
+            phase,
+            error,
+        )
 
     def _active_path(self) -> str:
         return str(Path(self._settings.model_path or default_model_path()).expanduser())
@@ -522,12 +555,12 @@ class ModelManagerWidget(QWidget):
         total_bytes: int = 0,
     ) -> None:
         row = self._rows[model_id]
+        row.progress_animation.stop()
         if phase == "Downloading" and total_bytes <= 0:
             row.progress.setRange(0, 0)
             row.progress.setFormat("")
         else:
             row.progress.setRange(0, 100)
-            row.progress.setValue(max(0, min(100, int(fill))))
             if phase == "Downloading":
                 total = max(0, int(total_bytes))
                 completed = min(total, max(0, int(downloaded_bytes)))
@@ -535,7 +568,15 @@ class ModelManagerWidget(QWidget):
                     f"{completed / 1_000_000:.1f} MB / "
                     f"{total / 1_000_000:.1f} MB"
                 )
+                row.progress_animation.setStartValue(
+                    max(0, row.progress.value())
+                )
+                row.progress_animation.setEndValue(
+                    max(0, min(100, int(fill)))
+                )
+                row.progress_animation.start()
             else:
+                row.progress.setValue(max(0, min(100, int(fill))))
                 row.progress.setFormat("")
         row.progress.show()
         row.phase.setText(phase)
@@ -545,6 +586,7 @@ class ModelManagerWidget(QWidget):
 
     def _show_error(self, model_id: str, message: str) -> None:
         row = self._rows[model_id]
+        row.progress_animation.stop()
         row.progress.hide()
         row.phase.hide()
         row.error.setText(message)
@@ -552,6 +594,7 @@ class ModelManagerWidget(QWidget):
 
     def _download_succeeded(self, model_id: str, path: str) -> None:
         row = self._rows[model_id]
+        row.progress_animation.stop()
         row.progress.setValue(100)
         row.progress.hide()
         row.phase.hide()
@@ -559,6 +602,7 @@ class ModelManagerWidget(QWidget):
 
     def _download_cancelled(self, model_id: str) -> None:
         row = self._rows[model_id]
+        row.progress_animation.stop()
         row.progress.hide()
         row.phase.setText("Download cancelled")
         row.phase.show()

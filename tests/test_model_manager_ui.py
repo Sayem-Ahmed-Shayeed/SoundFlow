@@ -11,10 +11,17 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import (
+    QAbstractAnimation,
+    QCoreApplication,
+    QEasingCurve,
+    QEvent,
+)
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QProgressBar, QPushButton
 
 from soundflow.core.settings import Settings
+from soundflow.design import ANIMATION_CONTROL
 from soundflow.models.catalog import MODEL_CATALOG, managed_model_path, model_spec
 from soundflow.models.service import (
     ModelDownloadCancelled,
@@ -118,7 +125,16 @@ class ModelManagerUiTests(unittest.TestCase):
                 500_000_000,
             )
             progress = widget.findChild(QProgressBar, "modelProgress:tiny")
-            self.assertEqual(progress.value(), 45)
+            animation = widget._rows["tiny"].progress_animation
+            self.assertEqual(animation.duration(), ANIMATION_CONTROL)
+            self.assertEqual(
+                animation.easingCurve().type(),
+                QEasingCurve.Type.OutCubic,
+            )
+            self.assertEqual(
+                animation.state(),
+                QAbstractAnimation.State.Running,
+            )
             self.assertTrue(progress.isTextVisible())
             self.assertEqual(progress.format(), "225.0 MB / 500.0 MB")
             self.assertEqual(progress.text(), "225.0 MB / 500.0 MB")
@@ -127,8 +143,33 @@ class ModelManagerUiTests(unittest.TestCase):
                 widget.findChild(QLabel, "modelPhase:tiny").text(),
                 "Downloading",
             )
+            QTest.qWait(ANIMATION_CONTROL + 30)
+            self.assertEqual(progress.value(), 45)
+
+            widget._show_progress(
+                "tiny",
+                "Downloading",
+                80,
+                400_000_000,
+                500_000_000,
+            )
+            QTest.qWait(ANIMATION_CONTROL // 2)
+            widget._show_progress(
+                "tiny",
+                "Downloading",
+                65,
+                325_000_000,
+                500_000_000,
+            )
+            QTest.qWait(ANIMATION_CONTROL + 30)
+            self.assertEqual(progress.value(), 65)
+            self.assertEqual(progress.format(), "325.0 MB / 500.0 MB")
 
             widget._show_progress("tiny", "Downloading", 0, 0, 0)
+            self.assertEqual(
+                animation.state(),
+                QAbstractAnimation.State.Stopped,
+            )
             self.assertEqual(
                 (progress.minimum(), progress.maximum()),
                 (0, 0),
@@ -137,6 +178,10 @@ class ModelManagerUiTests(unittest.TestCase):
 
             widget._show_progress("tiny", "Verifying", 100, 0, 0)
             self.assertEqual(
+                animation.state(),
+                QAbstractAnimation.State.Stopped,
+            )
+            self.assertEqual(
                 (progress.minimum(), progress.maximum()),
                 (0, 100),
             )
@@ -144,6 +189,10 @@ class ModelManagerUiTests(unittest.TestCase):
             self.assertEqual(progress.format(), "")
 
             widget._show_error("tiny", "Network unavailable")
+            self.assertEqual(
+                animation.state(),
+                QAbstractAnimation.State.Stopped,
+            )
 
             self.assertIn(
                 "Network unavailable",
