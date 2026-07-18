@@ -367,12 +367,19 @@ class ModelManagerWidget(QWidget):
 
     @staticmethod
     def _contains_path(parent: str | Path, child: str | Path) -> bool:
-        resolved_parent = Path(parent).expanduser().resolve()
-        resolved_child = Path(child).expanduser().resolve()
-        return (
+        lexical_parent = Path(parent).expanduser().absolute()
+        lexical_child = Path(child).expanduser().absolute()
+        lexically_contained = (
+            lexical_child == lexical_parent
+            or lexical_child.is_relative_to(lexical_parent)
+        )
+        resolved_parent = lexical_parent.resolve()
+        resolved_child = lexical_child.resolve()
+        resolved_contained = (
             resolved_child == resolved_parent
             or resolved_child.is_relative_to(resolved_parent)
         )
+        return lexically_contained or resolved_contained
 
     def _managed_path(self, model_id: str) -> Path:
         return managed_model_path(

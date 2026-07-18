@@ -217,11 +217,20 @@ class ModelService:
     def delete(self, model_id: str, *, active_path: Path) -> None:
         target = managed_model_path(model_spec(model_id), self.root).expanduser()
         root = self.root.expanduser().resolve()
+        lexical_target = target.absolute()
+        lexical_active = active_path.expanduser().absolute()
         active = active_path.expanduser().resolve()
         if target.is_symlink() or target.parent.resolve() != root:
             raise ModelManagerError("Soundflow can only delete managed models.")
         resolved_target = target.resolve()
-        if active == resolved_target or active.is_relative_to(resolved_target):
+        lexically_contained = (
+            lexical_active == lexical_target
+            or lexical_active.is_relative_to(lexical_target)
+        )
+        resolved_contained = (
+            active == resolved_target or active.is_relative_to(resolved_target)
+        )
+        if lexically_contained or resolved_contained:
             raise ModelManagerError("The active model cannot be deleted.")
         if target.exists():
             shutil.rmtree(target)

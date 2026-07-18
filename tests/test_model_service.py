@@ -156,6 +156,24 @@ class ModelServiceTests(unittest.TestCase):
             self.assertTrue((target / "model.bin").is_file())
             self.assertTrue((active / "model.bin").is_file())
 
+    def test_delete_refuses_managed_parent_containing_active_symlink_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "models"
+            target = root / "faster-whisper-tiny"
+            valid_model(target)
+            external = Path(directory) / "external-active"
+            valid_model(external)
+            alias = target / "active-alias"
+            alias.symlink_to(external, target_is_directory=True)
+
+            service = ModelService(root=root)
+            with self.assertRaisesRegex(ModelManagerError, "active"):
+                service.delete("tiny", active_path=alias)
+
+            self.assertTrue((target / "model.bin").is_file())
+            self.assertTrue(alias.is_symlink())
+            self.assertTrue((external / "model.bin").is_file())
+
     def test_delete_rejects_symlinked_catalog_entry_without_deleting_target(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
