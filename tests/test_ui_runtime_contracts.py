@@ -267,16 +267,20 @@ class UiRuntimeContractTests(unittest.TestCase):
     def test_dictation_copy_tracks_configured_global_shortcut(self):
         page = DictationPage()
         page.set_shortcut("ctrl+shift+v")
-        self.assertIn("Ctrl + Shift + V", page._hero.text())
+        caps = [
+            page._keys_box.itemAt(index).widget().text()
+            for index in range(page._keys_box.count())
+            if hasattr(page._keys_box.itemAt(index).widget(), "text")
+        ]
+        self.assertIn("Ctrl", caps)
+        self.assertIn("Shift", caps)
+        self.assertIn("V", caps)
 
     def test_dictation_home_has_a_clear_recorder_hierarchy(self):
         page = DictationPage()
 
-        self.assertEqual(page._eyebrow.text(), "VOICE DICTATION")
-        self.assertEqual(page._prompt.text(), "Turn speech into text")
-        self.assertEqual(page._prompt.font().family(), "Outfit")
-        self.assertEqual(page._shortcut_value.font().family(), "Geist Mono")
-        self.assertEqual(page._model_value.font().family(), "Geist Mono")
+        self.assertEqual(page._eyebrow.text(), "PRIVATE VOICE INPUT")
+        self.assertEqual(page._prompt.text(), "Dictation")
         self.assertEqual(page._hero_panel.objectName(), "dictationStage")
         self.assertEqual(page._hero_effect.opacity(), 1.0)
 

@@ -40,6 +40,12 @@ BORDER = "#29292F"
 
 # Shared semantic colors.
 ACCENT = "#9B72FF"
+PINK = "#FF6EC7"
+TEAL = "#3EDBBF"
+AMBER = "#FFC24B"
+SKY = "#5AC8FA"
+ORCHID = "#C98BBD"
+MINT = "#67C9A8"
 BORDER_FOCUS = ACCENT
 SUCCESS = "#55D68B"
 WARNING = "#E9B96E"
@@ -81,12 +87,19 @@ def _shell_stylesheet(dark: bool) -> str:
     muted = FG_MUTED if dark else "#647089"
     border = BORDER if dark else "#D7DEEA"
     accent = ACCENT if dark else "#7657F6"
+    pink = PINK if dark else "#D6336C"
+    teal = TEAL if dark else "#0E9F8A"
+    amber = AMBER if dark else "#B7791F"
+    sky = SKY if dark else "#2B8FD4"
+    orchid = ORCHID if dark else "#9C4E8F"
+    mint = MINT if dark else "#1F8A6B"
     active = "#211B3D" if dark else "#E9E4FF"
     dim = FG_DIM if dark else "#8791A6"
     hover_border = "#45454D" if dark else "#BAC4D5"
     error = ERROR if dark else "#C4515B"
     warning = WARNING if dark else "#A8762F"
     button_ink = "#0A0F1A" if dark else "#FFFFFF"
+    stage_glow = "#221A4E" if dark else "#E9DEFF"
     chevron = (
         Path(__file__).resolve().parents[1]
         / "assets"
@@ -113,7 +126,7 @@ QLabel, QCheckBox, QRadioButton {{
     border-bottom-left-radius: 16px;
 }}
 #brandMark {{
-    color: {accent};
+    color: {pink};
     font-size: 25px;
     font-weight: 700;
 }}
@@ -125,21 +138,30 @@ QLabel, QCheckBox, QRadioButton {{
 QPushButton#sideNavButton {{
     color: {muted};
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: 9px;
-    padding: 10px 12px;
+    border: 0;
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    padding: 10px 12px 10px 10px;
     text-align: left;
     min-height: 24px;
 }}
 QPushButton#sideNavButton:hover {{
     color: {text};
     background: {raised};
-    border-color: {border};
 }}
 QPushButton#sideNavButton[active="true"] {{
     color: {text};
-    background: {active};
-    border: 1px solid {accent};
+    background: {raised};
+    border-left: 2px solid {orchid};
+}}
+#sideFooter {{
+    background: transparent;
+    border-top: 1px solid {border};
+}}
+#sideFooterTitle {{
+    color: {mint};
+    font-size: 12px;
+    font-weight: 600;
 }}
 #railSection {{ color: {dim}; font-size: 9px; font-weight: 700; }}
 #privacyCard {{
@@ -160,25 +182,31 @@ QPushButton#sideNavButton[active="true"] {{
     background: {bg};
     border: 0;
 }}
-#displayText {{ color: {text}; }}
-#headingText {{ color: {text}; }}
+#displayText {{
+    color: {text};
+    font-family: "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", "Noto Serif", serif;
+    font-size: 40px;
+    font-weight: 400;
+}}
+#headingText {{
+    color: {text};
+    font-family: "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", "Noto Serif", serif;
+    font-weight: 400;
+}}
 #mutedText, #captionText {{ color: {muted}; }}
 #dimText, #systemLastChecked {{ color: {dim}; }}
 #dictationEyebrow {{
-    color: {accent};
+    color: {orchid};
     font-size: 10px;
     font-weight: 700;
 }}
 #dictationTitle {{
     color: {text};
-    font-family: "Outfit";
-    font-size: 34px;
-    font-weight: 700;
 }}
 #dictationStage {{
     background: {panel};
     border: 1px solid {border};
-    border-radius: 16px;
+    border-radius: 18px;
 }}
 #dictationInstruction {{
     color: {text};
@@ -186,21 +214,46 @@ QPushButton#sideNavButton[active="true"] {{
     font-size: 22px;
     font-weight: 600;
 }}
+#dictationInterim {{
+    color: {muted};
+    font-style: italic;
+    font-size: 13px;
+}}
 #dictationStateBadge {{
-    color: {SUCCESS};
-    background: {raised};
-    border: 1px solid {border};
+    color: {mint};
+    background: transparent;
+    border: 1px solid {mint};
     border-radius: 12px;
     padding: 5px 12px;
     font-size: 10px;
     font-weight: 700;
 }}
-#dictationStateBadge[state="recording"] {{ color: {accent}; border-color: {accent}; }}
-#dictationStateBadge[state="draining"] {{ color: {warning}; border-color: {warning}; }}
+#dictationStateBadge[state="recording"] {{ color: {pink}; border-color: {pink}; }}
+#dictationStateBadge[state="draining"] {{ color: {amber}; border-color: {amber}; }}
 #dictationMetaRail {{
     background: {panel};
     border: 1px solid {border};
     border-radius: 12px;
+}}
+#dictationStrip {{
+    background: transparent;
+    border-top: 1px solid {border};
+}}
+#stripDivider {{
+    background: {border};
+}}
+#dashCard {{
+    background: transparent;
+    border: 0;
+}}
+#dashValue {{
+    color: {text};
+    font-size: 20px;
+    font-weight: 600;
+}}
+#dashPreview {{
+    color: {muted};
+    font-size: 12px;
 }}
 #dictationMetaLabel {{
     color: {dim};
@@ -219,14 +272,44 @@ QPushButton#quickActionCard {{
     border: 1px solid {border};
     border-radius: 12px;
 }}
+#preferencesCard, #localDataCard {{
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+}}
+#prefsNavButton {{
+    color: {muted};
+    background: transparent;
+    border: 0;
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    padding: 9px 12px 9px 10px;
+    text-align: left;
+    min-height: 22px;
+}}
+#prefsNavButton:hover {{
+    color: {text};
+    background: {raised};
+}}
+#prefsNavButton[active="true"] {{
+    color: {text};
+    background: {raised};
+    border-left: 2px solid {orchid};
+}}
+#historyCard {{
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid {border};
+    border-radius: 0;
+}}
 QPushButton#quickActionCard {{
     padding: 0;
     min-height: 50px;
     max-height: 50px;
 }}
 #historyCard:hover, QPushButton#quickActionCard:hover {{
-    background: {raised};
-    border-color: {hover_border};
+    background: {panel};
+    border-color: {border};
 }}
 #historyBody {{
     color: {text};
@@ -234,8 +317,9 @@ QPushButton#quickActionCard {{
     line-height: 1.45;
 }}
 #historyGroup {{
-    color: {accent};
-    font-weight: 600;
+    color: {dim};
+    font-size: 10px;
+    font-weight: 700;
     padding: 8px 2px 2px 2px;
 }}
 #resultCount {{
@@ -249,12 +333,14 @@ QPushButton#quickActionCard {{
     max-height: 18px;
 }}
 QPushButton#historyAction {{
-    color: {muted};
+    color: {dim};
     background: transparent;
-    border: 1px solid {border};
-    border-radius: 5px;
-    min-height: 26px;
-    padding: 3px 9px;
+    border: 0;
+    border-radius: 6px;
+    min-height: 30px;
+    min-width: 30px;
+    padding: 4px 6px;
+    font-size: 14px;
 }}
 QPushButton#historyAction:hover {{
     color: {text};
@@ -311,9 +397,10 @@ QPushButton#destructiveButton:hover {{
 #toggleRow {{ background: transparent; min-height: 44px; }}
 #toggleRowTitle {{ color: {text}; font-size: 13px; }}
 #systemCheckRow, #systemPathBlock {{
-    background: {raised};
-    border: 1px solid {border};
-    border-radius: 7px;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid {border};
+    border-radius: 0;
 }}
 #systemRowTitle {{ color: {text}; font-weight: 600; }}
 #systemPathBlock QLabel[role="path"] {{
@@ -350,17 +437,17 @@ QLabel[objectName^="systemStatus"][state="error"] {{
     color: {error};
 }}
 QPushButton#systemCheckButton {{
-    color: {button_ink};
-    background: {accent};
-    border: 1px solid {accent};
-    border-radius: 4px;
+    color: #141318;
+    background: #F4F1EE;
+    border: 1px solid #F4F1EE;
+    border-radius: 7px;
     padding: 3px 7px;
     min-height: 20px;
     max-height: 20px;
 }}
 QPushButton#systemCheckButton:hover {{
-    background: {SUCCESS};
-    border-color: {SUCCESS};
+    background: #FFFFFF;
+    border-color: #FFFFFF;
 }}
 QPushButton#systemSecondaryButton {{
     color: {text};
@@ -375,14 +462,14 @@ QPushButton#systemSecondaryButton:hover {{
     border-color: {accent};
 }}
 #modelManagerCard {{
-    background: {panel};
-    border: 1px solid {border};
-    border-radius: 12px;
+    background: transparent;
+    border: 0;
 }}
 QWidget[objectName^="modelRow:"] {{
-    background: {raised};
-    border: 1px solid {border};
-    border-radius: 7px;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid {border};
+    border-radius: 0;
 }}
 QLabel[objectName^="modelName:"] {{
     color: {text};
@@ -399,9 +486,9 @@ QLabel[objectName^="modelStatus:"] {{
     font-weight: 600;
 }}
 QLabel[objectName^="modelRecommended:"] {{
-    color: {accent};
-    background: {active};
-    border: 1px solid {accent};
+    color: {orchid};
+    background: transparent;
+    border: 1px solid {orchid};
     border-radius: 7px;
     padding: 1px 6px;
     font-size: 9px;
@@ -419,15 +506,15 @@ QPushButton[objectName^="modelDelete:"] {{
     max-height: 20px;
 }}
 QPushButton[objectName^="modelAction:"] {{
-    color: {button_ink};
-    background: {accent};
-    border: 1px solid {accent};
+    color: {text};
+    background: transparent;
+    border: 1px solid {hover_border};
+    border-radius: 7px;
 }}
 QPushButton[objectName^="modelAction:"]:hover,
 QPushButton[objectName^="modelAction:"]:focus {{
-    background: {panel};
-    color: {accent};
-    border-color: {accent};
+    color: {pink};
+    border-color: {pink};
 }}
 QPushButton[objectName^="modelAction:"]:disabled {{
     color: {dim};
@@ -463,7 +550,8 @@ QProgressBar[objectName^="modelProgress:"] {{
     font-weight: 600;
 }}
 QProgressBar[objectName^="modelProgress:"]::chunk {{
-    background: {accent};
+    background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 {accent}, stop: 1 {teal});
     border-radius: 4px;
 }}
 QLineEdit#systemDataPath, QLineEdit#compactPathField {{
@@ -476,7 +564,8 @@ QLineEdit#systemDataPath, QLineEdit#compactPathField {{
     min-height: 20px;
     max-height: 20px;
 }}
-QComboBox#compactShortcutField, QComboBox#compactPreferenceField {{
+QComboBox#compactShortcutField, QComboBox#compactPreferenceField,
+QComboBox#languagePicker, QComboBox#historyFilter {{
     color: {text};
     background: {panel};
     border: 1px solid {border};
@@ -486,15 +575,21 @@ QComboBox#compactShortcutField, QComboBox#compactPreferenceField {{
     border-radius: 7px;
 }}
 QComboBox#compactShortcutField:hover,
-QComboBox#compactPreferenceField:hover {{
+QComboBox#compactPreferenceField:hover,
+QComboBox#languagePicker:hover,
+QComboBox#historyFilter:hover {{
     border-color: {hover_border};
 }}
 QComboBox#compactShortcutField:focus,
-QComboBox#compactPreferenceField:focus {{
+QComboBox#compactPreferenceField:focus,
+QComboBox#languagePicker:focus,
+QComboBox#historyFilter:focus {{
     border-color: {accent};
 }}
 QComboBox#compactShortcutField::drop-down,
-QComboBox#compactPreferenceField::drop-down {{
+QComboBox#compactPreferenceField::drop-down,
+QComboBox#languagePicker::drop-down,
+QComboBox#historyFilter::drop-down {{
     subcontrol-origin: padding;
     subcontrol-position: top right;
     width: 28px;
@@ -502,13 +597,17 @@ QComboBox#compactPreferenceField::drop-down {{
     background: transparent;
 }}
 QComboBox#compactShortcutField::down-arrow,
-QComboBox#compactPreferenceField::down-arrow {{
+QComboBox#compactPreferenceField::down-arrow,
+QComboBox#languagePicker::down-arrow,
+QComboBox#historyFilter::down-arrow {{
     image: url("{chevron}");
     width: 9px;
     height: 6px;
 }}
 QComboBox#compactShortcutField QAbstractItemView,
-QComboBox#compactPreferenceField QAbstractItemView {{
+QComboBox#compactPreferenceField QAbstractItemView,
+QComboBox#languagePicker QAbstractItemView,
+QComboBox#historyFilter QAbstractItemView {{
     background: {panel};
     color: {text};
     border: 1px solid {border};
@@ -564,8 +663,9 @@ QFrame#segmentedControl QPushButton:hover {{
     background: {panel};
 }}
 QFrame#segmentedControl QPushButton:checked {{
-    color: {button_ink};
-    background: {accent};
+    color: #FFFFFF;
+    background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 {accent}, stop: 1 {pink});
 }}
 #recordingOverlay {{
     background: transparent;
@@ -605,14 +705,15 @@ QSlider::add-page:horizontal {{
     border-radius: 2px;
 }}
 QSlider::sub-page:horizontal {{
-    background: {accent};
+    background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 {accent}, stop: 1 {pink});
     border-radius: 2px;
 }}
 QSlider::handle:horizontal {{
     width: 14px;
     height: 14px;
     margin: -5px 0;
-    background: {accent};
+    background: {pink};
     border: 0;
     border-radius: 7px;
 }}
@@ -621,6 +722,13 @@ QSlider::handle:horizontal {{
     border: 1px solid {border};
     border-radius: 10px;
     color: {text};
+}}
+#playgroundPreview {{
+    background: {panel};
+    border: 1px solid {border};
+    border-radius: 12px;
+    color: {muted};
+    padding: 16px;
 }}
 #preferencesTabs::pane {{ border: 0; background: transparent; }}
 #preferencesTabs QTabBar::tab {{
@@ -641,16 +749,18 @@ QSlider::handle:horizontal {{
     border-bottom-right-radius: 16px;
 }}
 #statusBarLabel {{ color: {muted}; font-size: 10px; }}
-#statusDot[state="ready"] {{ color: {accent}; }}
-#statusDot[state="recording"] {{ color: {accent}; }}
+#statusDot[state="ready"] {{ color: {teal}; }}
+#statusDot[state="recording"] {{ color: {pink}; }}
 #statusDot[state="error"] {{ color: {error}; }}
 #statusBarAccent, #quickActionIcon, #aboutLogo, #savedStatus {{ color: {accent}; }}
 #keyCap {{
     color: {text};
     background: {raised};
     border: 1px solid {border};
-    border-radius: 4px;
-    padding: 3px 7px;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: "{MONO_FONT}";
+    font-size: 11px;
 }}
 #windowChrome QPushButton, QPushButton[objectName^="windowChrome"] {{
     color: {muted};
@@ -691,9 +801,10 @@ QPushButton#presetChip {{
     padding: 2px 14px;
 }}
 QPushButton#presetChip:checked {{
-    color: {button_ink};
-    background: {accent};
-    border-color: {accent};
+    color: #FFFFFF;
+    background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 {accent}, stop: 1 {pink});
+    border-color: {pink};
 }}
 QComboBox, QLineEdit, QTextEdit, QPlainTextEdit {{
     background: {panel};
@@ -813,8 +924,21 @@ QPushButton:disabled {{
 }}
 QPushButton#primaryButton, QPushButton#accentButton {{
     background-color: {ACCENT};
-    color: {BG_BLACK};
-    border: 1px solid {ACCENT};
+    background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 {ACCENT}, stop: 1 {PINK});
+    color: #FFFFFF;
+    border: 1px solid {PINK};
+}}
+QPushButton#primaryButton {{
+    background-color: #F4F1EE;
+    background: #F4F1EE;
+    color: #141318;
+    border: 1px solid #F4F1EE;
+}}
+QPushButton#primaryButton:hover {{
+    background: #FFFFFF;
+    background-color: #FFFFFF;
+    border-color: #FFFFFF;
 }}
 QPushButton#primaryButton:hover, QPushButton#accentButton:hover {{
     background-color: {SUCCESS};
@@ -1096,9 +1220,10 @@ QPushButton:hover {{
     border-color: #BAC4D5;
 }}
 QPushButton:primary, QPushButton#accentButton, QPushButton#primaryButton {{
-    background-color: #7657F6;
+    background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 #7657F6, stop: 1 #D6336C);
     color: #FFFFFF;
-    border: 1px solid #7657F6;
+    border: 1px solid #D6336C;
 }}
 QPushButton#quietButton {{
     background-color: transparent;
@@ -1161,6 +1286,12 @@ __all__ = [
     "FG_CREAM",
     "FG_DIM",
     "FG_MUTED",
+    "MINT",
+    "ORCHID",
+    "PINK",
+    "SKY",
+    "TEAL",
+    "AMBER",
     "PRIMARY_BG",
     "PRIMARY_TEXT",
     "SUCCESS",

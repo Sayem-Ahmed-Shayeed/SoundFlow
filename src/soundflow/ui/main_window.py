@@ -62,6 +62,7 @@ class MainWindow(LegacyMainWindow):
         self.playground_page.set_injector(self.injector)
         self.dictation_page.set_language(self.settings.language)
         self._update_meta()
+        self._refresh_home_stats()
 
     def _build_ui(self) -> None:
         self.setWindowTitle("Soundflow")
@@ -116,6 +117,7 @@ class MainWindow(LegacyMainWindow):
         self.sidebar.page_requested.connect(self.navigate)
         self.dictation_page.language_changed.connect(self._language_changed)
         self.dictation_page.dictation_toggled.connect(self.toggle_dictation)
+        self.dictation_page.history_requested.connect(lambda: self.navigate("history"))
         self.playground_page.insert_requested.connect(self._insert_at_cursor)
         self.window_chrome.minimize.connect(self.showMinimized)
         self.window_chrome.maximize.connect(self._toggle_maximized)
@@ -166,12 +168,23 @@ class MainWindow(LegacyMainWindow):
             self._save_preferences()
         self._current_page = key
         self.sidebar.select(key)
+        if key == "preferences":
+            self.preferences_page.refresh_from_settings()
         self.pages.setCurrentIndex(index)
         self._animate_page_in(self.pages.currentWidget())
         if key == "history":
             self.history_page.refresh()
         elif key == "dictation":
+            self._refresh_home_stats()
             self.dictation_page.setFocus()
+
+    def _refresh_home_stats(self) -> None:
+        try:
+            count, words, latest, meta = self._history_store.today_stats()
+        except Exception:
+            return
+        self.dictation_page.set_stats(words, count)
+        self.dictation_page.set_last(latest, meta)
 
     def _animate_page_in(self, page: QWidget) -> None:
         """Give navigation a restrained fade rather than an abrupt swap."""
@@ -218,6 +231,7 @@ class MainWindow(LegacyMainWindow):
             return
         self.settings.language = language
         self.store.save(self.settings)
+        self.preferences_page.dictation_tab.refresh_from_settings(self.settings)
         self._rebuild_runtime()
         self._update_meta()
 
@@ -234,6 +248,7 @@ class MainWindow(LegacyMainWindow):
 
     def _start_dictation(self, *, auto_insert: bool) -> None:
         self._session_elapsed.start()
+        self.dictation_page.clear_interim()
         super()._start_dictation(auto_insert=auto_insert)
 
     def _apply_state(self, state: DictationState, reason: str) -> None:
@@ -271,10 +286,16 @@ class MainWindow(LegacyMainWindow):
     @Slot(str)
     def _append_text(self, text: str) -> None:
         cleaned = text.strip()
+        self.dictation_page.clear_interim()
         if cleaned:
             self._session_fragments.append(cleaned)
             if self.settings.auto_copy:
                 QApplication.clipboard().setText(" ".join(self._session_fragments))
+
+    @Slot(str)
+    def _interim_text(self, text: str) -> None:
+        if self.state.state in {DictationState.RECORDING, DictationState.DRAINING}:
+            self.dictation_page.set_interim(text)
 
     @Slot()
     def _pipeline_finished(self) -> None:
@@ -283,9 +304,38 @@ class MainWindow(LegacyMainWindow):
             max(0.0, self._session_elapsed.elapsed() / 1000.0)
             if self._session_elapsed.isValid() else 0.0
         )
+        if (
+            text
+            and self.settings.ai_cleanup_enabled
+            and self.settings.ai_auto_clean
+        ):
+            self._polish_after_dictation(text, duration)
+            return
+        self._finish_transcript(text, duration)
+
+    def _polish_after_dictation(self, text: str, duration: float) -> None:
+        from soundflow.core.llm import polish_in_background
+
+        self.persistent_status.set_status("Polishing transcript…", "draining")
+        if self.settings.show_dictation_widget:
+            self.overlay.show_processing()
+
+        def done(cleaned: str) -> None:
+            self._finish_transcript(cleaned.strip() or text, duration)
+
+        def failed(message: str) -> None:
+            self.persistent_status.set_status(
+                f"AI Polish failed — kept raw text ({message[:80]})", "error"
+            )
+            self._finish_transcript(text, duration)
+
+        polish_in_background(text, self.settings, done, failed, parent=self)
+
+    def _finish_transcript(self, text: str, duration: float) -> None:
         if text and self.settings.auto_save_transcripts:
             self._history_store.add(text, duration)
-            self.history_page.refresh()
+            self.history_page.refresh(reset=True)
+            self._refresh_home_stats()
         if self.state.state is DictationState.DRAINING:
             self.state.drained()
         if (
@@ -325,6 +375,7 @@ class MainWindow(LegacyMainWindow):
 
     def _show_runtime_error(self, message: str) -> None:
         self.persistent_status.set_status(message, "error")
+        self.dictation_page.clear_interim()
         self.overlay.hide_animated()
         self._auto_insert_after_drain = False
         if self.state.state is DictationState.DRAINING:
@@ -363,9 +414,9 @@ class MainWindow(LegacyMainWindow):
         model = Path(self.settings.model_path or default_model_path()).name
         model = model.replace("faster-whisper-", "").replace("-", " ").title()
         self.dictation_page.set_meta(
-            f"{model or 'Whisper Small'} · INT8 · "
-            f"{self.settings.inference_device.upper()} · System microphone"
+            f"{model or 'Whisper Small'} · {self.settings.inference_device.upper()}"
         )
+        self.dictation_page.set_engine_sub("Local Whisper · INT8")
         self.dictation_page.set_shortcut(
             self.settings.push_to_talk_hotkey
         )

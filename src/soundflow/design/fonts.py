@@ -70,3 +70,19 @@ DISPLAY_FONT = "Geist"
 HOME_DISPLAY_FONT = "Outfit"
 BODY_FONT = "Geist"
 MONO_FONT = "Geist Mono"
+
+SERIF_CANDIDATES = (
+    "Iowan Old Style",
+    "Palatino Linotype",
+    "Book Antiqua",
+    "Palatino",
+    "Georgia",
+    "Noto Serif",
+    "DejaVu Serif",
+    "Serif",
+)
+
+
+def serif_font() -> str:
+    """Resolve the editorial serif family for page titles at call time."""
+    return preferred_font(SERIF_CANDIDATES)

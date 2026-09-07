@@ -48,10 +48,12 @@ class PlaybackTabUiTests(unittest.TestCase):
                     )
                 )
                 switch.setChecked(False)
+            tab._terminal_paste.setChecked(True)
             tab.write_back(settings)
             self.assertFalse(settings.auto_insert)
             self.assertFalse(settings.show_dictation_widget)
             self.assertFalse(settings.auto_save_transcripts)
+            self.assertTrue(settings.terminal_paste)
         finally:
             self.application.setStyleSheet(previous_stylesheet)
 

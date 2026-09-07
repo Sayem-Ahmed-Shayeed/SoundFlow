@@ -4,6 +4,7 @@ import hashlib
 import json
 import queue
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
@@ -34,6 +35,26 @@ class FasterWhisperTranscriber:
         self.compute_type = compute_type
         self._model = None
 
+    def _friendly_device_error(self, exc: Exception) -> str:
+        detail = str(exc)
+        lowered = detail.lower()
+        if self.device == "cuda" and (
+            "libcublas" in lowered or "libcudnn" in lowered or "libcuda" in lowered
+        ):
+            return (
+                "GPU libraries are missing (CUDA/cuBLAS not found). "
+                "Switch Processing to CPU in Preferences → Dictation, "
+                "or install the NVIDIA CUDA runtime. "
+                f"Details: {detail}"
+            )
+        if "out of memory" in lowered:
+            return (
+                "The GPU ran out of memory. Close GPU-heavy apps, use a smaller "
+                "model, or switch Processing to CPU in Preferences → Dictation. "
+                f"Details: {detail}"
+            )
+        return detail
+
     def _load(self):
         if self._model is not None:
             return self._model
@@ -49,12 +70,17 @@ class FasterWhisperTranscriber:
             raise ModelUnavailable(
                 "faster-whisper is not installed. Install the project dependencies first."
             ) from exc
-        self._model = WhisperModel(
-            str(self.model_path),
-            device=self.device,
-            compute_type=self.compute_type,
-            local_files_only=True,
-        )
+        try:
+            self._model = WhisperModel(
+                str(self.model_path),
+                device=self.device,
+                compute_type=self.compute_type,
+                local_files_only=True,
+            )
+        except Exception as exc:
+            if isinstance(exc, ModelUnavailable):
+                raise
+            raise ModelUnavailable(self._friendly_device_error(exc)) from exc
         return self._model
 
     def _verify_manifest(self) -> None:
@@ -88,13 +114,41 @@ class FasterWhisperTranscriber:
         except ImportError as exc:
             raise ModelUnavailable("NumPy is required for transcription") from exc
         audio = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
-        segments, _ = self._load().transcribe(
-            audio,
-            language=self.language,
-            beam_size=5,
-            condition_on_previous_text=False,
-            vad_filter=True,
-        )
+        try:
+            segments, _ = self._load().transcribe(
+                audio,
+                language=self.language,
+                beam_size=5,
+                condition_on_previous_text=False,
+                vad_filter=True,
+            )
+        except Exception as exc:
+            if isinstance(exc, ModelUnavailable):
+                raise
+            raise ModelUnavailable(self._friendly_device_error(exc)) from exc
+        return " ".join(segment.text.strip() for segment in segments).strip()
+
+    def transcribe_interim(self, pcm16: bytes, sample_rate: int) -> str:
+        """Fast display-only decode: no VAD gating, greedy search."""
+        if sample_rate != 16_000:
+            raise ValueError("The MVP transcriber expects 16 kHz PCM")
+        try:
+            import numpy as np
+        except ImportError as exc:
+            raise ModelUnavailable("NumPy is required for transcription") from exc
+        audio = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
+        try:
+            segments, _ = self._load().transcribe(
+                audio,
+                language=self.language,
+                beam_size=1,
+                condition_on_previous_text=False,
+                vad_filter=False,
+            )
+        except Exception as exc:
+            if isinstance(exc, ModelUnavailable):
+                raise
+            raise ModelUnavailable(self._friendly_device_error(exc)) from exc
         return " ".join(segment.text.strip() for segment in segments).strip()
 
 
@@ -104,6 +158,10 @@ class DemoTranscriber:
     def transcribe_pcm(self, pcm16: bytes, sample_rate: int) -> str:
         seconds = len(pcm16) / (sample_rate * 2)
         return f"[Demo mode: captured {seconds:.1f} seconds of speech]"
+
+    def transcribe_interim(self, pcm16: bytes, sample_rate: int) -> str:
+        seconds = len(pcm16) / (sample_rate * 2)
+        return f"[Demo mode: listening… {seconds:.0f}s]"
 
 
 @dataclass(frozen=True)
@@ -123,6 +181,9 @@ class _InferenceCommand:
 class DictationPipeline:
     """Capture, endpoint detection, and inference with bounded worker queues."""
 
+    INTERIM_EVERY_S = 0.7
+    INTERIM_MIN_S = 0.5
+
     def __init__(
         self,
         transcriber: Transcriber,
@@ -131,12 +192,17 @@ class DictationPipeline:
         on_finished: Callable[[], None],
         on_error: Callable[[str], None],
         on_level: Callable[[float], None],
+        on_interim: Callable[[str], None] | None = None,
     ) -> None:
         self.transcriber = transcriber
         self.segmenter_config = segmenter_config
         self.on_text = on_text
         self.on_finished = on_finished
         self.on_error = on_error
+        self.on_interim = on_interim
+        self._interim_busy = False
+        self._last_interim_sent = b""
+        self._last_interim_time = 0.0
         self._audio_queue: queue.Queue[_AudioCommand] = queue.Queue(maxsize=500)
         self._inference_queue: queue.Queue[_InferenceCommand] = queue.Queue(maxsize=32)
         self._session = 0
@@ -153,6 +219,9 @@ class DictationPipeline:
 
     def start(self, device: int | None) -> None:
         self._session += 1
+        self._interim_busy = False
+        self._last_interim_sent = b""
+        self._last_interim_time = 0.0
         self._put_audio(_AudioCommand("start", self._session))
         try:
             self._capture.start(device)
@@ -203,6 +272,7 @@ class DictationPipeline:
                     self._inference_queue.put(
                         _InferenceCommand("segment", active_session, segment)
                     )
+                self._maybe_queue_interim(active_session, segmenter)
             elif command.kind == "stop":
                 for segment in segmenter.flush():
                     self._inference_queue.put(
@@ -211,6 +281,30 @@ class DictationPipeline:
                 self._inference_queue.put(_InferenceCommand("end", active_session))
                 active_session = 0
 
+    def _maybe_queue_interim(self, session: int, segmenter: EnergySegmenter) -> None:
+        if self.on_interim is None:
+            return
+        if session <= 0 or self._interim_busy:
+            return
+        now = time.monotonic()
+        if now - self._last_interim_time < self.INTERIM_EVERY_S:
+            return
+        if self._inference_queue.qsize() > 0:
+            return
+        snapshot = segmenter.snapshot()
+        min_bytes = int(self.INTERIM_MIN_S * AudioCapture.SAMPLE_RATE * 2)
+        if len(snapshot) < min_bytes or snapshot == self._last_interim_sent:
+            return
+        try:
+            self._inference_queue.put_nowait(
+                _InferenceCommand("interim", session, snapshot)
+            )
+        except queue.Full:
+            return
+        self._interim_busy = True
+        self._last_interim_sent = snapshot
+        self._last_interim_time = now
+
     def _inference_loop(self) -> None:
         while self._running:
             command = self._inference_queue.get()
@@ -218,6 +312,23 @@ class DictationPipeline:
                 return
             if command.kind == "end":
                 self.on_finished()
+                continue
+            if command.kind == "interim":
+                self._interim_busy = False
+                if command.session != self._session:
+                    continue
+                try:
+                    quick = getattr(self.transcriber, "transcribe_interim", None)
+                    if callable(quick):
+                        text = quick(command.payload, AudioCapture.SAMPLE_RATE)
+                    else:
+                        text = self.transcriber.transcribe_pcm(
+                            command.payload, AudioCapture.SAMPLE_RATE
+                        )
+                    if text and self.on_interim is not None:
+                        self.on_interim(text)
+                except Exception:
+                    pass
                 continue
             try:
                 text = self.transcriber.transcribe_pcm(

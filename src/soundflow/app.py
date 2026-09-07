@@ -33,6 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="WAV",
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--self-test-device",
+        default="cpu",
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
@@ -44,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     multiprocessing.freeze_support()
     args = build_parser().parse_args(argv)
     if args.self_test_audio:
-        return _run_inference_self_test(args.self_test_audio)
+        return _run_inference_self_test(args.self_test_audio, args.self_test_device)
     if (
         sys.platform.startswith("linux")
         and os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
@@ -142,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         QTimer.singleShot(300, request_application_quit)
     return application.exec()
 
-def _run_inference_self_test(path: Path) -> int:
+def _run_inference_self_test(path: Path, device: str = "cpu") -> int:
     import wave
 
     from soundflow.core.settings import default_model_path
@@ -159,7 +164,7 @@ def _run_inference_self_test(path: Path) -> int:
     text = FasterWhisperTranscriber(
         default_model_path(),
         language="en",
-        device="cpu",
+        device=device,
         compute_type="int8",
     ).transcribe_pcm(pcm, 16_000)
     print(text)

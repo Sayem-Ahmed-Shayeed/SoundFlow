@@ -81,7 +81,7 @@ class DictationTab(QWidget):
         layout.setContentsMargins(SPACE_3, SPACE_3, SPACE_3, SPACE_3)
         layout.setSpacing(SPACE_2)
 
-        title = QLabel("Recognition")
+        title = QLabel("Recognition model")
         title.setFont(QFont(BODY_FONT, FONT_HEADING))
         title.setObjectName("headingText")
         layout.addWidget(title)
@@ -191,6 +191,35 @@ class DictationTab(QWidget):
         settings.language = self._language.currentData() or "auto"
         settings.inference_device = self._device.currentData() or "auto"
         settings.microphone = self._mic.currentData()
+
+    def refresh_from_settings(self, settings=None) -> None:
+        """Re-read pickers from settings so home-page changes are not clobbered."""
+        source = settings if settings is not None else self._settings
+        self._model.blockSignals(True)
+        self._model.setText(source.model_path)
+        self._model.blockSignals(False)
+        for combo, value in (
+            (self._language, source.language),
+            (self._device, source.inference_device),
+        ):
+            idx = next(
+                (i for i in range(combo.count()) if combo.itemData(i) == value),
+                0,
+            )
+            combo.blockSignals(True)
+            combo.setCurrentIndex(idx)
+            combo.blockSignals(False)
+        if source.microphone is None:
+            self._mic.blockSignals(True)
+            self._mic.setCurrentIndex(0)
+            self._mic.blockSignals(False)
+        else:
+            for i in range(self._mic.count()):
+                if self._mic.itemData(i) == source.microphone:
+                    self._mic.blockSignals(True)
+                    self._mic.setCurrentIndex(i)
+                    self._mic.blockSignals(False)
+                    break
 
     def shutdown(self) -> None:
         self._model_manager.shutdown()

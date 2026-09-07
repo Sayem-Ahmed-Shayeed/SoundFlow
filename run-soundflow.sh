@@ -11,4 +11,8 @@ PORTAUDIO="$ROOT/.vendor/portaudio/usr/lib/x86_64-linux-gnu"
 if [ -d "$PORTAUDIO" ]; then
     export LD_LIBRARY_PATH="$PORTAUDIO${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
+CUBLAS="$ROOT/.vendor/python/nvidia/cublas/lib"
+if [ -d "$CUBLAS" ]; then
+    export LD_LIBRARY_PATH="$CUBLAS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 exec python3 -m soundflow "$@"

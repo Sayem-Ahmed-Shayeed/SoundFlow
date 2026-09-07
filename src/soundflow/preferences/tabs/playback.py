@@ -62,6 +62,12 @@ class PlaybackTab(QWidget):
                 "Keep completed dictations locally so they can be reviewed.",
                 getattr(settings, "auto_save_transcripts", True),
             ),
+            (
+                "_terminal_paste",
+                "Terminal paste mode (Ctrl+Shift+V)",
+                "For terminals and CLI prompts where Ctrl+V does not paste.",
+                getattr(settings, "terminal_paste", False),
+            ),
         ):
             row = PreferenceToggleRow(
                 label, description, checked=bool(value)
@@ -75,6 +81,19 @@ class PlaybackTab(QWidget):
         settings.auto_insert = self._auto_insert.isChecked()
         settings.show_dictation_widget = self._show_widget.isChecked()
         settings.auto_save_transcripts = self._auto_save.isChecked()
+        settings.terminal_paste = self._terminal_paste.isChecked()
+
+    def refresh_from_settings(self, settings=None) -> None:
+        source = settings if settings is not None else self._settings
+        for switch, value in (
+            (self._auto_insert, source.auto_insert),
+            (self._show_widget, source.show_dictation_widget),
+            (self._auto_save, source.auto_save_transcripts),
+            (self._terminal_paste, source.terminal_paste),
+        ):
+            switch.blockSignals(True)
+            switch.setChecked(bool(value))
+            switch.blockSignals(False)
 
 
 __all__ = ["PlaybackTab"]

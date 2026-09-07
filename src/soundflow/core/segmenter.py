@@ -77,6 +77,12 @@ class EnergySegmenter:
         segment = self._finish()
         return [segment] if segment else []
 
+    def snapshot(self) -> bytes:
+        """Return in-progress speech without ending the phrase (for live interim)."""
+        if not self._active or self._speech_ms < self.config.min_speech_ms:
+            return b""
+        return bytes(self._segment)
+
     def _finish(self) -> bytes | None:
         result = bytes(self._segment) if self._speech_ms >= self.config.min_speech_ms else None
         self.reset()

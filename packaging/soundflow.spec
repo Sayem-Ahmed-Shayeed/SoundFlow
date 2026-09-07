@@ -79,6 +79,13 @@ if sys.platform.startswith("linux") and qt_runtime_dir.is_dir():
         if runtime_lib.is_symlink():
             binaries.append((str(runtime_lib), "."))
 
+cuda_vendor_dir = ROOT / ".vendor" / "python" / "nvidia" / "cublas" / "lib"
+if sys.platform.startswith("linux") and cuda_vendor_dir.is_dir():
+    for cuda_lib in ("libcublas.so.12", "libcublasLt.so.12"):
+        candidate = cuda_vendor_dir / cuda_lib
+        if candidate.is_file():
+            binaries.append((str(candidate), "."))
+
 analysis = Analysis(
     [str(ROOT / "src" / "soundflow" / "__main__.py")],
     pathex=[str(ROOT / "src")],

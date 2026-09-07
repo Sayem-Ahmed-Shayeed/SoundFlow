@@ -92,7 +92,7 @@ class PlaygroundPage(QWidget):
         self._injector = injector
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(SPACE_8, SPACE_6, SPACE_8, SPACE_6)
+        outer.setContentsMargins(SPACE_8, SPACE_4, SPACE_8, SPACE_6)
         outer.setSpacing(SPACE_4)
 
         # Header
@@ -103,17 +103,64 @@ class PlaygroundPage(QWidget):
         title.setObjectName("displayText")
         header.addWidget(title)
 
-        subtitle = QLabel("Try commands and shortcuts")
+        subtitle = QLabel(
+            "Practice Soundflow commands before using them in other applications."
+        )
         subtitle.setFont(QFont(BODY_FONT, FONT_BODY))
         subtitle.setObjectName("mutedText")
         header.addWidget(subtitle)
         outer.addLayout(header)
 
+        columns = QHBoxLayout()
+        columns.setSpacing(SPACE_8)
+
+        left = QVBoxLayout()
+        left.setSpacing(SPACE_3)
+
+        left_head = QLabel("Try a command")
+        left_head.setFont(QFont(BODY_FONT, FONT_HEADING))
+        left_head.setObjectName("headingText")
+        left.addWidget(left_head)
+        left_sub = QLabel("Choose a template or write your own instruction.")
+        left_sub.setFont(QFont(BODY_FONT, FONT_SMALL))
+        left_sub.setObjectName("mutedText")
+        left.addWidget(left_sub)
+
+        # Quick actions row
+        cards = QHBoxLayout()
+        cards.setSpacing(SPACE_3)
+
+        self._insert_card = _QuickCard(
+            "\u2702", "Insert Text", "Put clean text at the cursor.", enabled=True
+        )
+        self._insert_card.clicked.connect(self._run_insert)
+        cards.addWidget(self._insert_card)
+
+        self._format_card = _QuickCard(
+            "A", "Format Text", "Transform text into a clearer structure.",
+            enabled=True,
+        )
+        self._format_card.clicked.connect(self._run_format)
+        cards.addWidget(self._format_card)
+
+        self._rewrite_card = _QuickCard(
+            "\u2728", "Smart Rewrite", "Improve clarity while preserving meaning.",
+            enabled=True,
+        )
+        self._rewrite_card.clicked.connect(self._run_smart_rewrite)
+        cards.addWidget(self._rewrite_card)
+        left.addLayout(cards)
+
+        input_label = QLabel("Input")
+        input_label.setFont(QFont(BODY_FONT, FONT_SMALL))
+        input_label.setObjectName("mutedText")
+        left.addWidget(input_label)
+
         # Command input
         self._command = QPlainTextEdit()
         self._command.setObjectName("playgroundCommand")
         self._command.setPlaceholderText(
-            "Start typing a command or run a shortcut\u2026"
+            "Paste or dictate text to rewrite…"
         )
         self._command.setFont(QFont(BODY_FONT, FONT_BODY))
         self._command.setMinimumHeight(132)
@@ -122,44 +169,47 @@ class PlaygroundPage(QWidget):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Preferred,
         )
-        outer.addWidget(self._command)
+        left.addWidget(self._command)
 
         # Ctrl+Enter submits
         submit = QShortcut(QKeySequence("Ctrl+Return"), self._command)
         submit.activated.connect(self._on_submit)
 
-        # Quick actions row
-        cards = QHBoxLayout()
-        cards.setSpacing(SPACE_3)
+        run_row = QHBoxLayout()
+        run_row.setSpacing(SPACE_3)
+        local_note = QLabel("Runs locally unless AI Polish is explicitly used.")
+        local_note.setFont(QFont(BODY_FONT, FONT_SMALL))
+        local_note.setObjectName("mutedText")
+        run_row.addWidget(local_note, 1)
+        self._run_button = QPushButton("Run command  →")
+        self._run_button.setObjectName("primaryButton")
+        self._run_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._run_button.clicked.connect(self._on_submit)
+        run_row.addWidget(self._run_button)
+        left.addLayout(run_row)
+        columns.addLayout(left, 3)
 
-        self._insert_card = _QuickCard(
-            "\u2702", "Insert Text", "Insert text at cursor", enabled=True
+        right = QVBoxLayout()
+        right.setSpacing(SPACE_3)
+        right_head = QLabel("Preview")
+        right_head.setFont(QFont(BODY_FONT, FONT_HEADING))
+        right_head.setObjectName("headingText")
+        right.addWidget(right_head)
+        right_sub = QLabel("See the result before using it elsewhere.")
+        right_sub.setFont(QFont(BODY_FONT, FONT_SMALL))
+        right_sub.setObjectName("mutedText")
+        right.addWidget(right_sub)
+        self._preview = QLabel("Your result will appear here.")
+        self._preview.setObjectName("playgroundPreview")
+        self._preview.setFont(QFont(BODY_FONT, FONT_BODY))
+        self._preview.setAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
         )
-        self._insert_card.clicked.connect(self._run_insert)
-        cards.addWidget(self._insert_card)
+        self._preview.setWordWrap(True)
+        right.addWidget(self._preview, 1)
+        columns.addLayout(right, 2)
 
-        self._format_card = _QuickCard(
-            "A", "Format Text", "Format selected text", enabled=True
-        )
-        self._format_card.clicked.connect(self._run_format)
-        cards.addWidget(self._format_card)
-
-        self._rewrite_card = _QuickCard(
-            "\u270E", "Smart Rewrite", "Improve writing", enabled=True
-        )
-        self._rewrite_card.clicked.connect(self._run_smart_rewrite)
-        cards.addWidget(self._rewrite_card)
-
-        outer.addLayout(cards)
-
-        outer.addStretch(1)
-
-        # Tip line
-        tip = QLabel("\u2728 Tip: Use shortcuts to automate your workflow")
-        tip.setObjectName("mutedText")
-        tip.setFont(QFont(BODY_FONT, FONT_SMALL))
-        tip.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        outer.addWidget(tip)
+        outer.addLayout(columns, 1)
 
     # ------------------------------------------------------------------
     def _on_submit(self) -> None:
@@ -188,7 +238,9 @@ class PlaygroundPage(QWidget):
 
         def run() -> None:
             try:
-                self._command.setPlainText(transform(original))
+                result = transform(original)
+                self._command.setPlainText(result)
+                self._preview.setText(result if len(result) <= 600 else result[:600] + "…")
             except Exception as exc:
                 self._command.setPlainText(original)
                 self.transformation_failed.emit(str(exc))

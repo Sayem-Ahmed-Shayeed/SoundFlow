@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0b0d" />
+  <meta name="description" content="Soundflow — private, on-device voice dictation." />
+  <title>Soundflow — Private Dictation</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0c;
+  --bg-elevated: #0e0e11;
+  --surface: #121216;
+  --surface-2: #17171c;
+  --surface-3: #1c1c22;
+  --text: #f4f1ee;
+  --text-2: #c8c3c0;
+  --text-3: #918b8a;
+  --text-4: #6f6969;
+  --line: #2b292d;
+  --line-soft: #211f23;
+  --accent: #c98bbd;
+  --accent-strong: #e4a2d6;
+  --accent-soft: rgba(201, 139, 189, .12);
+  --success: #67c9a8;
+  --success-soft: rgba(103, 201, 168, .12);
+  --warning: #d9b66f;
+  --warning-soft: rgba(217, 182, 111, .12);
+  --danger: #e58c92;
+  --danger-soft: rgba(229, 140, 146, .12);
+  --focus: #e4a2d6;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --shadow-popover: 0 18px 60px rgba(0,0,0,.42);
+  --sidebar: 224px;
+  --content-max: 1180px;
+  --pad: 32px;
+  --ease: cubic-bezier(.2,.75,.2,1);
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 700px at 68% -12%, rgba(201,139,189,.05), transparent 58%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; text-decoration: none; }
+button { color: inherit; }
+svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.svg-sprite { width: 0; height: 0; position: absolute; overflow: hidden; }
+::selection { background: rgba(201,139,189,.32); }
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.app-shell { min-height: 100vh; }
+.sidebar {
+  width: var(--sidebar);
+  position: fixed;
+  inset: 0 auto 0 0;
+  padding: 26px 18px 20px;
+  border-right: 1px solid var(--line-soft);
+  background: rgba(10,10,12,.96);
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px 28px;
+}
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.brand-mark svg { width: 28px; height: 28px; stroke-width: 2.1; }
+.brand strong { display:block; font-size: 18px; letter-spacing: -.02em; font-weight: 630; }
+.brand small { display:block; color: var(--text-3); margin-top: 1px; font-size: 12px; letter-spacing: .015em; }
+.nav-list { display: grid; gap: 4px; }
+.nav-list a {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  transition: background 140ms var(--ease), color 140ms var(--ease);
+}
+.nav-list a:hover { background: rgba(255,255,255,.035); color: var(--text); }
+.nav-list a.active { background: var(--accent-soft); color: var(--text); }
+.nav-list a.active::before {
+  content:"";
+  position:absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.nav-list a svg { width: 18px; height: 18px; color: var(--text-3); }
+.nav-list a.active svg { color: var(--accent-strong); }
+.privacy-block {
+  margin-top: auto;
+  border-top: 1px solid var(--line-soft);
+  padding: 18px 8px 2px;
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: start;
+  gap: 9px;
+  color: var(--text-3);
+}
+.privacy-block strong { color: var(--success); font-size: 13px; font-weight: 560; display:block; line-height: 1.2; }
+.privacy-block span:not(.status-dot) { display:block; font-size: 11px; margin-top: 5px; line-height:1.35; }
+.privacy-block svg { width: 17px; height: 17px; margin-top: 1px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; background: var(--text-4); box-shadow: 0 0 0 3px rgba(255,255,255,.02); }
+.status-dot--ready { background: var(--success); box-shadow: 0 0 0 4px rgba(103,201,168,.08); }
+.status-dot--live { background: var(--accent-strong); box-shadow: 0 0 0 4px rgba(228,162,214,.09); }
+
+.main {
+  min-height: 100vh;
+  margin-left: var(--sidebar);
+  padding: 0 var(--pad) 60px;
+}
+.page {
+  width: min(100%, var(--content-max));
+  margin: 0 auto;
+  padding-top: 42px;
+  animation: pageIn 220ms var(--ease);
+}
+@keyframes pageIn { from { opacity: .65; transform: translateY(4px); } to { opacity:1; transform:none; } }
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+.eyebrow { color: var(--accent-strong); text-transform: uppercase; font-size: 11px; letter-spacing: .13em; font-weight: 650; margin-bottom: 7px; }
+.page-title {
+  font-family: var(--serif);
+  font-size: clamp(30px, 3.2vw, 42px);
+  line-height: 1.06;
+  letter-spacing: -.035em;
+  font-weight: 500;
+  margin: 0;
+}
+.page-subtitle { color: var(--text-3); max-width: 620px; margin: 9px 0 0; font-size: 14px; }
+.page-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+
+.button {
+  min-height: 42px;
+  border-radius: var(--radius-sm);
+  padding: 0 15px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 520;
+  transition: transform 120ms var(--ease), border-color 120ms var(--ease), background 120ms var(--ease), color 120ms var(--ease);
+}
+.button:hover { background: var(--surface-3); border-color: #3a373d; color: var(--text); }
+.button:active { transform: translateY(1px); }
+.button--primary { background: var(--text); border-color: var(--text); color: #111115; }
+.button--primary:hover { background: #fff; border-color: #fff; color: #0d0d10; }
+.button--accent { background: var(--accent); border-color: var(--accent); color: #170f15; }
+.button--accent:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: #120d11; }
+.button--quiet { background: transparent; border-color: transparent; color: var(--text-3); }
+.button--quiet:hover { background: rgba(255,255,255,.04); border-color: transparent; }
+.button--danger { color: var(--danger); background: transparent; }
+.button--danger:hover { background: var(--danger-soft); border-color: rgba(229,140,146,.25); }
+.button svg { width: 17px; height: 17px; }
+.button:disabled { opacity:.42; cursor:not-allowed; transform:none; }
+.icon-button { width: 42px; padding: 0; }
+
+.select, .input, .textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 12px;
+  outline: none;
+  transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease), background 140ms var(--ease);
+}
+.select { appearance:none; padding-right:38px; background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%),linear-gradient(135deg, var(--text-3) 50%, transparent 50%); background-position: calc(100% - 17px) 18px,calc(100% - 12px) 18px; background-size:5px 5px,5px 5px; background-repeat:no-repeat; }
+.input::placeholder, .textarea::placeholder { color: var(--text-4); }
+.input:hover, .select:hover, .textarea:hover { border-color: #39363c; }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201,139,189,.10); }
+.textarea { min-height: 120px; padding: 12px; resize: vertical; line-height:1.55; }
+.label { display:block; color: var(--text-2); font-size: 13px; margin-bottom: 7px; }
+.help { color: var(--text-3); font-size: 12px; margin-top: 6px; line-height:1.45; }
+
+.status-chip {
+  min-height: 36px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 12px;
+  background: rgba(255,255,255,.015);
+  white-space: nowrap;
+}
+.status-chip--ready { border-color: rgba(103,201,168,.25); color: var(--success); background: var(--success-soft); }
+.status-chip--live { border-color: rgba(228,162,214,.25); color: var(--accent-strong); background: var(--accent-soft); }
+.status-chip .status-dot { margin-top:0; }
+
+.dictation-stage {
+  position: relative;
+  min-height: 430px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.014), transparent 45%), var(--bg-elevated);
+  display: grid;
+  place-items: center;
+  isolation:isolate;
+}
+.dictation-stage::before {
+  content:"";
+  position:absolute;
+  width: 560px;
+  height: 560px;
+  border-radius:50%;
+  background: radial-gradient(circle, rgba(201,139,189,.10), rgba(201,139,189,.025) 36%, transparent 67%);
+  z-index:-1;
+}
+.dictation-stage-inner { width:min(680px, 88%); text-align:center; padding: 54px 20px 44px; }
+.dictation-kicker { color: var(--text-3); font-size: 14px; margin-bottom: 20px; }
+.dictation-title { font-family:var(--serif); font-size: clamp(27px,3vw,36px); font-weight:500; letter-spacing:-.025em; margin: 0 0 8px; }
+.dictation-instruction { color: var(--text-3); margin:0; }
+.mic-area { position:relative; display:grid; place-items:center; height:170px; margin: 12px 0 4px; }
+.mic-button {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  border: 1px solid #4a3b47;
+  background: #15131a;
+  color: var(--accent-strong);
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+  position:relative;
+  z-index:2;
+  box-shadow: inset 0 0 0 10px rgba(201,139,189,.035);
+  transition: transform 160ms var(--ease), background 160ms var(--ease), border-color 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+.mic-button:hover { transform: scale(1.025); border-color: rgba(228,162,214,.65); background:#18141b; }
+.mic-button:active { transform:scale(.99); }
+.mic-button svg { width: 42px; height:42px; stroke-width:1.5; }
+.mic-button.recording { border-color: var(--accent); background: #20131d; box-shadow: inset 0 0 0 10px rgba(201,139,189,.055), 0 0 0 10px rgba(201,139,189,.055); }
+.mic-button.recording::after { content:""; position:absolute; inset:-18px; border:1px solid rgba(201,139,189,.25); border-radius:50%; animation:pulse 1.8s infinite var(--ease); }
+@keyframes pulse { 0%,100% { transform:scale(.95); opacity:.25;} 50%{ transform:scale(1.08); opacity:.8;} }
+.waveform { position:absolute; inset:0; display:flex; justify-content:center; align-items:center; gap:4px; pointer-events:none; }
+.waveform span { width:2px; height: 8px; border-radius:2px; background:var(--text-4); opacity:.45; transition:height 120ms ease, background 120ms ease, opacity 120ms ease; }
+.waveform.live span { background:var(--accent); opacity:.95; animation:wave 720ms ease-in-out infinite alternate; }
+.waveform.live span:nth-child(2n){ animation-delay:-90ms; }
+.waveform.live span:nth-child(3n){ animation-delay:-190ms; }
+.waveform.live span:nth-child(4n){ animation-delay:-270ms; }
+.waveform.live span:nth-child(5n){ animation-delay:-360ms; }
+@keyframes wave { from {height:8px;} to {height:44px;} }
+.shortcut-line { display:flex; justify-content:center; align-items:center; gap:8px; margin-top:18px; flex-wrap:wrap; color:var(--text-3); font-size:12px; }
+kbd { font-family:var(--sans); color:var(--text-2); background:var(--surface-2); border:1px solid var(--line); border-bottom-color:#36333a; border-radius:6px; padding:4px 7px; box-shadow: inset 0 -1px 0 rgba(255,255,255,.03); font-size:12px; }
+.session-rail {
+  display:grid;
+  grid-template-columns: 1fr 1.65fr 1fr;
+  margin-top: 18px;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.session-item { padding: 18px 22px; min-width:0; }
+.session-item + .session-item { border-left:1px solid var(--line-soft); }
+.session-label { color:var(--text-4); text-transform:uppercase; font-size:10px; letter-spacing:.12em; font-weight:650; }
+.session-value { margin-top:5px; color:var(--text); font-size:17px; letter-spacing:-.015em; }
+.session-meta { color:var(--text-3); font-size:12px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.session-text { color:var(--text-2); font-size:13px; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.toolbar { display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap; }
+.search-field { position:relative; flex:1 1 320px; }
+.search-field svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--text-4); }
+.search-field .input { padding-left:40px; }
+.filter-select { width:160px; }
+.group-label { color:var(--text-3); font-size:12px; letter-spacing:.08em; text-transform:uppercase; margin:28px 0 10px; }
+.transcript-list { border-top: 1px solid var(--line-soft); }
+.transcript-row {
+  display:grid;
+  grid-template-columns: 120px minmax(0,1fr) auto;
+  gap:20px;
+  padding:22px 4px;
+  border-bottom:1px solid var(--line-soft);
+  align-items:start;
+}
+.transcript-meta { color:var(--text-3); font-size:12px; font-variant-numeric: tabular-nums; }
+.transcript-meta strong { display:block; color:var(--text-2); font-weight:520; font-size:13px; margin-bottom:3px; }
+.transcript-body { min-width:0; }
+.transcript-text { color:var(--text-2); margin:0; white-space:pre-wrap; line-height:1.65; }
+.transcript-text[contenteditable="true"] { border:1px solid var(--accent); border-radius:8px; padding:10px; background:var(--surface); outline:none; box-shadow:0 0 0 3px var(--accent-soft); }
+.row-actions { display:flex; gap:4px; opacity:.54; transition:opacity 120ms var(--ease); }
+.transcript-row:hover .row-actions, .transcript-row:focus-within .row-actions { opacity:1; }
+.empty-state { padding:70px 20px; text-align:center; border-top:1px solid var(--line-soft); color:var(--text-3); }
+.empty-state strong { display:block; color:var(--text-2); font-size:16px; margin-bottom:6px; }
+
+.playground-grid { display:grid; grid-template-columns: minmax(0,1.05fr) minmax(320px,.95fr); gap:24px; align-items:start; }
+.command-panel, .preview-panel { border-top:1px solid var(--line); padding-top:22px; }
+.section-title { font-family:var(--serif); font-size:23px; font-weight:500; letter-spacing:-.02em; margin:0 0 6px; }
+.section-copy { color:var(--text-3); font-size:13px; margin:0 0 20px; }
+.template-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:18px; }
+.template {
+  border:1px solid var(--line);
+  border-radius:var(--radius-sm);
+  background:transparent;
+  color:var(--text-3);
+  min-height:64px;
+  padding:10px 12px;
+  text-align:left;
+  cursor:pointer;
+  transition:background 120ms var(--ease), border 120ms var(--ease), color 120ms var(--ease);
+}
+.template strong { color:var(--text-2); font-size:13px; font-weight:550; display:block; }
+.template span { font-size:11px; display:block; margin-top:4px; }
+.template:hover { background:rgba(255,255,255,.025); color:var(--text-2); }
+.template.active { border-color:rgba(201,139,189,.45); background:var(--accent-soft); color:var(--text-2); }
+.command-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; }
+.command-hint { color:var(--text-4); font-size:11px; }
+.preview-surface { min-height:300px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface); padding:22px; }
+.preview-placeholder { color:var(--text-4); display:grid; min-height:254px; place-items:center; text-align:center; }
+.preview-result { color:var(--text-2); white-space:pre-wrap; line-height:1.7; }
+.preview-meta { color:var(--text-4); font-size:11px; margin-bottom:15px; display:flex; justify-content:space-between; gap:10px; }
+.example-list { margin-top:26px; display:grid; gap:2px; }
+.example-button { border:0; background:transparent; color:var(--text-3); text-align:left; padding:10px 0; border-bottom:1px solid var(--line-soft); cursor:pointer; display:flex; justify-content:space-between; gap:20px; }
+.example-button:hover { color:var(--text-2); }
+.example-button span:last-child { color:var(--text-4); }
+
+.preferences-shell { display:grid; grid-template-columns: 190px minmax(0,1fr); gap:38px; align-items:start; }
+.prefs-nav { position:sticky; top:28px; display:grid; gap:3px; }
+.prefs-nav a { color:var(--text-3); min-height:39px; padding:0 10px; display:flex; align-items:center; border-radius:7px; border-left:2px solid transparent; }
+.prefs-nav a:hover { color:var(--text-2); background:rgba(255,255,255,.025); }
+.prefs-nav a.active { color:var(--text); background:var(--accent-soft); border-left-color:var(--accent); }
+.settings-pane { max-width:820px; }
+.settings-section + .settings-section { margin-top:42px; }
+.settings-heading { margin-bottom:15px; }
+.settings-heading h2 { font-family:var(--serif); font-size:23px; font-weight:500; letter-spacing:-.02em; margin:0 0 5px; }
+.settings-heading p { color:var(--text-3); font-size:13px; margin:0; }
+.setting-list { border-top:1px solid var(--line-soft); }
+.setting-row {
+  min-height:74px;
+  border-bottom:1px solid var(--line-soft);
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(180px,280px);
+  gap:28px;
+  align-items:center;
+  padding:14px 0;
+}
+.setting-row--stack { grid-template-columns:1fr; gap:12px; }
+.setting-name { color:var(--text-2); font-size:14px; font-weight:520; }
+.setting-description { color:var(--text-3); font-size:12px; margin-top:3px; max-width:520px; }
+.setting-control { justify-self:end; width:100%; max-width:280px; }
+.switch { position:relative; width:42px; height:24px; display:inline-block; }
+.switch input { opacity:0; width:0; height:0; position:absolute; }
+.switch-track { position:absolute; inset:0; border-radius:999px; background:#2a282c; border:1px solid #39363c; cursor:pointer; transition:background 150ms var(--ease), border 150ms var(--ease); }
+.switch-track::after { content:""; position:absolute; width:16px; height:16px; border-radius:50%; left:3px; top:3px; background:#aaa4a5; transition:transform 160ms var(--ease), background 160ms var(--ease); }
+.switch input:checked + .switch-track { background:rgba(201,139,189,.24); border-color:rgba(201,139,189,.48); }
+.switch input:checked + .switch-track::after { transform:translateX(18px); background:var(--accent-strong); }
+.switch input:focus-visible + .switch-track { outline:2px solid var(--focus); outline-offset:3px; }
+.segmented { display:inline-grid; grid-auto-flow:column; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:3px; gap:2px; }
+.segmented button { min-width:72px; min-height:32px; border:0; border-radius:6px; background:transparent; color:var(--text-3); cursor:pointer; font-size:12px; }
+.segmented button.active { background:var(--surface-3); color:var(--text); box-shadow:inset 0 0 0 1px rgba(255,255,255,.035); }
+.range-wrap { display:grid; gap:7px; }
+.range-wrap input[type=range] { width:100%; accent-color:var(--accent); }
+.range-labels { display:flex; justify-content:space-between; color:var(--text-4); font-size:11px; }
+.model-list { border-top:1px solid var(--line-soft); }
+.model-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:20px; align-items:center; padding:16px 0; border-bottom:1px solid var(--line-soft); }
+.model-row.selected .model-name { color:var(--text); }
+.model-name { color:var(--text-2); font-weight:530; }
+.model-description { color:var(--text-3); font-size:12px; margin-top:3px; }
+.badge { display:inline-flex; min-height:20px; align-items:center; border:1px solid var(--line); border-radius:999px; padding:0 7px; font-size:10px; color:var(--text-3); margin-left:7px; vertical-align:1px; }
+.badge--accent { border-color:rgba(201,139,189,.28); color:var(--accent-strong); background:var(--accent-soft); }
+.badge--success { border-color:rgba(103,201,168,.25); color:var(--success); background:var(--success-soft); }
+.model-action { min-width:104px; display:flex; justify-content:flex-end; }
+.progress { width:96px; height:4px; border-radius:4px; overflow:hidden; background:#242228; }
+.progress span { display:block; height:100%; background:var(--accent); width:0; transition:width 180ms linear; }
+.path-field { font-family:var(--mono); font-size:12px; }
+.notice { display:grid; grid-template-columns:auto 1fr; gap:12px; border:1px solid var(--line); border-radius:var(--radius-sm); padding:13px 14px; background:rgba(255,255,255,.015); color:var(--text-3); font-size:12px; }
+.notice svg { width:18px; height:18px; margin-top:1px; }
+.notice strong { color:var(--text-2); display:block; font-size:13px; margin-bottom:2px; }
+.notice--privacy { border-color:rgba(201,139,189,.2); background:var(--accent-soft); }
+.notice--warning { border-color:rgba(217,182,111,.25); background:var(--warning-soft); }
+.secret-field { display:flex; gap:8px; }
+.secret-field .input { flex:1; }
+.shortcut-editor { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.shortcut-capture { min-height:42px; min-width:190px; border:1px solid var(--line); border-radius:8px; background:var(--surface); display:flex; align-items:center; gap:5px; padding:0 10px; color:var(--text-2); cursor:pointer; }
+.shortcut-capture.listening { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); color:var(--accent-strong); }
+.diagnostics { border-top:1px solid var(--line-soft); }
+.diagnostic-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:20px; align-items:center; min-height:66px; border-bottom:1px solid var(--line-soft); }
+.diagnostic-name { color:var(--text-2); font-size:13px; font-weight:520; }
+.diagnostic-note { color:var(--text-3); font-size:12px; margin-top:2px; }
+.diagnostic-status { display:inline-flex; gap:7px; align-items:center; color:var(--text-3); font-size:12px; }
+.diagnostic-status svg { width:16px; height:16px; }
+.diagnostic-status.ready { color:var(--success); }
+.diagnostic-status.warning { color:var(--warning); }
+.spinner { width:15px; height:15px; border:2px solid rgba(255,255,255,.16); border-top-color:currentColor; border-radius:50%; animation:spin 700ms linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.toast-region { position:fixed; right:24px; bottom:24px; z-index:90; display:grid; gap:8px; pointer-events:none; }
+.toast { min-width:260px; max-width:360px; border:1px solid var(--line); background:#161619; color:var(--text-2); box-shadow:var(--shadow-popover); border-radius:10px; padding:12px 14px; display:flex; align-items:center; gap:10px; animation:toastIn 180ms var(--ease); pointer-events:auto; font-size:13px; }
+.toast svg { width:16px; height:16px; color:var(--success); flex:none; }
+@keyframes toastIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.62); z-index:100; display:grid; place-items:center; padding:20px; animation:fadeIn 130ms ease; }
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal { width:min(460px,100%); border:1px solid var(--line); background:#141417; box-shadow:var(--shadow-popover); border-radius:14px; padding:22px; }
+.modal h2 { font-family:var(--serif); font-size:23px; font-weight:500; margin:0 0 7px; }
+.modal p { color:var(--text-3); font-size:13px; margin:0; }
+.modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:24px; }
+
+.mobile-nav { display:none; }
+
+@media (max-width: 1020px) {
+  :root { --sidebar: 76px; --pad: 24px; }
+  .sidebar { padding-inline:12px; align-items:center; }
+  .brand { padding-inline:0; }
+  .brand > span:last-child, .nav-list a span, .privacy-block div, .privacy-block > svg { display:none; }
+  .nav-list { width:100%; }
+  .nav-list a { justify-content:center; padding:0; }
+  .nav-list a.active::before { left:2px; }
+  .privacy-block { grid-template-columns:auto; justify-items:center; padding-inline:0; }
+  .playground-grid { grid-template-columns:1fr; }
+  .preview-surface { min-height:220px; }
+}
+
+@media (max-width: 760px) {
+  :root { --pad: 16px; }
+  body { padding-bottom:74px; }
+  .sidebar { display:none; }
+  .main { margin-left:0; padding-bottom:28px; }
+  .page { padding-top:24px; }
+  .page-header { margin-bottom:22px; align-items:flex-start; }
+  .page-title { font-size:32px; }
+  .page-actions { gap:7px; }
+  .page-actions .select { width:140px; }
+  .mobile-nav { display:grid; grid-template-columns:repeat(4,1fr); position:fixed; z-index:80; inset:auto 0 0; min-height:68px; padding:7px max(8px, env(safe-area-inset-right)) max(7px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background:rgba(13,13,16,.96); border-top:1px solid var(--line); backdrop-filter:blur(12px); }
+  .mobile-nav a { display:grid; place-items:center; align-content:center; gap:3px; color:var(--text-4); font-size:10px; border-radius:8px; }
+  .mobile-nav a svg { width:19px; height:19px; }
+  .mobile-nav a.active { color:var(--accent-strong); background:var(--accent-soft); }
+  .dictation-stage { min-height:380px; }
+  .dictation-stage-inner { padding-inline:12px; }
+  .session-rail { grid-template-columns:1fr 1fr; }
+  .session-item:nth-child(2) { display:none; }
+  .session-item:nth-child(3) { border-left:1px solid var(--line-soft); }
+  .transcript-row { grid-template-columns:1fr auto; gap:14px; }
+  .transcript-meta { grid-column:1/-1; display:flex; gap:8px; align-items:center; }
+  .transcript-meta strong { margin:0; }
+  .row-actions { opacity:1; }
+  .preferences-shell { grid-template-columns:1fr; gap:20px; }
+  .prefs-nav { position:static; display:flex; overflow-x:auto; padding-bottom:5px; scrollbar-width:none; margin-inline:-4px; }
+  .prefs-nav::-webkit-scrollbar { display:none; }
+  .prefs-nav a { flex:0 0 auto; min-height:36px; border-left:0; border-bottom:2px solid transparent; border-radius:0; padding:0 10px; }
+  .prefs-nav a.active { background:transparent; border-bottom-color:var(--accent); }
+  .setting-row { grid-template-columns:1fr auto; gap:16px; }
+  .setting-control { max-width:210px; }
+  .setting-row:has(.input), .setting-row:has(.select), .setting-row:has(.segmented), .setting-row:has(.shortcut-editor) { grid-template-columns:1fr; }
+  .setting-row:has(.input) .setting-control, .setting-row:has(.select) .setting-control, .setting-row:has(.segmented) .setting-control, .setting-row:has(.shortcut-editor) .setting-control { justify-self:stretch; max-width:none; }
+  .template-grid { grid-template-columns:1fr; }
+  .template { min-height:54px; }
+  .toast-region { left:12px; right:12px; bottom:82px; }
+  .toast { min-width:0; width:100%; max-width:none; }
+}
+
+@media (max-width: 520px) {
+  .page-header { display:block; }
+  .page-actions { margin-top:16px; justify-content:flex-start; }
+  .dictation-stage { min-height:360px; }
+  .dictation-title { font-size:29px; }
+  .mic-button { width:92px; height:92px; }
+  .session-item { padding:14px 8px; }
+  .session-value { font-size:15px; }
+  .toolbar { align-items:stretch; }
+  .filter-select { width:100%; }
+  .transcript-row { padding-block:18px; }
+  .row-actions .button span { display:none; }
+  .model-row { grid-template-columns:1fr; }
+  .model-action { justify-content:flex-start; }
+  .setting-row { grid-template-columns:1fr auto; }
+  .setting-description { max-width:290px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior:auto !important; transition-duration:.001ms !important; }
+}
+
+  </style>
+</head>
+<body>
+  <svg class="svg-sprite" aria-hidden="true">
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 8.5c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 4.5-2M3 12c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 4.5-2M3 15.5c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 4.5-2"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.3-5.8L3.5 8.5V4.5M3.5 8.5h4"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.8c.6 4.9 3.3 7.6 8.2 8.2-4.9.6-7.6 3.3-8.2 8.2-.6-4.9-3.3-7.6-8.2-8.2 4.9-.6 7.6-3.3 8.2-8.2Z"/><path d="M19 2.8c.2 1.6 1.1 2.5 2.7 2.7-1.6.2-2.5 1.1-2.7 2.7-.2-1.6-1.1-2.5-2.7-2.7 1.6-.2 2.5-1.1 2.7-2.7Z"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5Z"/><path d="M19.2 13.4a7.7 7.7 0 0 0 0-2.8l2-1.5-2-3.4-2.4 1a7.8 7.8 0 0 0-2.4-1.4L14 2.7h-4l-.4 2.6a7.8 7.8 0 0 0-2.4 1.4l-2.4-1-2 3.4 2 1.5a7.7 7.7 0 0 0 0 2.8l-2 1.5 2 3.4 2.4-1a7.8 7.8 0 0 0 2.4 1.4l.4 2.6h4l.4-2.6a7.8 7.8 0 0 0 2.4-1.4l2.4 1 2-3.4-2-1.5Z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="10" height="10" rx="2"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m4 16.5-.8 4.3 4.3-.8L19 8.5 15.5 5 4 16.5Z"/><path d="m13.5 7 3.5 3.5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 20h16"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m9 6 9 6-9 6V6Z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.8 12s3.4-5 9.2-5 9.2 5 9.2 5-3.4 5-9.2 5-9.2-5-9.2-5Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.2 7.2A10.5 10.5 0 0 1 12 7c5.8 0 9.2 5 9.2 5a12.8 12.8 0 0 1-2.6 2.8M6.2 6.3C4 7.7 2.8 12 2.8 12s3.4 5 9.2 5a9.7 9.7 0 0 0 3-.5M9.8 9.8a3 3 0 0 0 4.4 4.4"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.7-2.8 8-7 10-4.2-2-7-5.3-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M6 10h1M10 10h1M14 10h1M18 10h.1M6 14h8M16 14h2"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9 2v3M12 2v3M15 2v3M9 19v3M12 19v3M15 19v3M2 9h3M2 12h3M2 15h3M19 9h3M19 12h3M19 15h3"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.3 2.5 3.5 5.5 3.5 9S14.3 18.5 12 21c-2.3-2.5-3.5-5.5-3.5-9S9.7 5.5 12 3Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17.5v.1"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7.5v.1"/></symbol>
+  </svg>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="#/dictation" aria-label="Soundflow home">
+        <span class="brand-mark"><svg><use href="#i-wave"></use></svg></span>
+        <span><strong>Soundflow</strong><small>Private dictation</small></span>
+      </a>
+
+      <nav class="nav-list">
+        <a href="#/dictation" data-route="dictation"><svg><use href="#i-mic"></use></svg><span>Dictation</span></a>
+        <a href="#/history" data-route="history"><svg><use href="#i-history"></use></svg><span>History</span></a>
+        <a href="#/playground" data-route="playground"><svg><use href="#i-spark"></use></svg><span>Playground</span></a>
+        <a href="#/preferences/general" data-route="preferences"><svg><use href="#i-settings"></use></svg><span>Preferences</span></a>
+      </nav>
+
+      <div class="privacy-block" tabindex="0" role="note" aria-label="On-device privacy status">
+        <span class="status-dot status-dot--ready"></span>
+        <div><strong>On-device</strong><span>Audio stays on this machine.</span></div>
+        <svg><use href="#i-shield"></use></svg>
+      </div>
+    </aside>
+
+    <main id="app" class="main" tabindex="-1"></main>
+
+    <nav class="mobile-nav" aria-label="Primary navigation">
+      <a href="#/dictation" data-route="dictation"><svg><use href="#i-mic"></use></svg><span>Dictate</span></a>
+      <a href="#/history" data-route="history"><svg><use href="#i-history"></use></svg><span>History</span></a>
+      <a href="#/playground" data-route="playground"><svg><use href="#i-spark"></use></svg><span>Play</span></a>
+      <a href="#/preferences/general" data-route="preferences"><svg><use href="#i-settings"></use></svg><span>Settings</span></a>
+    </nav>
+  </div>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <div id="modalRoot"></div>
+
+  <script>
+(() => {
+  'use strict';
+
+  const app = document.querySelector('#app');
+  const toastRegion = document.querySelector('#toastRegion');
+  const modalRoot = document.querySelector('#modalRoot');
+
+  const state = {
+    recording: false,
+    recordSeconds: 0,
+    recordTimer: null,
+    historyFilter: 'all',
+    historySearch: '',
+    playgroundTemplate: 'rewrite',
+    playgroundResult: '',
+    aiEnabled: true,
+    apiVisible: false,
+    autoPolish: true,
+    model: 'small',
+    downloads: {},
+    shortcutCapture: false,
+    shortcut: ['Ctrl', 'Alt', 'Space'],
+    systemStatus: 'idle',
+    settings: {
+      theme: 'dark',
+      timeout: 380,
+      copyPhrases: true,
+      startup: true,
+      autoInsert: true,
+      floatingWidget: true,
+      autoSave: true,
+      terminalPaste: true,
+      listenBackground: true,
+      language: 'Auto detect',
+      provider: 'Gemini (fast)',
+      modelName: 'gemini-3.5-flash',
+      style: 'Concise rewrite'
+    },
+    transcripts: [
+      {
+        id: 1,
+        group: 'Today',
+        time: '7:23 PM',
+        duration: '00:05',
+        words: 10,
+        text: 'I am checking if the transcription and polishing are working.'
+      },
+      {
+        id: 2,
+        group: 'Today',
+        time: '7:21 PM',
+        duration: '00:05',
+        words: 23,
+        text: 'Yes, it is working! I am online, responsive, and ready to help you test.\n\nHow can I assist you with your trial today?'
+      }
+    ]
+  };
+
+  const icons = (name, cls = '') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+  const escapeHTML = (str) => String(str).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+  const route = () => (location.hash || '#/dictation').replace(/^#\//, '').split('/');
+
+  function toast(message, icon = 'check') {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = `${icons(icon)}<span>${escapeHTML(message)}</span>`;
+    toastRegion.appendChild(el);
+    window.setTimeout(() => el.remove(), 2800);
+  }
+
+  function modal({ title, body, confirm = 'Confirm', destructive = false, onConfirm }) {
+    modalRoot.innerHTML = `
+      <div class="modal-backdrop" role="presentation" data-modal-close>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" onclick="event.stopPropagation()">
+          <h2 id="modal-title">${escapeHTML(title)}</h2>
+          <p>${escapeHTML(body)}</p>
+          <div class="modal-actions">
+            <button class="button" type="button" data-modal-close>Cancel</button>
+            <button class="button ${destructive ? 'button--danger' : 'button--primary'}" type="button" data-modal-confirm>${escapeHTML(confirm)}</button>
+          </div>
+        </section>
+      </div>`;
+    const close = () => { modalRoot.innerHTML = ''; };
+    modalRoot.querySelectorAll('[data-modal-close]').forEach(el => el.addEventListener('click', close));
+    modalRoot.querySelector('[data-modal-confirm]').addEventListener('click', () => { onConfirm?.(); close(); });
+    modalRoot.querySelector('[data-modal-confirm]').focus();
+  }
+
+  function updateNavigation() {
+    const [root] = route();
+    document.querySelectorAll('[data-route]').forEach(link => {
+      const active = link.dataset.route === (root === 'preferences' ? 'preferences' : root);
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+    });
+  }
+
+  function pageHeader({ eyebrow, title, subtitle, actions = '' }) {
+    return `
+      <header class="page-header">
+        <div>
+          ${eyebrow ? `<div class="eyebrow">${escapeHTML(eyebrow)}</div>` : ''}
+          <h1 class="page-title">${escapeHTML(title)}</h1>
+          ${subtitle ? `<p class="page-subtitle">${escapeHTML(subtitle)}</p>` : ''}
+        </div>
+        ${actions ? `<div class="page-actions">${actions}</div>` : ''}
+      </header>`;
+  }
+
+  function waveformBars() {
+    return Array.from({length: 31}, (_, i) => `<span style="animation-duration:${620 + (i%7)*48}ms"></span>`).join('');
+  }
+
+  function renderDictation() {
+    const status = state.recording
+      ? `<span class="status-chip status-chip--live"><span class="status-dot status-dot--live"></span>Listening</span>`
+      : `<span class="status-chip status-chip--ready"><span class="status-dot status-dot--ready"></span>Ready</span>`;
+
+    const title = state.recording ? `Listening · ${formatTimer(state.recordSeconds)}` : 'Ready to dictate';
+    const instruction = state.recording ? 'Release to transcribe · Esc to cancel' : 'Hold the shortcut, speak naturally, then release to insert.';
+
+    app.innerHTML = `
+      <section class="page" aria-labelledby="page-title">
+        ${pageHeader({
+          eyebrow: 'Private voice input',
+          title: 'Dictation',
+          subtitle: 'Fast, private speech-to-text that works wherever you type.',
+          actions: `${status}<select class="select" id="languageSelect" aria-label="Dictation language" style="width:160px"><option>Auto detect</option><option>English</option><option>Spanish</option><option>French</option><option>German</option></select>`
+        })}
+
+        <section class="dictation-stage" aria-label="Dictation control">
+          <div class="dictation-stage-inner">
+            <div class="dictation-kicker">${state.recording ? 'Microphone active' : 'On-device microphone ready'}</div>
+            <h2 class="dictation-title">${title}</h2>
+            <p class="dictation-instruction">${instruction}</p>
+
+            <div class="mic-area">
+              <div class="waveform ${state.recording ? 'live' : ''}" aria-hidden="true">${waveformBars()}</div>
+              <button class="mic-button ${state.recording ? 'recording' : ''}" id="micButton" type="button" aria-pressed="${state.recording}" aria-label="${state.recording ? 'Stop recording' : 'Start recording'}">
+                ${icons(state.recording ? 'stop' : 'mic')}
+              </button>
+            </div>
+
+            <div class="shortcut-line"><span>${state.recording ? 'Or press' : 'Push-to-talk'}</span><kbd>Ctrl</kbd><span>+</span><kbd>Alt</kbd><span>+</span><kbd>Space</kbd></div>
+          </div>
+        </section>
+
+        <section class="session-rail" aria-label="Session summary">
+          <div class="session-item">
+            <div class="session-label">Today</div>
+            <div class="session-value">33 words</div>
+            <div class="session-meta">2 dictations</div>
+          </div>
+          <div class="session-item">
+            <div class="session-label">Last dictation</div>
+            <div class="session-text">I am checking if the transcription and polishing are working.</div>
+            <div class="session-meta">7:23 PM · 10 words</div>
+          </div>
+          <div class="session-item">
+            <div class="session-label">Engine</div>
+            <div class="session-value">Small · CUDA</div>
+            <div class="session-meta">Local Whisper · INT8</div>
+          </div>
+        </section>
+      </section>`;
+
+    document.querySelector('#micButton').addEventListener('click', toggleRecording);
+    document.querySelector('#languageSelect').value = state.settings.language;
+    document.querySelector('#languageSelect').addEventListener('change', e => state.settings.language = e.target.value);
+  }
+
+  function formatTimer(seconds) {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  function toggleRecording() {
+    if (!state.recording) {
+      state.recording = true;
+      state.recordSeconds = 0;
+      render();
+      state.recordTimer = window.setInterval(() => {
+        state.recordSeconds++;
+        const heading = document.querySelector('.dictation-title');
+        if (heading) heading.textContent = `Listening · ${formatTimer(state.recordSeconds)}`;
+      }, 1000);
+    } else {
+      state.recording = false;
+      window.clearInterval(state.recordTimer);
+      state.recordTimer = null;
+      render();
+      toast('Inserted 18 words at the cursor.');
+    }
+  }
+
+  function renderHistory() {
+    const query = state.historySearch.trim().toLowerCase();
+    const filtered = state.transcripts.filter(t => {
+      const matchesSearch = !query || t.text.toLowerCase().includes(query);
+      const matchesFilter = state.historyFilter === 'all' || (state.historyFilter === 'today' && t.group === 'Today');
+      return matchesSearch && matchesFilter;
+    });
+
+    app.innerHTML = `
+      <section class="page" aria-labelledby="page-title">
+        ${pageHeader({ title: 'History', subtitle: 'Search, edit, copy, and reuse transcripts saved locally.' })}
+        <div class="toolbar">
+          <label class="search-field">
+            ${icons('search')}
+            <span class="sr-only"></span>
+            <input class="input" id="historySearch" type="search" value="${escapeHTML(state.historySearch)}" placeholder="Search transcripts" aria-label="Search transcripts" />
+          </label>
+          <select class="select filter-select" id="historyFilter" aria-label="Filter history">
+            <option value="all">All transcripts</option>
+            <option value="today">Today</option>
+          </select>
+        </div>
+        <div class="group-label">Today · ${filtered.length}</div>
+        ${filtered.length ? `<div class="transcript-list">${filtered.map(transcriptRow).join('')}</div>` : `<div class="empty-state"><strong>No matching transcripts</strong>Try a broader search or clear the filter.</div>`}
+      </section>`;
+
+    const search = document.querySelector('#historySearch');
+    search.addEventListener('input', e => {
+      state.historySearch = e.target.value;
+      window.clearTimeout(search._timer);
+      search._timer = window.setTimeout(renderHistory, 120);
+    });
+    search.focus({preventScroll:true});
+    try { search.setSelectionRange(search.value.length, search.value.length); } catch {}
+
+    const filter = document.querySelector('#historyFilter');
+    filter.value = state.historyFilter;
+    filter.addEventListener('change', e => { state.historyFilter = e.target.value; renderHistory(); });
+
+    bindHistoryActions();
+  }
+
+  function transcriptRow(t) {
+    return `
+      <article class="transcript-row" data-transcript="${t.id}">
+        <div class="transcript-meta"><strong>${escapeHTML(t.time)}</strong><span>${escapeHTML(t.duration)} · ${t.words} words</span></div>
+        <div class="transcript-body"><p class="transcript-text">${escapeHTML(t.text)}</p></div>
+        <div class="row-actions" aria-label="Transcript actions">
+          <button class="button button--quiet icon-button" type="button" data-action="edit" title="Edit transcript" aria-label="Edit transcript">${icons('edit')}</button>
+          <button class="button button--quiet icon-button" type="button" data-action="copy" title="Copy transcript" aria-label="Copy transcript">${icons('copy')}</button>
+          <button class="button button--quiet icon-button" type="button" data-action="polish" title="Polish transcript" aria-label="Polish transcript">${icons('spark')}</button>
+          <button class="button button--quiet icon-button" type="button" data-action="more" title="More options" aria-label="More options">${icons('more')}</button>
+        </div>
+      </article>`;
+  }
+
+  function bindHistoryActions() {
+    document.querySelectorAll('.transcript-row').forEach(row => {
+      const id = Number(row.dataset.transcript);
+      row.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', () => historyAction(id, btn.dataset.action, row)));
+    });
+  }
+
+  function historyAction(id, action, row) {
+    const t = state.transcripts.find(x => x.id === id);
+    if (!t) return;
+    if (action === 'copy') {
+      navigator.clipboard?.writeText(t.text).catch(() => {});
+      toast('Transcript copied.');
+    } else if (action === 'polish') {
+      t.text = t.text.replace('I am checking if', 'I’m checking whether').replace('Yes, it is working!', 'Yes — it’s working.');
+      t.words = t.text.split(/\s+/).filter(Boolean).length;
+      renderHistory();
+      toast('Transcript polished.');
+    } else if (action === 'edit') {
+      const p = row.querySelector('.transcript-text');
+      if (p.contentEditable === 'true') {
+        t.text = p.innerText.trim();
+        t.words = t.text.split(/\s+/).filter(Boolean).length;
+        p.contentEditable = 'false';
+        toast('Transcript saved.');
+      } else {
+        p.contentEditable = 'true';
+        p.focus();
+        btnIconSwap(row, 'edit', 'check');
+      }
+    } else if (action === 'more') {
+      modal({
+        title: 'Delete transcript?',
+        body: 'This transcript is stored locally. Deleting it cannot be undone.',
+        confirm: 'Delete',
+        destructive: true,
+        onConfirm: () => {
+          state.transcripts = state.transcripts.filter(x => x.id !== id);
+          renderHistory();
+          toast('Transcript deleted.');
+        }
+      });
+    }
+  }
+
+  function btnIconSwap(row, action, newIcon) {
+    const btn = row.querySelector(`[data-action="${action}"]`);
+    if (btn) btn.innerHTML = icons(newIcon);
+  }
+
+  function renderPlayground() {
+    const templates = {
+      insert: { title: 'Insert text', hint: 'Put clean text at the cursor.', placeholder: 'Type the text you want to insert…' },
+      format: { title: 'Format text', hint: 'Transform selected text into a clearer structure.', placeholder: 'Paste text to format…' },
+      rewrite: { title: 'Smart rewrite', hint: 'Improve clarity while preserving meaning.', placeholder: 'Paste or dictate text to rewrite…' }
+    };
+    const current = templates[state.playgroundTemplate];
+    app.innerHTML = `
+      <section class="page" aria-labelledby="page-title">
+        ${pageHeader({ title:'Playground', subtitle:'Practice Soundflow commands before using them in other applications.' })}
+        <div class="playground-grid">
+          <section class="command-panel" aria-labelledby="command-title">
+            <h2 class="section-title" id="command-title">Try a command</h2>
+            <p class="section-copy">Choose a template or write your own instruction.</p>
+            <div class="template-grid">
+              ${Object.entries(templates).map(([key, value]) => `<button class="template ${state.playgroundTemplate===key?'active':''}" data-template="${key}" type="button"><strong>${value.title}</strong><span>${value.hint}</span></button>`).join('')}
+            </div>
+            <label class="label" for="playgroundInput">Input</label>
+            <textarea class="textarea" id="playgroundInput" placeholder="${escapeHTML(current.placeholder)}"></textarea>
+            <div class="command-actions">
+              <span class="command-hint">Runs locally unless AI Polish is explicitly used.</span>
+              <button class="button button--primary" id="runCommand" type="button">Run command ${icons('arrow')}</button>
+            </div>
+
+            <div class="example-list" aria-label="Examples">
+              <button class="example-button" type="button" data-example="Turn this into concise bullet points with clear action items."><span>Meeting notes → action items</span><span>Format</span></button>
+              <button class="example-button" type="button" data-example="Rewrite this to sound warm, direct, and concise while preserving every key fact."><span>Polish a message</span><span>Rewrite</span></button>
+              <button class="example-button" type="button" data-example="Insert: Thanks — I’ll review this and get back to you tomorrow."><span>Reusable response</span><span>Insert</span></button>
+            </div>
+          </section>
+
+          <section class="preview-panel" aria-labelledby="preview-title">
+            <h2 class="section-title" id="preview-title">Preview</h2>
+            <p class="section-copy">See the result before using it elsewhere.</p>
+            <div class="preview-surface" id="previewSurface">
+              ${state.playgroundResult ? `<div class="preview-meta"><span>Result</span><span>Local preview</span></div><div class="preview-result">${escapeHTML(state.playgroundResult)}</div>` : `<div class="preview-placeholder"><div>${icons('spark')}<div style="margin-top:8px">Your result will appear here.</div></div></div>`}
+            </div>
+          </section>
+        </div>
+      </section>`;
+
+    document.querySelectorAll('[data-template]').forEach(btn => btn.addEventListener('click', () => { state.playgroundTemplate = btn.dataset.template; renderPlayground(); }));
+    document.querySelectorAll('[data-example]').forEach(btn => btn.addEventListener('click', () => {
+      const ta = document.querySelector('#playgroundInput');
+      ta.value = btn.dataset.example;
+      ta.focus();
+    }));
+    document.querySelector('#runCommand').addEventListener('click', runPlayground);
+  }
+
+  function runPlayground() {
+    const input = document.querySelector('#playgroundInput').value.trim();
+    if (!input) { toast('Add some text or an instruction first.', 'info'); return; }
+    if (state.playgroundTemplate === 'insert') {
+      state.playgroundResult = input.replace(/^insert:\s*/i, '');
+    } else if (state.playgroundTemplate === 'format') {
+      const words = input.split(/\s+/).filter(Boolean);
+      state.playgroundResult = `• ${words.slice(0, Math.ceil(words.length/3)).join(' ')}\n• ${words.slice(Math.ceil(words.length/3), Math.ceil(words.length*2/3)).join(' ')}\n• ${words.slice(Math.ceil(words.length*2/3)).join(' ')}`;
+    } else {
+      state.playgroundResult = input.replace(/\bi am\b/gi, 'I’m').replace(/\bit is\b/gi, 'it’s').replace(/\s+/g, ' ').trim();
+      state.playgroundResult = state.playgroundResult.charAt(0).toUpperCase() + state.playgroundResult.slice(1);
+    }
+    renderPlayground();
+    toast('Preview updated.');
+  }
+
+  const prefItems = [
+    ['general','General'],
+    ['dictation','Dictation'],
+    ['playback','Playback'],
+    ['shortcuts','Shortcuts'],
+    ['ai-polish','AI Polish'],
+    ['system','System']
+  ];
+
+  function prefsNav(active) {
+    return `<nav class="prefs-nav" aria-label="Preference sections">${prefItems.map(([id,label]) => `<a href="#/preferences/${id}" class="${active===id?'active':''}" ${active===id?'aria-current="page"':''}>${label}</a>`).join('')}</nav>`;
+  }
+
+  function renderPreferences(section='general') {
+    const valid = prefItems.some(([id]) => id === section) ? section : 'general';
+    app.innerHTML = `
+      <section class="page" aria-labelledby="page-title">
+        ${pageHeader({ title:'Preferences', subtitle:'Tune recognition, behavior, shortcuts, privacy, and system readiness.' })}
+        <div class="preferences-shell">
+          ${prefsNav(valid)}
+          <div class="settings-pane">${renderPreferenceSection(valid)}</div>
+        </div>
+      </section>`;
+    bindPreferenceControls(valid);
+  }
+
+  function renderPreferenceSection(section) {
+    if (section === 'general') return `
+      <section class="settings-section">
+        <div class="settings-heading"><h2>Appearance</h2><p>Keep Soundflow comfortable for long sessions.</p></div>
+        <div class="setting-list">
+          ${settingRow('Theme','Choose the interface appearance.', `<div class="segmented" role="group" aria-label="Theme"><button class="${state.settings.theme==='light'?'active':''}" data-theme="light">Light</button><button class="${state.settings.theme==='dark'?'active':''}" data-theme="dark">Dark</button></div>`)}
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-heading"><h2>Dictation behavior</h2><p>Control when speech is finalized and what happens next.</p></div>
+        <div class="setting-list">
+          ${settingRow('Silence timeout',`Finalize after about ${state.settings.timeout} ms of silence.`, `<div class="range-wrap"><input id="timeoutRange" type="range" min="250" max="1400" step="10" value="${state.settings.timeout}" aria-label="Silence timeout"><div class="range-labels"><span>Fast</span><span>Patient</span></div></div>`)}
+          ${settingRow('Copy completed phrases automatically','Keep the final phrase available on your clipboard.', switchHTML('copyPhrases',state.settings.copyPhrases))}
+          ${settingRow('Start in the system tray','Launch Soundflow quietly in the background.', switchHTML('startup',state.settings.startup))}
+        </div>
+      </section>`;
+
+    if (section === 'dictation') return `
+      <section class="settings-section">
+        <div class="settings-heading"><h2>Recognition model</h2><p>All models run locally. Larger models trade speed and memory for accuracy.</p></div>
+        <div class="model-list">
+          ${modelRow('tiny','Fastest · approximately 78 MB')}
+          ${modelRow('base','Fast and lightweight · approximately 148 MB')}
+          ${modelRow('small','Recommended balance · approximately 486 MB', true)}
+          ${modelRow('medium','Higher accuracy · approximately 1.53 GB')}
+          ${modelRow('large-v3-turbo','Best quality · approximately 1.62 GB')}
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-heading"><h2>Recognition preferences</h2><p>Choose where models live and how language is detected.</p></div>
+        <div class="setting-list">
+          ${settingRow('Model directory','Local folder used by the recognition engine.', `<input class="input path-field" value="/home/sha-weed/.local/share/soundflow/models" aria-label="Model directory">`)}
+          ${settingRow('Language','Auto detect works well for mixed or changing input.', `<select class="select" id="prefLanguage"><option>Auto detect</option><option>English</option><option>Spanish</option><option>French</option><option>German</option></select>`)}
+        </div>
+      </section>`;
+
+    if (section === 'playback') return `
+      <section class="settings-section">
+        <div class="settings-heading"><h2>Playback & insertion</h2><p>Choose how completed speech moves into the application you are using.</p></div>
+        <div class="setting-list">
+          ${settingRow('Insert text automatically at the cursor','Paste completed dictation into the focused application.',switchHTML('autoInsert',state.settings.autoInsert))}
+          ${settingRow('Show floating dictation widget','Display recording and transcription status above other apps.',switchHTML('floatingWidget',state.settings.floatingWidget))}
+          ${settingRow('Auto-save transcripts to History','Keep completed dictations locally so they can be reviewed.',switchHTML('autoSave',state.settings.autoSave))}
+          ${settingRow('Terminal paste mode','Use terminal-friendly paste behavior for shells and CLI prompts.',switchHTML('terminalPaste',state.settings.terminalPaste))}
+        </div>
+      </section>`;
+
+    if (section === 'shortcuts') return `
+      <section class="settings-section">
+        <div class="settings-heading"><h2>Push-to-talk</h2><p>Hold this shortcut to record from anywhere. Release it to transcribe and insert.</p></div>
+        <div class="setting-list">
+          ${settingRow('Hold to dictate','Click the shortcut, then press a new key combination.', `<div class="shortcut-editor"><button id="shortcutCapture" type="button" class="shortcut-capture ${state.shortcutCapture?'listening':''}">${state.shortcutCapture ? 'Press shortcut…' : state.shortcut.map(k=>`<kbd>${escapeHTML(k)}</kbd>`).join('<span>+</span>')}</button><button class="button button--quiet" id="resetShortcut" type="button">Reset</button></div>`)}
+          ${settingRow('Listen while Soundflow is in the background','Enables push-to-talk even when another application is focused.',switchHTML('listenBackground',state.settings.listenBackground))}
+        </div>
+      </section>
+      <div class="notice" style="margin-top:20px">${icons('keyboard')}<div><strong>System shortcut permission</strong>Some Linux desktop environments ask once before a global shortcut can be used.</div></div>`;
+
+    if (section === 'ai-polish') return `
+      <section class="settings-section">
+        <div class="settings-heading"><h2>AI Polish</h2><p>Optional cleanup for grammar, punctuation, filler words, and style.</p></div>
+        <div class="notice ${state.aiEnabled ? 'notice--warning' : 'notice--privacy'}" style="margin-bottom:18px">${icons(state.aiEnabled?'alert':'shield')}<div><strong>${state.aiEnabled ? 'Cloud boundary enabled' : 'On-device only'}</strong>${state.aiEnabled ? 'Transcript text can be sent to the selected AI provider. Audio never leaves this device.' : 'Recognition and transcript storage stay local. No transcript text is sent to an AI provider.'}</div></div>
+        <div class="setting-list">
+          ${settingRow('Enable AI Polish','Allow transcript text to be sent to the configured provider for cleanup.',switchHTML('aiEnabled',state.aiEnabled))}
+          ${settingRow('Polish automatically after dictation','Clean each transcript before it is saved and inserted.',switchHTML('autoPolish',state.autoPolish), !state.aiEnabled)}
+        </div>
+      </section>
+      ${state.aiEnabled ? `<section class="settings-section">
+        <div class="settings-heading"><h2>Provider</h2><p>Credentials remain on this device.</p></div>
+        <div class="setting-list">
+          ${settingRow('Provider','Service used for text cleanup.', `<select class="select" id="providerSelect"><option>Gemini (fast)</option><option>OpenAI</option><option>Custom endpoint</option></select>`)}
+          ${settingRow('API key','Stored locally and never included in transcript history.', `<div class="secret-field"><input class="input" id="apiKey" type="${state.apiVisible?'text':'password'}" value="sk-local-demo-key-••••••••••" aria-label="API key"><button class="button icon-button" id="toggleApi" type="button" aria-label="${state.apiVisible?'Hide':'Show'} API key">${icons(state.apiVisible?'eye-off':'eye')}</button></div>`)}
+          ${settingRow('Model','Provider model used for cleanup.', `<input class="input" id="aiModel" value="${escapeHTML(state.settings.modelName)}">`)}
+          ${settingRow('Style','Default cleanup behavior.', `<select class="select" id="polishStyle"><option>Concise rewrite</option><option>Grammar only</option><option>Natural cleanup</option><option>Custom</option></select>`)}
+        </div>
+        <div style="margin-top:16px"><button class="button" id="testPolish" type="button">Send test polish</button></div>
+      </section>` : ''}`;
+
+    return `
+      <section class="settings-section">
+        <div class="settings-heading"><h2>System readiness</h2><p>Check the components Soundflow needs for private, offline dictation.</p></div>
+        <div class="diagnostics">
+          ${diagnosticRow('Model files','A local Whisper model is available.','models')}
+          ${diagnosticRow('Microphone','An audio input is available for dictation.','microphone')}
+          ${diagnosticRow('Global shortcut','Push-to-talk can work outside Soundflow.','shortcut')}
+          ${diagnosticRow('Text insertion','Completed speech can be pasted at the cursor.','insertion')}
+          ${diagnosticRow('Processing device','Recognition runs locally on this device.','device')}
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:18px; flex-wrap:wrap"><button class="button button--primary" id="runSystemCheck" type="button" ${state.systemStatus==='running'?'disabled':''}>${state.systemStatus==='running'?'<span class="spinner"></span> Checking…':'Run system check'}</button><span class="help">${state.systemStatus==='idle'?'Not checked yet':state.systemStatus==='running'?'Checking local components…':'All required components are ready.'}</span></div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-heading"><h2>Model location</h2><p>Recognition files are stored locally.</p></div>
+        <input class="input path-field" value="/home/sha-weed/.local/share/soundflow/models/faster-whisper-small" readonly aria-label="Model location">
+      </section>`;
+  }
+
+  function settingRow(name, description, control, disabled=false) {
+    return `<div class="setting-row ${disabled?'is-disabled':''}" style="${disabled?'opacity:.48;pointer-events:none':''}"><div><div class="setting-name">${name}</div><div class="setting-description">${description}</div></div><div class="setting-control">${control}</div></div>`;
+  }
+
+  function switchHTML(id, checked) {
+    return `<label class="switch" aria-label="${id}"><input type="checkbox" data-setting="${id}" ${checked?'checked':''}><span class="switch-track"></span></label>`;
+  }
+
+  const installedModels = new Set(['small']);
+  function modelRow(id, description, recommended=false) {
+    const name = id === 'large-v3-turbo' ? 'Large-v3 Turbo' : id.charAt(0).toUpperCase()+id.slice(1);
+    const installed = installedModels.has(id);
+    const selected = state.model === id;
+    const downloading = state.downloads[id] != null && state.downloads[id] < 100;
+    let action = '';
+    if (downloading) {
+      action = `<div class="progress" aria-label="Downloading ${name}"><span style="width:${state.downloads[id]}%"></span></div>`;
+    } else if (installed) {
+      action = selected ? `<span class="badge badge--success">In use</span>` : `<button class="button" type="button" data-use-model="${id}">Use</button>`;
+    } else {
+      action = `<button class="button" type="button" data-download-model="${id}">${icons('download')}Download</button>`;
+    }
+    return `<div class="model-row ${selected?'selected':''}"><div><div class="model-name">${name}${recommended?'<span class="badge badge--accent">Recommended</span>':''}</div><div class="model-description">${description}</div></div><div class="model-action">${action}</div></div>`;
+  }
+
+  function diagnosticRow(name, note, key) {
+    let status;
+    if (state.systemStatus === 'idle') status = `<span class="diagnostic-status">Not checked</span>`;
+    else if (state.systemStatus === 'running') status = `<span class="diagnostic-status"><span class="spinner"></span>Checking</span>`;
+    else status = `<span class="diagnostic-status ready">${icons('check')}Ready</span>`;
+    return `<div class="diagnostic-row" data-diagnostic="${key}"><div><div class="diagnostic-name">${name}</div><div class="diagnostic-note">${note}</div></div>${status}</div>`;
+  }
+
+  function bindPreferenceControls(section) {
+    document.querySelectorAll('[data-setting]').forEach(input => input.addEventListener('change', e => {
+      const key = e.target.dataset.setting;
+      if (key === 'aiEnabled') state.aiEnabled = e.target.checked;
+      else if (key === 'autoPolish') state.autoPolish = e.target.checked;
+      else state.settings[key] = e.target.checked;
+      if (key === 'aiEnabled') { renderPreferences('ai-polish'); toast(state.aiEnabled ? 'AI Polish enabled. Transcript text may be sent to your provider.' : 'AI Polish disabled. Dictation is fully local.'); }
+    }));
+
+    document.querySelectorAll('[data-theme]').forEach(btn => btn.addEventListener('click', () => {
+      state.settings.theme = btn.dataset.theme;
+      if (state.settings.theme === 'light') {
+        toast('Light theme preview is not included in this dark luxury concept.', 'info');
+        state.settings.theme = 'dark';
+      }
+      renderPreferences('general');
+    }));
+
+    const timeout = document.querySelector('#timeoutRange');
+    if (timeout) timeout.addEventListener('input', e => { state.settings.timeout = Number(e.target.value); e.target.closest('.setting-row').querySelector('.setting-description').textContent = `Finalize after about ${state.settings.timeout} ms of silence.`; });
+
+    document.querySelectorAll('[data-download-model]').forEach(btn => btn.addEventListener('click', () => startModelDownload(btn.dataset.downloadModel)));
+    document.querySelectorAll('[data-use-model]').forEach(btn => btn.addEventListener('click', () => { state.model = btn.dataset.useModel; renderPreferences('dictation'); toast(`${btn.dataset.useModel} model selected.`); }));
+
+    const prefLanguage = document.querySelector('#prefLanguage');
+    if (prefLanguage) { prefLanguage.value = state.settings.language; prefLanguage.addEventListener('change', e => state.settings.language=e.target.value); }
+
+    const capture = document.querySelector('#shortcutCapture');
+    if (capture) capture.addEventListener('click', () => { state.shortcutCapture = true; renderPreferences('shortcuts'); document.addEventListener('keydown', captureShortcut, {once:true}); });
+    const reset = document.querySelector('#resetShortcut');
+    if (reset) reset.addEventListener('click', () => { state.shortcut=['Ctrl','Alt','Space']; state.shortcutCapture=false; renderPreferences('shortcuts'); toast('Shortcut reset.'); });
+
+    const toggleApi = document.querySelector('#toggleApi');
+    if (toggleApi) toggleApi.addEventListener('click', () => { state.apiVisible=!state.apiVisible; renderPreferences('ai-polish'); });
+    const provider = document.querySelector('#providerSelect');
+    if (provider) { provider.value=state.settings.provider; provider.addEventListener('change', e=>state.settings.provider=e.target.value); }
+    const model = document.querySelector('#aiModel');
+    if (model) model.addEventListener('change', e=>state.settings.modelName=e.target.value);
+    const polishStyle = document.querySelector('#polishStyle');
+    if (polishStyle) { polishStyle.value=state.settings.style; polishStyle.addEventListener('change', e=>state.settings.style=e.target.value); }
+    const test = document.querySelector('#testPolish');
+    if (test) test.addEventListener('click', () => { test.disabled=true; test.innerHTML='<span class="spinner"></span> Testing…'; setTimeout(()=>{ toast('Provider connection succeeded.'); test.disabled=false; test.textContent='Send test polish'; },900); });
+
+    const check = document.querySelector('#runSystemCheck');
+    if (check) check.addEventListener('click', runSystemCheck);
+  }
+
+  function captureShortcut(e) {
+    if (!state.shortcutCapture) return;
+    e.preventDefault();
+    const parts = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Meta');
+    const modifierKeys = ['Control','Alt','Shift','Meta'];
+    if (!modifierKeys.includes(e.key)) parts.push(e.code === 'Space' ? 'Space' : (e.key.length===1 ? e.key.toUpperCase() : e.key));
+    if (parts.length < 2) {
+      toast('Use at least one modifier plus another key.', 'alert');
+      document.addEventListener('keydown', captureShortcut, {once:true});
+      return;
+    }
+    state.shortcut = parts;
+    state.shortcutCapture=false;
+    renderPreferences('shortcuts');
+    toast('Shortcut updated.');
+  }
+
+  function startModelDownload(id) {
+    state.downloads[id]=2;
+    renderPreferences('dictation');
+    const timer = setInterval(() => {
+      state.downloads[id] = Math.min(100, state.downloads[id] + Math.floor(7 + Math.random()*14));
+      const bar = document.querySelector(`[data-download-model="${id}"]`);
+      if (location.hash !== '#/preferences/dictation') { clearInterval(timer); return; }
+      if (state.downloads[id] >= 100) {
+        clearInterval(timer);
+        installedModels.add(id);
+        state.downloads[id]=100;
+        renderPreferences('dictation');
+        toast(`${id} model downloaded.`);
+      } else {
+        renderPreferences('dictation');
+      }
+    }, 260);
+  }
+
+  function runSystemCheck() {
+    state.systemStatus='running';
+    renderPreferences('system');
+    setTimeout(()=>{
+      state.systemStatus='ready';
+      renderPreferences('system');
+      toast('System check complete. Soundflow is ready.');
+    }, 1600);
+  }
+
+  function render() {
+    updateNavigation();
+    const [root, section] = route();
+    if (root === 'history') renderHistory();
+    else if (root === 'playground') renderPlayground();
+    else if (root === 'preferences') renderPreferences(section || 'general');
+    else renderDictation();
+    app.focus({preventScroll:true});
+  }
+
+  window.addEventListener('hashchange', render);
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && state.recording) {
+      state.recording=false;
+      clearInterval(state.recordTimer);
+      state.recordTimer=null;
+      render();
+      toast('Dictation cancelled.', 'info');
+    }
+  });
+
+  if (!location.hash) location.hash = '#/dictation';
+  render();
+})();
+
+  </script>
+</body>
+</html>

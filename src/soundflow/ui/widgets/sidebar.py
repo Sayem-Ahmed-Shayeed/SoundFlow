@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
+from soundflow.design import BODY_FONT, FONT_SMALL, FONT_TINY, SPACE_1, SPACE_2
 
 
 class AppSidebar(QFrame):
@@ -12,7 +15,7 @@ class AppSidebar(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("sideBar")
-        self.setFixedWidth(190)
+        self.setFixedWidth(208)
         self._buttons: dict[str, QPushButton] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 24, 18, 18)
@@ -21,10 +24,16 @@ class AppSidebar(QFrame):
         brand_row = QHBoxLayout()
         mark = QLabel("≋")
         mark.setObjectName("brandMark")
+        brand_stack = QVBoxLayout()
+        brand_stack.setSpacing(0)
         brand = QLabel("Soundflow")
         brand.setObjectName("brand")
+        tagline = QLabel("PRIVATE DICTATION")
+        tagline.setObjectName("railSection")
+        brand_stack.addWidget(brand)
+        brand_stack.addWidget(tagline)
         brand_row.addWidget(mark)
-        brand_row.addWidget(brand)
+        brand_row.addLayout(brand_stack)
         brand_row.addStretch(1)
         layout.addLayout(brand_row)
         layout.addSpacing(28)
@@ -51,6 +60,30 @@ class AppSidebar(QFrame):
             layout.addWidget(button)
 
         layout.addStretch(1)
+
+        footer = QWidget()
+        footer.setObjectName("sideFooter")
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(2, SPACE_2, 2, 0)
+        footer_layout.setSpacing(SPACE_1)
+        status_row = QHBoxLayout()
+        status_row.setSpacing(SPACE_1)
+        dot = QLabel("●")
+        dot.setObjectName("sideFooterTitle")
+        dot.setFont(QFont(BODY_FONT, FONT_SMALL))
+        status_row.addWidget(dot)
+        on_device = QLabel("On-device")
+        on_device.setObjectName("sideFooterTitle")
+        on_device.setFont(QFont(BODY_FONT, FONT_SMALL))
+        status_row.addWidget(on_device)
+        status_row.addStretch(1)
+        footer_layout.addLayout(status_row)
+        caption = QLabel("Audio stays on this machine.")
+        caption.setObjectName("railCaption")
+        caption.setWordWrap(True)
+        caption.setFont(QFont(BODY_FONT, FONT_TINY))
+        footer_layout.addWidget(caption)
+        layout.addWidget(footer)
         self.select("dictation")
 
     def select(self, key: str) -> None:

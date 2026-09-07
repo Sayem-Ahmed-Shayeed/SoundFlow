@@ -76,6 +76,10 @@ class WaveformRing(QWidget):
             self.palette().color(self.palette().ColorRole.Window).lightness() < 128
         )
         accent = QColor("#9B72FF" if dark else "#7657F6")
+        if self._state == "recording":
+            accent = QColor("#FF6EC7" if dark else "#D6336C")
+        elif self._state == "draining":
+            accent = QColor("#FFC24B" if dark else "#B7791F")
         quiet = QColor("#47516A" if dark else "#CBD1DF")
         centre = QColor("#111A2B" if dark else "#FFFFFF")
         # Central microphone control and glow.

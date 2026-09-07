@@ -79,6 +79,7 @@ from soundflow.transcription import (
 
 class UiBridge(QObject):
     text_ready = Signal(str)
+    interim_ready = Signal(str)
     finished = Signal()
     error = Signal(str)
     level = Signal(float)
@@ -1302,6 +1303,7 @@ class MainWindow(QMainWindow):
 
     def _connect_bridge(self) -> None:
         self.bridge.text_ready.connect(self._append_text)
+        self.bridge.interim_ready.connect(self._interim_text)
         self.bridge.finished.connect(self._pipeline_finished)
         self.bridge.error.connect(self._show_runtime_error)
         self.bridge.level.connect(self._set_level)
@@ -1701,6 +1703,10 @@ class MainWindow(QMainWindow):
         if self.settings.auto_copy:
             self.copy_text()
 
+    @Slot(str)
+    def _interim_text(self, text: str) -> None:
+        del text
+
     @Slot()
     def _pipeline_finished(self) -> None:
         if self.state.state is DictationState.DRAINING:
@@ -1742,7 +1748,7 @@ class MainWindow(QMainWindow):
 
     def _paste_now(self) -> None:
         try:
-            self.injector.paste()
+            self.injector.paste(shift=bool(self.settings.terminal_paste))
         except InjectionError as exc:
             self.bridge.error.emit(str(exc))
 

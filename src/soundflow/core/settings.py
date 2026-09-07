@@ -50,10 +50,20 @@ class Settings:
     max_speech_s: int = 20
     auto_copy: bool = False
     auto_insert: bool = True
+    terminal_paste: bool = False
     show_dictation_widget: bool = True
     auto_save_transcripts: bool = True
     start_minimized: bool = False
     remote_desktop_restore_token: str = ""
+    ai_cleanup_enabled: bool = False
+    ai_auto_clean: bool = False
+    ai_provider: str = "gemini"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    openrouter_api_key: str = ""
+    openrouter_model: str = ""
+    ai_preset: str = "clean"
+    ai_custom_instruction: str = ""
 
     def normalized(self) -> "Settings":
         from soundflow.hotkeys import canonical_hotkey
@@ -79,6 +89,17 @@ class Settings:
         self.silence_duration_ms = min(max(int(self.silence_duration_ms), 200), 3000)
         self.min_speech_ms = min(max(int(self.min_speech_ms), 100), 3000)
         self.max_speech_s = min(max(int(self.max_speech_s), 5), 60)
+        self.openrouter_api_key = self.openrouter_api_key.strip()
+        self.openrouter_model = self.openrouter_model.strip()
+        self.gemini_api_key = self.gemini_api_key.strip()
+        self.gemini_model = (self.gemini_model.strip() or "gemini-2.5-flash")[:120]
+        if self.ai_provider not in {"gemini", "openrouter"}:
+            self.ai_provider = "gemini"
+        if self.ai_preset not in {"clean", "concise", "custom"}:
+            self.ai_preset = "clean"
+        self.ai_custom_instruction = self.ai_custom_instruction.strip()[:2000]
+        if not self.ai_cleanup_enabled:
+            self.ai_auto_clean = False
         return self
 
 

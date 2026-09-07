@@ -14,8 +14,10 @@ from .fonts import (
     DISPLAY_FONT,
     HOME_DISPLAY_FONT,
     MONO_FONT,
+    SERIF_CANDIDATES,
     preferred_font,
     register_application_fonts,
+    serif_font,
 )
 from .motion import ButtonMotionFilter, install_button_motion
 from .spacing import (
@@ -49,6 +51,7 @@ from .spacing import (
 )
 from .theme import (
     ACCENT,
+    AMBER,
     BG_BLACK,
     BG_PANEL,
     BG_RAISED,
@@ -57,7 +60,12 @@ from .theme import (
     FG_CREAM,
     FG_DIM,
     FG_MUTED,
+    MINT,
+    ORCHID,
+    PINK,
+    SKY,
     SUCCESS,
+    TEAL,
     resolved_dark,
     stylesheet,
 )
@@ -72,8 +80,10 @@ __all__ = [
     "DISPLAY_FONT",
     "HOME_DISPLAY_FONT",
     "MONO_FONT",
+    "SERIF_CANDIDATES",
     "preferred_font",
     "register_application_fonts",
+    "serif_font",
     "install_button_motion",
     "BORDER_FOCUS",
     "BORDER_THIN",
@@ -99,6 +109,7 @@ __all__ = [
     "SPACE_8",
     "SPACE_10",
     "ACCENT",
+    "AMBER",
     "BG_BLACK",
     "BG_PANEL",
     "BG_RAISED",
@@ -107,7 +118,12 @@ __all__ = [
     "FG_CREAM",
     "FG_DIM",
     "FG_MUTED",
+    "MINT",
+    "ORCHID",
+    "PINK",
+    "SKY",
     "SUCCESS",
+    "TEAL",
     "resolved_dark",
     "stylesheet",
 ]

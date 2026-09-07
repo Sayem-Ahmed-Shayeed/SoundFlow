@@ -12,8 +12,12 @@ Implemented now:
 - Design token system — dark/light theming, Roboto fonts, spacing scale, Qt stylesheet engine
 - Dictation page with waveform ring, voice orb, animated record button, and status indicators
 - Editable history page with transcript cards, copy, clear, TXT, Markdown, and DOCX export
-- Preferences dialog with five tabs: General, Dictation, Playback, Shortcuts, and System readiness
+- History lists stay fast via preview rows and pagination; full text loads on demand
+- Preferences dialog with six tabs: General, Dictation, Playback, Shortcuts, AI Polish,
+  and System readiness
 - Appearance selector (dark / light / follow system)
+- Optional AI Polish via Gemini or OpenRouter (off by default): grammar, punctuation,
+  filler removal per transcript or automatically after dictation
 - Click-based start/stop, global toggle, and push-to-talk with press-and-release handling
 - Native Wayland global shortcut support through the XDG desktop portal
 - Automatic paste at the active cursor when push-to-talk is released
@@ -168,7 +172,9 @@ creates `~/.local/bin/soundflow`. To remove it later:
 - Audio exists only in memory and is discarded after processing.
 - Transcripts are not saved unless the user exports them.
 - Transcription stays local; audio and transcript content are not sent to a network service.
-- Network access occurs only when the user explicitly requests a model download.
+- Network access occurs only when the user explicitly requests a model download, or
+  enables AI Polish (Preferences → AI Polish) with their own Gemini or OpenRouter API
+  key. Only the transcript text is sent, never audio.
 - There is no telemetry or automatic update behavior.
 
 The first model load can take several seconds. Later phrases reuse the loaded model.
@@ -197,6 +203,7 @@ src/soundflow/
 │   ├── state.py            dictation state machine
 │   ├── segmenter.py        phrase endpoint detector
 │   ├── settings.py         atomic local JSON settings
+│   ├── llm.py              optional OpenRouter transcript polish
 │   └── export.py           TXT, Markdown, and DOCX export
 ├── design/
 │   ├── theme.py            colour palette, dark/light stylesheets

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDialog,
     QFileDialog,
     QFrame,
@@ -27,11 +29,13 @@ from PySide6.QtWidgets import (
 from soundflow.core.export import ExportError, export_transcript
 from soundflow.design import (
     BODY_FONT,
+    CONTROL_HEIGHT_SM,
     DISPLAY_FONT,
     FONT_BODY,
     FONT_HEADING,
     FONT_SMALL,
     FONT_TITLE,
+    SPACE_1,
     SPACE_2,
     SPACE_3,
     SPACE_4,
@@ -101,39 +105,55 @@ class DeleteTranscriptDialog(QDialog):
 
 
 class TranscriptCard(QWidget):
-    """Full transcript card with inline editing and visible common actions."""
+    """Preview transcript card; full text loads on demand."""
 
     save_requested = Signal(int, str)
     delete_requested = Signal(int)
     export_requested = Signal(int)
+    polish_requested = Signal(int)
 
-    def __init__(self, entry: TranscriptEntry, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        entry: TranscriptEntry,
+        truncated: bool = False,
+        load_full: Callable[[int], str] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("historyCard")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.entry = entry
+        self._truncated = truncated
+        self._load_full = load_full
+        self._expanded = False
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(SPACE_4, SPACE_3, SPACE_4, SPACE_3)
-        outer.setSpacing(SPACE_3)
+        outer.setContentsMargins(SPACE_2, SPACE_3, SPACE_2, SPACE_3)
+        outer.setSpacing(SPACE_2)
 
-        header = QHBoxLayout()
-        heading = QLabel(entry.title)
-        heading.setObjectName("headingText")
-        heading.setFont(QFont(BODY_FONT, FONT_HEADING))
-        heading.setWordWrap(True)
-        normalized_title = entry.title.rstrip(".!? ").casefold()
-        if normalized_title and entry.body.casefold().startswith(normalized_title):
-            heading.hide()
-        header.addWidget(heading, 1)
+        row = QHBoxLayout()
+        row.setSpacing(SPACE_4)
+
+        meta_stack = QVBoxLayout()
+        meta_stack.setSpacing(SPACE_1)
+        time_label = QLabel(entry.created_at.strftime("%I:%M %p").lstrip("0"))
+        time_label.setObjectName("headingText")
+        time_label.setFont(QFont(BODY_FONT, FONT_BODY))
+        meta_stack.addWidget(time_label)
         words = len(entry.body.split())
         meta = QLabel(
-            f"{entry.created_at.strftime('%I:%M %p').lstrip('0')}  ·  "
             f"{int(entry.duration_s // 60):02d}:{int(entry.duration_s % 60):02d}"
-            f"  ·  {words} words"
+            f" · {words} words"
         )
         meta.setObjectName("dimText")
-        header.addWidget(meta, 0, Qt.AlignmentFlag.AlignTop)
-        outer.addLayout(header)
+        meta_stack.addWidget(meta)
+        meta_stack.addStretch(1)
+        time_holder = QWidget()
+        time_holder.setLayout(meta_stack)
+        time_holder.setFixedWidth(150)
+        row.addWidget(time_holder, 0, Qt.AlignmentFlag.AlignTop)
+
+        middle = QVBoxLayout()
+        middle.setSpacing(SPACE_2)
 
         self.body_label = QLabel(entry.body)
         self.body_label.setObjectName("historyBody")
@@ -143,29 +163,41 @@ class TranscriptCard(QWidget):
             Qt.TextInteractionFlag.TextSelectableByMouse
             | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
-        outer.addWidget(self.body_label)
+        middle.addWidget(self.body_label)
 
-        self.editor = QPlainTextEdit(entry.body)
+        self.expand_button = self._button("Show full transcript", "Show full transcript")
+        self.expand_button.setObjectName("textActionButton")
+        self.expand_button.clicked.connect(self.toggle_expand)
+        self.expand_button.hide()
+        middle.addWidget(self.expand_button, 0, Qt.AlignmentFlag.AlignLeft)
+        self._sync_expand_button()
+
+        self.editor = QPlainTextEdit()
         self.editor.setObjectName("historyEditor")
         self.editor.setMinimumHeight(120)
         self.editor.setMaximumHeight(360)
         self.editor.hide()
-        outer.addWidget(self.editor)
+        middle.addWidget(self.editor)
 
         self.feedback = QLabel("")
         self.feedback.setObjectName("historyFeedback")
         self.feedback.hide()
-        outer.addWidget(self.feedback)
+        middle.addWidget(self.feedback)
+        row.addLayout(middle, 1)
 
-        actions = QHBoxLayout()
-        actions.setSpacing(SPACE_2)
-        self.edit_button = self._button("✎  Edit", "Edit transcript")
-        self.copy_button = self._button("Copy", "Copy transcript")
+        actions = QVBoxLayout()
+        actions.setSpacing(SPACE_1)
+        self.edit_button = self._button("✎", "Edit transcript")
+        self.copy_button = self._button("⧉", "Copy transcript")
+        self.polish_button = self._button("✨", "Polish with AI")
         self.edit_button.clicked.connect(self.begin_edit)
         self.copy_button.clicked.connect(self.copy_text)
-        actions.addWidget(self.edit_button)
-        actions.addWidget(self.copy_button)
-        actions.addStretch(1)
+        self.polish_button.clicked.connect(
+            lambda: self.polish_requested.emit(self.entry.id)
+        )
+        actions.addWidget(self.edit_button, 0, Qt.AlignmentFlag.AlignTop)
+        actions.addWidget(self.copy_button, 0, Qt.AlignmentFlag.AlignTop)
+        actions.addWidget(self.polish_button, 0, Qt.AlignmentFlag.AlignTop)
 
         self.save_button = self._button("Save", "Save transcript changes")
         self.save_button.setObjectName("accentButton")
@@ -174,14 +206,15 @@ class TranscriptCard(QWidget):
         self.cancel_button.clicked.connect(self.cancel_edit)
         self.save_button.hide()
         self.cancel_button.hide()
-        actions.addWidget(self.cancel_button)
-        actions.addWidget(self.save_button)
+        actions.addWidget(self.save_button, 0, Qt.AlignmentFlag.AlignTop)
+        actions.addWidget(self.cancel_button, 0, Qt.AlignmentFlag.AlignTop)
 
         menu_button = self._button("⋯", "More transcript actions")
-        menu_button.setFixedWidth(36)
         menu_button.clicked.connect(lambda: self._show_menu(menu_button))
-        actions.addWidget(menu_button)
-        outer.addLayout(actions)
+        actions.addWidget(menu_button, 0, Qt.AlignmentFlag.AlignTop)
+        actions.addStretch(1)
+        row.addLayout(actions)
+        outer.addLayout(row)
 
         save_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self.editor)
         save_shortcut.activated.connect(self.save_edit)
@@ -196,10 +229,38 @@ class TranscriptCard(QWidget):
         button.setToolTip(accessible_name)
         return button
 
+    def _full_body(self) -> str:
+        if self._load_full is not None:
+            try:
+                return self._load_full(self.entry.id)
+            except (KeyError, OSError, ValueError):
+                pass
+        return self.entry.body
+
+    def _sync_expand_button(self) -> None:
+        if not self._truncated or self._expanded:
+            self.expand_button.hide()
+            return
+        words = len(self.entry.body.split())
+        self.expand_button.setText(f"Show full transcript · {words}+ words")
+        self.expand_button.show()
+
+    def toggle_expand(self) -> None:
+        if self._expanded:
+            self.body_label.setText(self.entry.body)
+            self._expanded = False
+            self._sync_expand_button()
+            return
+        full = self._full_body()
+        self.body_label.setText(full)
+        self._expanded = True
+        self.expand_button.hide()
+
     def begin_edit(self) -> None:
         self.feedback.hide()
         self.body_label.hide()
-        self.editor.setPlainText(self.entry.body)
+        self.expand_button.hide()
+        self.editor.setPlainText(self._full_body())
         self.editor.show()
         self.edit_button.hide()
         self.copy_button.setEnabled(True)
@@ -211,6 +272,7 @@ class TranscriptCard(QWidget):
     def cancel_edit(self) -> None:
         self.editor.hide()
         self.body_label.show()
+        self._sync_expand_button()
         self.edit_button.show()
         self.copy_button.setEnabled(True)
         self.save_button.hide()
@@ -225,11 +287,12 @@ class TranscriptCard(QWidget):
         self.save_requested.emit(self.entry.id, text)
 
     def copy_text(self) -> None:
-        text = (
-            self.editor.toPlainText()
-            if not self.editor.isHidden()
-            else self.entry.body
-        )
+        if not self.editor.isHidden():
+            text = self.editor.toPlainText()
+        elif self._expanded:
+            text = self._full_body()
+        else:
+            text = self.entry.body if not self._truncated else self._full_body()
         QApplication.clipboard().setText(text)
         self.copy_button.setText("Copied")
         QTimer.singleShot(1200, lambda: self.copy_button.setText("Copy"))
@@ -274,7 +337,7 @@ class HistoryPage(QWidget):
         title.setFont(QFont(DISPLAY_FONT, FONT_TITLE))
         title.setObjectName("displayText")
         title_copy.addWidget(title)
-        subtitle = QLabel("Search, edit, and reuse your saved dictations")
+        subtitle = QLabel("Search, edit, copy, and reuse transcripts saved locally.")
         subtitle.setObjectName("mutedText")
         subtitle.setFont(QFont(BODY_FONT, FONT_SMALL))
         title_copy.addWidget(subtitle)
@@ -290,12 +353,26 @@ class HistoryPage(QWidget):
         )
         outer.addLayout(title_row)
 
+        search_row = QHBoxLayout()
+        search_row.setSpacing(SPACE_3)
         self.search = QLineEdit()
         self.search.setObjectName("historySearch")
-        self.search.setPlaceholderText("Search transcripts…")
+        self.search.setPlaceholderText("Search transcripts")
         self.search.setAccessibleName("Search transcripts")
         self.search.setClearButtonEnabled(True)
-        outer.addWidget(self.search)
+        search_row.addWidget(self.search, 1)
+        self._filter = QComboBox()
+        self._filter.setObjectName("historyFilter")
+        self._filter.setAccessibleName("Filter transcripts by date")
+        self._filter.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._filter.addItem("All transcripts", "all")
+        self._filter.addItem("Today", "today")
+        self._filter.addItem("Yesterday", "yesterday")
+        self._filter.addItem("This week", "week")
+        self._filter.setFixedHeight(CONTROL_HEIGHT_SM)
+        self._filter.currentIndexChanged.connect(lambda: self.refresh(reset=True))
+        search_row.addWidget(self._filter)
+        outer.addLayout(search_row)
 
         self.scroll = QScrollArea()
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -319,14 +396,67 @@ class HistoryPage(QWidget):
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(150)
-        self.search_timer.timeout.connect(self.refresh)
+        self.search_timer.timeout.connect(lambda: self.refresh(reset=True))
         self.search.textChanged.connect(lambda: self.search_timer.start())
         focus_search = QShortcut(QKeySequence("Ctrl+F"), self)
         focus_search.activated.connect(self.search.setFocus)
-        self.refresh()
+        self._page_size = 20
+        self._shown = 0
+        self._generation = -1
+        self._last_query: tuple[str, str] | None = None
+        self.refresh(reset=True)
 
-    def refresh(self) -> None:
-        scroll_position = self.scroll.verticalScrollBar().value()
+    def _load_full(self, entry_id: int) -> str:
+        entry = self._store.get(entry_id)
+        if entry is None:
+            raise KeyError(entry_id)
+        return entry.body
+
+    def _filter_since(self) -> str | None:
+        from datetime import date, timedelta
+
+        mode = self._filter.currentData()
+        today = date.today()
+        if mode == "today":
+            return today.isoformat()
+        if mode == "yesterday":
+            return (today - timedelta(days=1)).isoformat()
+        if mode == "week":
+            return (today - timedelta(days=6)).isoformat()
+        return None
+
+    def refresh(self, reset: bool = False) -> None:
+        query = self.search.text().strip()
+        key = (query, self._filter.currentData())
+        if (
+            not reset
+            and key == self._last_query
+            and self._generation == self._store.generation
+            and self._shown > 0
+        ):
+            return
+        if reset or key != self._last_query:
+            self._shown = 0
+        self._last_query = key
+        self._generation = self._store.generation
+        since = self._filter_since()
+        total = self._store.count(query, since=since)
+        self._shown = self._page_size if reset else self._shown + self._page_size
+        self._shown = max(self._page_size, min(self._shown, max(total, 1)))
+        entries, truncated = self._store.list_previews(
+            query, limit=self._shown, offset=0, since=since
+        )
+        self._render(entries, truncated, total, scroll_position=None)
+
+    def _render(
+        self,
+        entries: list[TranscriptEntry],
+        truncated: list[bool],
+        total: int,
+        scroll_position: int | None,
+    ) -> None:
+        if scroll_position is None:
+            scroll_position = self.scroll.verticalScrollBar().value()
         while self.cards.count() > 1:
             item = self.cards.takeAt(0)
             widget = item.widget()
@@ -334,10 +464,9 @@ class HistoryPage(QWidget):
                 widget.deleteLater()
         self.cards.setStretch(0, 1)
 
-        query = self.search.text().strip()
-        entries = self._store.list_entries(query)
+        query = (self._last_query or ("", ""))[0]
         self.result_count.setText(
-            f"{len(entries)} transcript{'s' if len(entries) != 1 else ''}"
+            f"{total} transcript{'s' if total != 1 else ''}"
         )
         if not entries:
             message = (
@@ -353,30 +482,39 @@ class HistoryPage(QWidget):
             self.cards.setStretch(1, 0)
             return
 
-        groups: dict[str, list[TranscriptEntry]] = {}
-        for entry in entries:
+        groups: dict[str, list[tuple[TranscriptEntry, bool]]] = {}
+        for entry, cut in zip(entries, truncated):
             if entry.is_today():
                 label = "Today"
             elif entry.is_yesterday():
                 label = "Yesterday"
             else:
                 label = entry.created_at.strftime("%B %d, %Y").replace(" 0", " ")
-            groups.setdefault(label, []).append(entry)
+            groups.setdefault(label, []).append((entry, cut))
 
         for label, group in groups.items():
-            heading = QLabel(f"{label}  ·  {len(group)}")
+            heading = QLabel(f"{label.upper()} · {len(group)}")
             heading.setObjectName("historyGroup")
             heading.setFont(QFont(BODY_FONT, FONT_SMALL))
             self.cards.insertWidget(self.cards.count() - 1, heading)
-            for entry in group:
-                card = TranscriptCard(entry)
+            for entry, cut in group:
+                card = TranscriptCard(entry, cut, self._load_full)
                 card.save_requested.connect(
                     lambda entry_id, text, source=card:
                     self._save_entry(source, entry_id, text)
                 )
                 card.export_requested.connect(self._export_entry)
                 card.delete_requested.connect(self._delete_entry)
+                card.polish_requested.connect(self._polish_entry)
                 self.cards.insertWidget(self.cards.count() - 1, card)
+        if total > len(entries):
+            more = QPushButton(
+                f"Show more · {total - len(entries)} remaining"
+            )
+            more.setObjectName("textActionButton")
+            more.setCursor(Qt.CursorShape.PointingHandCursor)
+            more.clicked.connect(lambda: self.refresh(reset=False))
+            self.cards.insertWidget(self.cards.count() - 1, more)
         QTimer.singleShot(
             0, lambda: self.scroll.verticalScrollBar().setValue(scroll_position)
         )
@@ -399,6 +537,52 @@ class HistoryPage(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self._store.delete(entry_id)
             self.refresh()
+
+    def _polish_entry(self, entry_id: int) -> None:
+        from soundflow.core.llm import LlmError, polish_in_background
+        from soundflow.core.settings import SettingsStore
+
+        settings = SettingsStore().load()
+        if not settings.ai_cleanup_enabled:
+            QMessageBox.information(
+                self,
+                "AI Polish is off",
+                "Enable AI Polish in Preferences → AI Polish first.",
+            )
+            return
+        entry = self._store.get(entry_id)
+        if entry is None:
+            return
+        card = self._find_card(entry_id)
+        if card is not None:
+            card.polish_button.setEnabled(False)
+            card.polish_button.setText("✨ Polishing…")
+
+        def done(cleaned: str) -> None:
+            try:
+                self._store.update(entry_id, cleaned)
+            except (KeyError, ValueError, OSError) as exc:
+                if card is not None:
+                    card.show_error(str(exc))
+                return
+            self.refresh()
+
+        def failed(message: str) -> None:
+            if card is not None:
+                card.polish_button.setEnabled(True)
+                card.polish_button.setText("✨ Polish")
+                card.show_error(message)
+            else:
+                QMessageBox.warning(self, "AI Polish failed", message)
+
+        polish_in_background(entry.body, settings, done, failed, parent=self)
+
+    def _find_card(self, entry_id: int) -> TranscriptCard | None:
+        for index in range(self.cards.count()):
+            widget = self.cards.itemAt(index).widget()
+            if isinstance(widget, TranscriptCard) and widget.entry.id == entry_id:
+                return widget
+        return None
 
     def _export_entry(self, entry_id: int) -> None:
         entry = self._store.get(entry_id)
