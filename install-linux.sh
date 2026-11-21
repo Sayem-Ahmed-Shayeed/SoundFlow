@@ -3,7 +3,10 @@ set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 APP_ID="io.github.SayemAhmedShayeed.Soundflow"
+# From a source checkout the build is in dist/; in a release archive it sits
+# next to this script.
 SOURCE="$ROOT/dist/Soundflow"
+[ -x "$SOURCE/Soundflow" ] || SOURCE="$ROOT/Soundflow"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 # Keep the program apart from $DATA_HOME/soundflow, which holds history.db and models.
 INSTALL_DIR="$DATA_HOME/soundflow-app"
