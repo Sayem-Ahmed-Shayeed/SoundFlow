@@ -1,59 +1,136 @@
 # Soundflow
 
-Soundflow is a privacy-first desktop dictation MVP for Linux and Windows. It records a
-microphone, detects phrase boundaries, transcribes with a model stored entirely on the local
-machine, and leaves the result editable.
+Soundflow is private dictation for Linux. Hold a shortcut, speak in English or Bangla, and
+the text is typed wherever your cursor is. Speech is transcribed on your own computer with
+a local Whisper model; nothing you say is sent anywhere.
 
 Repository: [Sayem-Ahmed-Shayeed/SoundFlow](https://github.com/Sayem-Ahmed-Shayeed/SoundFlow)
 
-Implemented now:
+What it does:
 
-- Redesigned modular UI with sidebar navigation across Dictation, History, and Playground pages
-- Design token system — dark/light theming, Roboto fonts, spacing scale, Qt stylesheet engine
-- Dictation page with waveform ring, voice orb, animated record button, and status indicators
-- Editable history page with transcript cards, copy, clear, TXT, Markdown, and DOCX export
-- History lists stay fast via preview rows and pagination; full text loads on demand
-- Preferences dialog with six tabs: General, Dictation, Playback, Shortcuts, AI Polish,
-  and System readiness
-- Appearance selector (dark / light / follow system)
-- Optional AI Polish via Gemini or OpenRouter (off by default): grammar, punctuation,
-  filler removal per transcript or automatically after dictation
-- Click-based start/stop, global toggle, and push-to-talk with press-and-release handling
-- Native Wayland global shortcut support through the XDG desktop portal
-- Automatic paste at the active cursor when push-to-talk is released
-- Phrase-by-phrase transcription while recording continues
-- Explicitly local `faster-whisper` model loading
-- System tray operation
-- A demo backend for testing UI and control flow without a model
-- Soundflow accounts (email + password with name and gender) backed by
-  Supabase; transcripts sync to the account and stay cached locally for offline use
+- Push-to-talk from any app (default `Ctrl+Alt+Space`): hold, speak, release, and the text
+  is pasted at the cursor. A small floating pill shows that it is listening.
+- Live preview while you speak, then a final transcript when you release.
+- On-device speech models from Tiny to Large-v3 Turbo, plus a Bangla model, downloaded
+  inside the app. Uses the GPU (CUDA) when there is one.
+- Home dashboard: words this week, speaking speed, time saved, day streak, words per day
+  and recent dictations.
+- History with search, editing, copy, and export to TXT, Markdown or Word.
+- Soundflow accounts: sign in with email and password, and your transcripts sync to every
+  computer you sign in on. They stay cached locally for offline use.
+- Optional AI Polish with Gemini or OpenRouter (off by default) to fix grammar,
+  punctuation and filler words.
+- Light and dark themes, a tray icon, and it runs in the background after you sign in.
 
-Wayland deliberately blocks arbitrary global keyboard capture and input injection. Soundflow uses
-the XDG GlobalShortcuts and RemoteDesktop portals, which require one-time desktop approval.
+Wayland deliberately blocks apps from capturing keys and typing into other apps. Soundflow
+uses the desktop's GlobalShortcuts and RemoteDesktop portals instead, which you approve
+once.
 
-## Requirements
+## Install on Linux (from a release)
 
-- Python 3.11, 3.12, 3.13, or 3.14
-- Linux or Windows
-- A microphone
-- A complete CTranslate2/faster-whisper model directory
+You need 64-bit Linux and a microphone. No `sudo` and no Python are needed.
 
-Linux runtime packages typically include PortAudio and the Qt XCB dependencies. On Ubuntu:
+1. Open the [latest release](https://github.com/Sayem-Ahmed-Shayeed/SoundFlow/releases/latest)
+   and download both files into the same folder:
+   - `soundflow-<version>-linux-x64.tar.gz`
+   - `install.sh`
+2. Optional: check the download against the SHA-256 given in the release notes:
+
+   ```bash
+   sha256sum soundflow-*-linux-x64.tar.gz
+   ```
+
+3. Run the installer from that folder:
+
+   ```bash
+   chmod +x install.sh
+   ./install.sh
+   ```
+
+   It installs Soundflow for your user only, adds it to the application menu, creates the
+   `soundflow` command in `~/.local/bin`, and starts it in the background.
+4. Sign in, or create an account, in the window that opens.
+5. Approve the shortcut prompt from your desktop, then the keyboard-control prompt. These
+   let Soundflow hear the shortcut and type into other apps.
+6. Download a speech model in **Preferences → Speech model**:
+
+   | Model | Download | Good for |
+   | --- | --- | --- |
+   | Tiny | 78 MB | Fastest, lowest resource use |
+   | Base | 148 MB | Fast and lightweight |
+   | Small | 486 MB | Recommended balance |
+   | Medium | 1.53 GB | Higher accuracy, heavier |
+   | Large-v3 Turbo | 1.62 GB | Best quality, needs the most memory |
+   | Bangla (Bengali.AI) | 1.53 GB | Best for Bangla speech; Bangla only |
+
+7. Hold `Ctrl+Alt+Space`, speak, and release. You can change the shortcut in
+   **Preferences → Dictation**.
+
+To use AI Polish, add a Gemini or OpenRouter API key in **Preferences → AI Polish**.
+
+### Where Soundflow keeps its files
+
+| What | Where |
+| --- | --- |
+| The program | `~/.local/share/soundflow-app/` |
+| Speech models and the transcript history | `~/.local/share/soundflow/` |
+| Settings, API keys and sign-in | `~/.config/soundflow/` |
+| Background service | `~/.config/systemd/user/soundflow.service` |
+
+### Update
+
+Download the new release and run its `install.sh` the same way. Your settings, models and
+transcripts are kept.
+
+Coming from 0.1.0: it installed the program inside `~/.local/share/soundflow/app`. After
+the new version is running you can delete that `app` folder; leave the rest of
+`~/.local/share/soundflow`, which holds your models and history.
+
+### Uninstall
+
+Remove the program but keep your models, settings and transcripts:
 
 ```bash
-sudo apt install python3-venv portaudio19-dev libxcb-cursor0
+systemctl --user disable --now soundflow.service
+rm -rf ~/.local/share/soundflow-app
+rm -f ~/.local/bin/soundflow \
+      ~/.local/share/applications/io.github.SayemAhmedShayeed.Soundflow.desktop \
+      ~/.config/autostart/soundflow.desktop \
+      ~/.config/systemd/user/soundflow.service
+systemctl --user daemon-reload
 ```
 
-The prepared Linux PyInstaller bundle can carry `libportaudio.so.2` itself. System packages are
-still the simpler choice for source development.
+From a source checkout, `./uninstall-linux.sh` does the same.
 
-## Install
+To remove everything as well, including downloaded models, local transcripts, settings and
+API keys, also run the command below. Transcripts that have synced to your account come
+back when you sign in again; anything not yet synced is lost.
+
+```bash
+rm -rf ~/.local/share/soundflow ~/.config/soundflow
+```
+
+## Build from source
+
+Requirements:
+
+- Python 3.11 to 3.14
+- Linux (Windows builds must be made on Windows with `packaging/soundflow.spec` and the
+  provided NSIS script)
+- PortAudio and the Qt XCB libraries. On Ubuntu:
+
+  ```bash
+  sudo apt install python3-venv portaudio19-dev libxcb-cursor0
+  ```
+
+Set up and run:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e .
+soundflow
 ```
 
 On Windows PowerShell:
@@ -65,106 +142,51 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
-## Run it before installing a model
-
-Demo mode records real microphone audio but returns a labelled fake result. This verifies audio,
-buttons, push-to-talk, the tray, exports, and insertion:
+Demo mode records real microphone audio but returns a labelled fake result, so you can
+check audio, shortcuts, the tray, exports and pasting without a model:
 
 ```bash
 soundflow --demo
+soundflow --demo --no-hotkeys   # if the desktop doesn't allow global shortcuts
 ```
 
-From this source checkout, the convenience launcher does the same and also detects the local
-`.vendor/python` test bundle if present:
+`./run-soundflow.sh --demo` does the same from this checkout and also finds a local
+`.vendor/python` test bundle if there is one.
+
+### Build and install the app from your checkout
 
 ```bash
-./run-soundflow.sh --demo
+.venv/bin/pyinstaller --clean --noconfirm packaging/soundflow.spec
+./install-linux.sh
 ```
 
-If the desktop does not allow global keyboard listeners:
+The build goes to `dist/Soundflow/`; `install-linux.sh` installs it exactly as a release
+does.
 
-```bash
-soundflow --demo --no-hotkeys
-```
+### Make a release
 
-Default shortcuts:
+1. Set the version in `pyproject.toml` and `src/soundflow/__init__.py`.
+2. Build with PyInstaller as above.
+3. Put `dist/Soundflow/`, `install-linux.sh`, `uninstall-linux.sh` and `README.md` in a
+   folder named `soundflow-<version>/`, and pack it as
+   `soundflow-<version>-linux-x64.tar.gz`.
+4. Upload that archive with `packaging/linux/release-install.sh` renamed to `install.sh`.
 
-- Push-to-talk: `Ctrl+Alt+Space`
+### Use your own or an offline model
 
-Hold the shortcut while speaking and release it to transcribe and paste at the active cursor.
-The shortcut remains active while the main window is hidden. The installer also starts Soundflow
-in the background when you sign in.
+For an existing CTranslate2/faster-whisper model folder, open **Preferences → Speech model**,
+expand the advanced options and use **Use a model from a folder → Choose folder**, or set
+`SOUNDFLOW_MODEL_PATH`. The folder must
+contain `model.bin`, `config.json`, the tokenizer and the vocabulary. Soundflow never
+deletes a model folder you chose yourself.
 
-On first launch, approve the global-shortcut prompt and then the keyboard-control prompt. Soundflow
-stays visible until shortcut setup succeeds. The Home indicator reports connecting, ready,
-recording, transcribing, or setup-required states and provides a retry action when needed.
-
-## Download a Whisper model
-
-Open **Preferences -> Dictation -> Whisper models** and choose Download for Tiny, Base, Small,
-Medium, or Large-v3 Turbo. Downloads run in the background, are validated before use, and become
-active automatically. Installed inactive models can be selected with Use or removed with Delete.
-
-For an existing CTranslate2/faster-whisper directory, use **Model directory -> Browse**. Soundflow
-never deletes custom model directories.
-
-## Prepare an offline installer model
-
-Prepare a faster-whisper/CTranslate2 model on a connected staging machine, then copy the complete
-directory to the offline computer.
-
-For an installer build, prepare the recommended `small` model with:
+To ship a model inside an offline build, prepare it on a connected machine first:
 
 ```bash
 python scripts/prepare_model.py --model small
 ```
 
-This writes a file-by-file SHA-256 manifest and places the model where the PyInstaller specification
-will include it. The script remains the offline-installer workflow; in-app downloads are separate.
-
-Default locations:
-
-- Linux: `~/.local/share/soundflow/models/faster-whisper-small/`
-- Windows: `%LOCALAPPDATA%\Soundflow\models\faster-whisper-small\`
-
-You can instead select a directory under
-**Preferences → Dictation → Model directory**, or set `SOUNDFLOW_MODEL_PATH`.
-
-The directory must contain `model.bin`, `config.json`, tokenizer data, and the model vocabulary.
-`small` is the recommended balanced model; `base` is lighter. Soundflow supplies the directory
-path to faster-whisper with `local_files_only=True`.
-
-Then run:
-
-```bash
-soundflow
-```
-
-The repository's prepared Linux folder build can be launched directly with:
-
-```bash
-./dist/Soundflow/Soundflow
-```
-
-It already contains the `small` model and the PortAudio/XCB runtime libraries used by the bundle.
-Windows builds must be produced on Windows with `packaging/soundflow.spec`, then wrapped with the
-provided NSIS script.
-
-### Install like a normal Linux application
-
-From the repository directory:
-
-```bash
-chmod +x install-linux.sh
-./install-linux.sh
-```
-
-This installs into your user account without `sudo`, adds Soundflow to the application menu, and
-creates `~/.local/bin/soundflow`. To remove it later:
-
-```bash
-./uninstall-linux.sh
-```
+This writes a SHA-256 manifest and places the model where the PyInstaller spec includes it.
 
 ## Audio and privacy behavior
 
