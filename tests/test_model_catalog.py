@@ -9,7 +9,7 @@ class ModelCatalogTests(unittest.TestCase):
     def test_catalog_is_curated_and_small_is_recommended(self):
         self.assertEqual(
             [item.model_id for item in MODEL_CATALOG],
-            ["tiny", "base", "small", "medium", "large-v3-turbo"],
+            ["tiny", "base", "small", "medium", "large-v3-turbo", "bangla-medium"],
         )
         self.assertEqual(
             [item.model_id for item in MODEL_CATALOG if item.recommended],
@@ -21,7 +21,7 @@ class ModelCatalogTests(unittest.TestCase):
         )
         self.assertEqual(
             [item.download_size for item in MODEL_CATALOG],
-            ["78 MB", "148 MB", "486 MB", "1.53 GB", "1.62 GB"],
+            ["78 MB", "148 MB", "486 MB", "1.53 GB", "1.62 GB", "1.53 GB"],
         )
 
     def test_managed_path_is_catalog_derived(self):

@@ -22,7 +22,6 @@ from __future__ import annotations
 # (which used to be a single file at ``soundflow/ui.py``).
 from soundflow._legacy import ui_module as _legacy_module
 
-RecordingOverlay = _legacy_module.RecordingOverlay
 ShortcutPicker = _legacy_module.ShortcutPicker
 UiBridge = _legacy_module.UiBridge
 resolved_dark_appearance = _legacy_module.resolved_dark_appearance
@@ -36,7 +35,7 @@ MONO_FONT = _legacy_module.MONO_FONT
 from soundflow.ui import (  # noqa: F401  (re-export submodules)
     widgets as widgets,
 )
-from soundflow.ui.widgets import AppearanceSelector
+from soundflow.ui.widgets import AppearanceSelector, RecordingOverlay
 
 
 def __getattr__(name: str):

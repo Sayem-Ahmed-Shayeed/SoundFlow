@@ -72,8 +72,21 @@ def build_messages(text: str, settings) -> list[dict]:
         instruction = custom or instruction
     language = (getattr(settings, "language", "") or "").strip()
     hint = ""
-    if language and language != "auto":
-        hint = f" The transcript language is '{language}'; keep it in that language."
+    names = {
+        "en": "English", "bn": "Bangla (Bengali script)", "hi": "Hindi (Devanagari script)",
+        "es": "Spanish", "fr": "French", "de": "German", "ja": "Japanese",
+    }
+    if language.startswith("auto:"):
+        pair = [names.get(code, code) for code in language[5:].split("+") if code]
+        hint = (
+            f" The transcript may mix {' and '.join(pair)}; keep each part in the "
+            "language and script it was spoken in. Do not translate."
+        )
+    elif language and language != "auto":
+        hint = (
+            f" The transcript is in {names.get(language, language)}; keep it in that "
+            "language and script. Do not translate."
+        )
     system = (instruction + hint).strip()
     return [
         {"role": "system", "content": system},

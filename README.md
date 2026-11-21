@@ -25,6 +25,8 @@ Implemented now:
 - Explicitly local `faster-whisper` model loading
 - System tray operation
 - A demo backend for testing UI and control flow without a model
+- Soundflow accounts (email + password with name and gender) backed by
+  Supabase; transcripts sync to the account and stay cached locally for offline use
 
 Wayland deliberately blocks arbitrary global keyboard capture and input injection. Soundflow uses
 the XDG GlobalShortcuts and RemoteDesktop portals, which require one-time desktop approval.
@@ -170,14 +172,32 @@ creates `~/.local/bin/soundflow`. To remove it later:
 - A lightweight local energy detector ends a phrase after 700 ms of silence by default.
 - Completed phrases are sent to faster-whisper on a worker thread.
 - Audio exists only in memory and is discarded after processing.
-- Transcripts are not saved unless the user exports them.
-- Transcription stays local; audio and transcript content are not sent to a network service.
-- Network access occurs only when the user explicitly requests a model download, or
-  enables AI Polish (Preferences → AI Polish) with their own Gemini or OpenRouter API
-  key. Only the transcript text is sent, never audio.
+- Transcription stays local; audio is never sent to a network service.
+- Saved transcripts (text only) are stored in the local history database and synced to the
+  signed-in user's Supabase account. Row-level security limits each account to its own rows.
+- Other network access occurs only for account sign-in, a model download, or AI Polish
+  (Preferences → AI Polish) with the user's own Gemini or OpenRouter API key.
 - There is no telemetry or automatic update behavior.
 
 The first model load can take several seconds. Later phrases reuse the loaded model.
+
+## Accounts and cloud sync (Supabase)
+
+Soundflow requires signing in. The app ships with the project URL and publishable key in
+`src/soundflow/cloud/config.py` (override with `SOUNDFLOW_SUPABASE_URL` /
+`SOUNDFLOW_SUPABASE_KEY`). One-time project setup:
+
+1. **Database.** In the Supabase dashboard open *SQL Editor*, paste
+   `supabase/migrations/0001_soundflow_cloud.sql`, and run it. It creates `profiles` and
+   `transcripts` with row-level security and a trigger that fills the profile on sign-up.
+2. **Email sign-up.** *Authentication → Sign In / Providers → Email* is on by default. With
+   "Confirm email" on, new users must click the emailed link before signing in. Set
+   *Authentication → URL Configuration → Site URL* to a page you control so that link does
+   not land on a dead `localhost:3000`.
+
+Local data: the session (refresh token) is stored in `~/.config/soundflow/session.json`
+with mode 600. History stays in `~/.local/share/soundflow/history.db`; transcripts saved
+before accounts existed are attached to the first account that signs in on that machine.
 
 ## Development
 

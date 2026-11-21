@@ -11,6 +11,8 @@ from typing import Any
 APP_NAME = "Soundflow"
 SHORTCUT_SCHEMA_VERSION = 2
 DEFAULT_PUSH_TO_TALK = "ctrl+alt+space"
+# "auto" uses CUDA when a usable GPU is found and the processor otherwise.
+INFERENCE_DEVICES = frozenset({"auto", "cuda", "cpu"})
 
 
 def config_directory() -> Path:
@@ -35,15 +37,12 @@ class Settings:
     appearance: str = "dark"
     model_path: str = ""
     language: str = "auto"
-    inference_device: str = "cpu"
+    inference_device: str = "auto"
     compute_type: str = "int8"
     microphone: int | None = None
     global_hotkeys: bool = True
-    show_shortcut_hint: bool = False
-    toggle_hotkey: str = "ctrl+d"
     push_to_talk_hotkey: str = DEFAULT_PUSH_TO_TALK
     hotkey_authorized: bool = False
-    insert_hotkey: str = "ctrl+i"
     silence_threshold: float = 0.012
     silence_duration_ms: int = 700
     min_speech_ms: int = 250
@@ -54,6 +53,7 @@ class Settings:
     show_dictation_widget: bool = True
     auto_save_transcripts: bool = True
     start_minimized: bool = False
+    open_at_login: bool = True
     remote_desktop_restore_token: str = ""
     ai_cleanup_enabled: bool = False
     ai_auto_clean: bool = False
@@ -72,12 +72,9 @@ class Settings:
         if self.appearance not in {"light", "dark"}:
             self.appearance = "dark"
         self.language = self.language.strip() or "auto"
-        self.inference_device = (
-            self.inference_device if self.inference_device in {"cpu", "cuda"} else "cpu"
-        )
+        if self.inference_device not in INFERENCE_DEVICES:
+            self.inference_device = "auto"
         self.compute_type = "int8"
-        self.toggle_hotkey = self.toggle_hotkey.lower()
-        self.insert_hotkey = self.insert_hotkey.lower()
         try:
             self.push_to_talk_hotkey = canonical_hotkey(
                 self.push_to_talk_hotkey
@@ -112,6 +109,8 @@ class SettingsStore:
             return Settings()
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("settings file is not a JSON object")
             known: dict[str, Any] = {
                 key: value
                 for key, value in payload.items()
@@ -128,7 +127,15 @@ class SettingsStore:
             if migrated:
                 self.save(settings)
             return settings
-        except (OSError, ValueError, TypeError):
+        except Exception:
+            # Keep the unreadable file (it may hold API keys) before the next
+            # save replaces it with defaults.
+            try:
+                backup = self.path.with_suffix(".json.bak")
+                backup.write_bytes(self.path.read_bytes())
+                backup.chmod(0o600)
+            except OSError:
+                pass
             return Settings()
 
     def save(self, settings: Settings) -> None:

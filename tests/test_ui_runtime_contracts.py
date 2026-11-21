@@ -9,15 +9,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
     from PySide6.QtCore import QCoreApplication, QEvent, Qt
     from PySide6.QtTest import QTest
-    from PySide6.QtWidgets import QApplication, QLabel
+    from PySide6.QtWidgets import QApplication
 
     from soundflow.core.settings import Settings, SettingsStore
     from soundflow.ui import MainWindow
     from soundflow.ui.pages import DictationPage
     from soundflow.ui.widgets import WindowChrome
     from soundflow.preferences.page import PreferencesPage
-    from soundflow.preferences.tabs.dictation import DictationTab
-    from soundflow.preferences.tabs.shortcuts import ShortcutsTab
+    from soundflow.preferences.tabs.speech_model import DEVICE_OPTIONS
 
     HAS_QT = True
 except ImportError:
@@ -82,17 +81,10 @@ class UiRuntimeContractTests(unittest.TestCase):
                 rebuild.assert_called_once()
                 self.assertFalse(window._pending_runtime_rebuild)
 
-    def test_dictation_device_choices_match_normalized_settings(self):
-        with patch(
-            "soundflow.preferences.tabs.dictation.AudioCapture.list_input_devices",
-            return_value=[],
-        ):
-            tab = DictationTab(Settings())
-        values = [
-            tab._device.itemData(index)
-            for index in range(tab._device.count())
-        ]
-        self.assertEqual(values, ["cpu", "cuda"])
+    def test_processing_choices_match_normalized_settings(self):
+        values = [value for value, _label in DEVICE_OPTIONS]
+        self.assertEqual(values, ["auto", "cuda", "cpu"])
+        self.assertEqual(Settings().inference_device, "auto")
 
     def test_browsed_model_path_is_auto_saved(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -103,12 +95,11 @@ class UiRuntimeContractTests(unittest.TestCase):
                 return_value=[],
             ):
                 page = PreferencesPage(settings, store)
-            dictation = page._tab_widgets[1]
             with patch(
-                "soundflow.preferences.tabs.dictation.QFileDialog.getExistingDirectory",
+                "soundflow.preferences.tabs.speech_model.QFileDialog.getExistingDirectory",
                 return_value="/tmp/new-model",
             ):
-                dictation._browse_model()
+                page.model_tab._browse_model()
             QTest.qWait(180)
             self.application.processEvents()
             self.assertEqual(store.load().model_path, "/tmp/new-model")
@@ -122,7 +113,7 @@ class UiRuntimeContractTests(unittest.TestCase):
                 return_value=[],
             ):
                 page = PreferencesPage(settings, store)
-            page.dictation_tab.model_path_changed.emit(
+            page.model_tab.model_path_changed.emit(
                 "/tmp/faster-whisper-medium"
             )
             self.assertEqual(
@@ -140,12 +131,11 @@ class UiRuntimeContractTests(unittest.TestCase):
                 page = PreferencesPage(settings, store)
             saved = []
             page.settings_saved.connect(lambda: saved.append(True))
-            device_index = page.dictation_tab._device.findData("cuda")
 
             with patch.object(store, "save", wraps=store.save) as save:
-                page.dictation_tab._device.setCurrentIndex(device_index)
+                page.model_tab._device.button("cuda").click()
                 self.assertTrue(page._save_timer.isActive())
-                page.dictation_tab._model_manager.model_path_selected.emit(
+                page.model_tab._model_manager.model_path_selected.emit(
                     "/tmp/faster-whisper-medium"
                 )
                 self.assertFalse(page._save_timer.isActive())
@@ -167,7 +157,7 @@ class UiRuntimeContractTests(unittest.TestCase):
             self._windows.append(window)
             window.state.start()
             with patch.object(window, "_rebuild_runtime") as rebuild:
-                window.preferences_page.dictation_tab.model_path_changed.emit(
+                window.preferences_page.model_tab.model_path_changed.emit(
                     "/tmp/faster-whisper-base"
                 )
                 self.assertTrue(window._pending_runtime_rebuild)
@@ -205,7 +195,7 @@ class UiRuntimeContractTests(unittest.TestCase):
             ):
                 page = PreferencesPage(Settings(), store)
             with patch.object(
-                page.dictation_tab._model_manager, "shutdown"
+                page.model_tab._model_manager, "shutdown"
             ) as manager_shutdown:
                 page.shutdown()
             manager_shutdown.assert_called_once_with()
@@ -238,51 +228,36 @@ class UiRuntimeContractTests(unittest.TestCase):
             runtime_shutdown.assert_called_once_with(window)
             self.assertEqual(order, ["preferences", "history", "runtime"])
 
-    def test_shortcut_summary_tracks_picker_and_reset(self):
-        tab = ShortcutsTab(Settings(push_to_talk_hotkey="ctrl+alt+space"))
-        tab._picker.set_shortcut("ctrl+shift+v")
-        self.application.processEvents()
-        caps = tab.findChildren(QLabel, "shortcutSummaryCap")
-        self.assertEqual([cap.text() for cap in caps], ["Ctrl", "Shift", "V"])
-        tab._reset()
-        self.application.processEvents()
-        self.assertEqual(
-            [cap.text() for cap in caps],
-            ["Ctrl", "Alt", "SPACE"],
-        )
-
-    def test_dictation_ring_is_accessible_and_ignores_right_click(self):
+    def test_record_button_is_accessible_and_ignores_right_click(self):
         page = DictationPage()
         page.resize(900, 600)
         page.show()
         self.application.processEvents()
-        self.assertTrue(page._ring.accessibleName())
+        button = page.record_button
+        self.assertEqual(button.accessibleName(), "Start dictation")
         emissions = []
         page.dictation_toggled.connect(lambda: emissions.append(True))
-        QTest.mouseClick(page._ring, Qt.MouseButton.RightButton)
+        QTest.mouseClick(button, Qt.MouseButton.RightButton)
         self.assertEqual(emissions, [])
-        QTest.mouseClick(page._ring, Qt.MouseButton.LeftButton)
+        QTest.mouseClick(button, Qt.MouseButton.LeftButton)
         self.assertEqual(emissions, [True])
+        page.close()
 
     def test_dictation_copy_tracks_configured_global_shortcut(self):
         page = DictationPage()
         page.set_shortcut("ctrl+shift+v")
-        caps = [
-            page._keys_box.itemAt(index).widget().text()
-            for index in range(page._keys_box.count())
-            if hasattr(page._keys_box.itemAt(index).widget(), "text")
-        ]
-        self.assertIn("Ctrl", caps)
-        self.assertIn("Shift", caps)
-        self.assertIn("V", caps)
+        self.assertTrue(
+            page.hint_text().startswith("Hold Ctrl Shift V to dictate in any app")
+        )
 
     def test_dictation_home_has_a_clear_recorder_hierarchy(self):
         page = DictationPage()
-
-        self.assertEqual(page._eyebrow.text(), "PRIVATE VOICE INPUT")
-        self.assertEqual(page._prompt.text(), "Dictation")
-        self.assertEqual(page._hero_panel.objectName(), "dictationStage")
-        self.assertEqual(page._hero_effect.opacity(), 1.0)
+        page.set_user_name("Sayem Ahmed Shayeed")
+        self.assertTrue(page._prompt.text().endswith(", Sayem"))
+        page.set_user_name("someone@example.com")  # an address is not a name
+        self.assertNotIn("@", page._prompt.text())
+        self.assertEqual(page.ribbon.state, "idle")
+        self.assertIsNone(page._hero.graphicsEffect())
 
     def test_window_chrome_keeps_28px_targets(self):
         chrome = WindowChrome()

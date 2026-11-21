@@ -1,6 +1,7 @@
 import os
 import struct
 import threading
+import time
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -60,6 +61,43 @@ class SnapshotTests(unittest.TestCase):
         segmenter = EnergySegmenter(speech_config())
         segmenter.feed(frame(6000))
         self.assertEqual(segmenter.snapshot(), b"")
+
+
+class GpuResidencyTests(unittest.TestCase):
+    def test_gpu_is_filled_on_start_and_freed_after_each_dictation(self):
+        events = []
+
+        class Tracking(DemoTranscriber):
+            def warm(self):
+                events.append("warm")
+
+            def release(self):
+                events.append("release")
+
+            def transcribe_pcm(self, pcm16, sample_rate):
+                events.append("decode")
+                return super().transcribe_pcm(pcm16, sample_rate)
+
+        finished = threading.Event()
+        pipeline = DictationPipeline(
+            Tracking(), speech_config(), lambda text: None,
+            finished.set, lambda error: None, lambda level: None,
+        )
+        try:
+            for session in (1, 2):
+                finished.clear()
+                pipeline._session = session
+                pipeline._put_audio(_AudioCommand("start", session))
+                for _ in range(30):
+                    pipeline._receive_frame(frame(6000))
+                pipeline._put_audio(_AudioCommand("stop", session))
+                self.assertTrue(finished.wait(5))
+                deadline = time.monotonic() + 2
+                while events[-1:] != ["release"] and time.monotonic() < deadline:
+                    time.sleep(0.01)
+            self.assertEqual(events, ["warm", "decode", "release"] * 2)
+        finally:
+            pipeline.close()
 
 
 class InterimPipelineTests(unittest.TestCase):
@@ -163,15 +201,23 @@ class InterimLabelTests(unittest.TestCase):
 
     def test_interim_label_shows_live_text_and_clears(self):
         page = DictationPage()
-        self.assertEqual(page._interim.text(), "")
+        page.set_state("recording")
+        self.assertEqual(page.interim_text(), "")
         page.set_interim("hello  world")
-        self.assertEqual(page._interim.text(), "… hello world")
+        self.assertEqual(page.interim_text(), "hello world")
+        self.assertIn("hello world", page._interim.text())
         page.set_interim("hello  world")
-        self.assertEqual(page._interim.text(), "… hello world")
+        self.assertEqual(page.interim_text(), "hello world")
         page.clear_interim()
-        self.assertEqual(page._interim.text(), "")
+        self.assertEqual(page.interim_text(), "")
         page.set_interim("   ")
-        self.assertEqual(page._interim.text(), "")
+        self.assertEqual(page.interim_text(), "")
+
+    def test_interim_text_is_escaped(self):
+        page = DictationPage()
+        page.set_state("recording")
+        page.set_interim("<b>a & b</b>")
+        self.assertIn("&lt;b&gt;a &amp; b&lt;/b&gt;", page._interim.text())
 
 
 if __name__ == "__main__":

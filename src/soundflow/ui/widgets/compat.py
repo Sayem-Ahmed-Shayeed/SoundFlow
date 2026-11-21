@@ -2,44 +2,23 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QWidget
+from PySide6.QtWidgets import QWidget
 
-from soundflow.design import CONTROL_HEIGHT_SM
+from soundflow.ui.widgets.segmented import SegmentedControl
 
 
-class AppearanceSelector(QFrame):
-    changed = Signal(str)
+class AppearanceSelector(SegmentedControl):
+    """Dark or Light. Keeps the original API: ``set_value`` emits by default."""
 
     def __init__(self, value: str = "dark", parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("segmentedControl")
-        self._value = value if value in {"light", "dark"} else "dark"
-        self._buttons: dict[str, QPushButton] = {}
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(0)
-        for label, token in (("Light", "light"), ("Dark", "dark")):
-            button = QPushButton(label)
-            button.setCheckable(True)
-            button.setFixedHeight(CONTROL_HEIGHT_SM)
-            button.setAccessibleName(f"Use {label.lower()} appearance")
-            button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.clicked.connect(
-                lambda _checked=False, selected=token: self.set_value(selected)
-            )
-            self._buttons[token] = button
-            layout.addWidget(button)
-        self.set_value(self._value, emit=False)
-
-    def value(self) -> str:
-        return self._value
+        super().__init__(
+            (("dark", "Dark"), ("light", "Light")),
+            value if value in {"light", "dark"} else "dark",
+            parent,
+            accessible_name="Theme",
+        )
+        for token, button in self._buttons.items():
+            button.setAccessibleName(f"Use {token} appearance")
 
     def set_value(self, value: str, *, emit: bool = True) -> None:
-        value = value if value in self._buttons else "dark"
-        changed = value != self._value
-        self._value = value
-        for token, button in self._buttons.items():
-            button.setChecked(token == value)
-        if emit and changed:
-            self.changed.emit(value)
+        super().set_value(value if value in {"light", "dark"} else "dark", emit=emit)

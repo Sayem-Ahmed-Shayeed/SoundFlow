@@ -1,17 +1,20 @@
+import gc
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from soundflow.history.models import TranscriptEntry
 from soundflow.history.store import HistoryStore
 
 try:
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QApplication, QPushButton
 
-    from soundflow.history.page import HistoryPage, TranscriptCard
+    from soundflow.history.page import HistoryPage
+    from soundflow.history.widgets import TranscriptItem
 
     HAS_QT = True
 except ImportError:
@@ -64,68 +67,80 @@ class PreviewStoreTests(unittest.TestCase):
         self.store.delete(entry.id)
         self.assertEqual(self.store.generation, start + 3)
 
+    def test_sync_state_reports_pending_for_new_rows(self):
+        entry = self.store.add("sync me", 1.0)
+        self.assertEqual(self.store.sync_state(entry.id), "pending")
+        self.assertIsNone(self.store.sync_state(999999))
+
 
 @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
-class LazyCardTests(unittest.TestCase):
+class LazyPageTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.application = QApplication.instance() or QApplication([])
 
-    def test_editor_starts_empty_and_loads_on_edit(self):
-        entry = TranscriptEntry(
-            id=7,
-            created_at=__import__("datetime").datetime.now(),
-            duration_s=3.0,
-            title="t",
-            summary="s",
-            body="preview…",
-        )
-        loaded = []
-        card = TranscriptCard(
-            entry, True, lambda entry_id: loaded.append(entry_id) or "FULL BODY", None
-        )
-        self.assertEqual(card.editor.toPlainText(), "")
-        card.begin_edit()
-        self.assertEqual(card.editor.toPlainText(), "FULL BODY")
-        self.assertEqual(loaded, [7])
+    def setUp(self):
+        self._directory = tempfile.TemporaryDirectory()
+        self.store = HistoryStore(Path(self._directory.name) / "history.db")
+        self._pages = []
 
-    def test_expand_loads_full_body(self):
-        entry = TranscriptEntry(
-            id=8,
-            created_at=__import__("datetime").datetime.now(),
-            duration_s=3.0,
-            title="t",
-            summary="s",
-            body="preview…",
-        )
-        card = TranscriptCard(entry, True, lambda entry_id: "FULL BODY", None)
-        self.assertFalse(card.expand_button.isHidden())
-        card.toggle_expand()
-        self.assertEqual(card.body_label.text(), "FULL BODY")
-        self.assertTrue(card.expand_button.isHidden())
+    def tearDown(self):
+        for page in self._pages:
+            page.close()
+            page.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self._pages = []
+        gc.collect()
+        self.store.close()
+        self._directory.cleanup()
+
+    def _items(self, page):
+        found = []
+        for index in range(page.cards.count()):
+            widget = page.cards.itemAt(index).widget()
+            if isinstance(widget, TranscriptItem):
+                found.append(widget)
+        return found
 
     def test_history_page_paginates_and_skips_redundant_refresh(self):
-        with tempfile.TemporaryDirectory() as directory:
-            store = HistoryStore(Path(directory) / "history.db")
-            try:
-                for index in range(25):
-                    store.add(f"transcript number {index}", 1.0)
-                page = HistoryPage(store)
-                self.application.processEvents()
-                cards = [
-                    page.cards.itemAt(i).widget()
-                    for i in range(page.cards.count())
-                ]
-                cards = [w for w in cards if isinstance(w, TranscriptCard)]
-                self.assertEqual(len(cards), 20)
-                self.assertIn("remaining", page.cards.itemAt(
-                    page.cards.count() - 2).widget().text())
-                before = [page.cards.itemAt(i).widget() for i in range(page.cards.count())]
-                page.refresh()
-                after = [page.cards.itemAt(i).widget() for i in range(page.cards.count())]
-                self.assertEqual(before, after)
-            finally:
-                store.close()
+        for index in range(25):
+            self.store.add(f"transcript number {index}", 1.0)
+        page = HistoryPage(self.store)
+        self._pages.append(page)
+        self.application.processEvents()
+        self.assertEqual(len(self._items(page)), 20)
+        more = [
+            button
+            for button in page.holder.findChildren(QPushButton, "textActionButton")
+            if "remaining" in button.text()
+        ]
+        self.assertEqual(len(more), 1)
+        before = [page.cards.itemAt(i).widget() for i in range(page.cards.count())]
+        page.refresh()
+        after = [page.cards.itemAt(i).widget() for i in range(page.cards.count())]
+        self.assertEqual(before, after)
+        page.load_more()
+        self.application.processEvents()
+        self.assertEqual(len(self._items(page)), 25)
+
+    def test_page_stays_fast_with_thousands_of_transcripts(self):
+        for index in range(3000):
+            self.store.add(f"transcript {index} with a short body of words", 2.0)
+        started = time.perf_counter()
+        page = HistoryPage(self.store)
+        self._pages.append(page)
+        self.application.processEvents()
+        opened = time.perf_counter() - started
+        self.assertEqual(len(self._items(page)), 20)
+        self.assertLess(opened, 5.0)
+
+        started = time.perf_counter()
+        page.search.setText("transcript 2999")
+        page.refresh(reset=True)
+        self.application.processEvents()
+        searched = time.perf_counter() - started
+        self.assertEqual(len(self._items(page)), 1)
+        self.assertLess(searched, 2.0)
 
 
 if __name__ == "__main__":

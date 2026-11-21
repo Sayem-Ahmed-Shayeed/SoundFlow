@@ -21,7 +21,7 @@ class HotkeyTests(unittest.TestCase):
         )
         self.assertEqual(canonical_hotkey("alt+ctrl+space"), "ctrl+alt+space")
         self.assertEqual(
-            display_hotkey("ctrl+alt+space"), "Ctrl + Alt + SPACE"
+            display_hotkey("ctrl+alt+space"), "Ctrl + Alt + Space"
         )
 
     def test_rejects_modifier_only_and_malformed_shortcuts(self):
@@ -102,6 +102,30 @@ class HotkeyTests(unittest.TestCase):
         hotkey.stop()
 
         self.assertEqual(events, ["down", "up"])
+
+
+    def test_each_shortcut_has_its_own_desktop_name(self):
+        from soundflow.hotkeys import portal_shortcut_id
+
+        self.assertEqual(portal_shortcut_id("ctrl+alt+space"), "push_to_talk")
+        self.assertEqual(portal_shortcut_id("alt+ctrl+space"), "push_to_talk")
+        self.assertEqual(portal_shortcut_id("ctrl+space"), "push_to_talk_ctrl_space")
+        hotkey = PortalGlobalHotkeys("ctrl+space", lambda: None, lambda: None)
+        self.assertEqual(hotkey.shortcut_id, "push_to_talk_ctrl_space")
+        self.assertEqual(hotkey.trigger, "CTRL+space")
+
+    def test_portal_only_answers_its_current_shortcut(self):
+        events: list[str] = []
+        hotkey = PortalGlobalHotkeys(
+            "ctrl+space", lambda: events.append("down"), lambda: events.append("up")
+        )
+        hotkey._session_handle = "/org/freedesktop/portal/session/soundflow"
+        hotkey._handle_shortcut_event("Activated", hotkey._session_handle, "push_to_talk")
+        self.assertEqual(events, [])
+        hotkey._handle_shortcut_event(
+            "Activated", hotkey._session_handle, "push_to_talk_ctrl_space"
+        )
+        self.assertEqual(events, ["down"])
 
 
 if __name__ == "__main__":

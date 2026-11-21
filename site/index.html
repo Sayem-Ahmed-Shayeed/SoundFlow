@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#000000">
+<title>Soundflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Outfit:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --black: #000000;
+    --cream: #F4F7FF;
+    --muted: #A9A9B2;
+    --dim: #777781;
+    --line: #29292F;
+    --field: #0A0A0C;
+    --violet: #9B72FF;
+    --pink: #FF6EC7;
+    --teal: #3EDBBF;
+    --coral: #F0787F;
+    --button: #F4F0EA;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--black);
+    color: var(--cream);
+    font: 400 17px/1.55 "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+    max-width: 36rem;
+    margin: 0 auto;
+    padding: 48px 24px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 56px;
+    font: 400 18px/1 "Outfit", sans-serif;
+    color: var(--cream);
+    text-decoration: none;
+  }
+  .brand-mark {
+    font-size: 22px;
+    background: linear-gradient(90deg, var(--violet), var(--pink));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* The signature: a voice waveform that settles into the outcome. */
+  .wave {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 72px;
+    margin-bottom: 40px;
+  }
+  .bar {
+    position: relative;
+    flex: 1 1 0;
+    max-width: 6px;
+    height: 100%;
+    border-radius: 3px;
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--pink), var(--violet));
+    transform: scaleY(0.08);
+    transform-origin: center;
+    transition: transform 260ms cubic-bezier(.3,.7,.4,1);
+  }
+  /* The outcome colour fades in over the gradient (gradients can't animate). */
+  .bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--outcome, transparent);
+    opacity: 0;
+    transition: opacity 700ms ease 200ms;
+  }
+  .wave.settled .bar { transition-duration: 900ms; }
+  .wave.success { --outcome: var(--teal); }
+  .wave.failed { --outcome: #4A4A52; }
+  .wave.success .bar::after, .wave.failed .bar::after { opacity: 1; }
+
+  h1 {
+    margin: 0 0 16px;
+    font: 300 clamp(2.25rem, 1.6rem + 2.6vw, 3.25rem)/1.08 "Outfit", sans-serif;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .lede {
+    margin: 0;
+    max-width: 30rem;
+    color: var(--muted);
+  }
+  .note {
+    margin: 28px 0 0;
+    font-size: 14px;
+    color: var(--dim);
+  }
+
+  form { display: none; margin-top: 36px; max-width: 26rem; }
+  form.shown { display: block; }
+  label {
+    display: block;
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .field { position: relative; margin-bottom: 20px; }
+  input {
+    width: 100%;
+    height: 48px;
+    padding: 0 64px 0 16px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--field);
+    color: var(--cream);
+    font: inherit;
+    font-size: 16px;
+    transition: border-color 160ms ease;
+  }
+  input:hover { border-color: #3a3a42; }
+  input:focus-visible { outline: none; border-color: var(--violet); box-shadow: 0 0 0 3px rgba(155,114,255,.22); }
+  .reveal {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    height: 36px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font: 500 13px/1 "Geist", sans-serif;
+    cursor: pointer;
+  }
+  .reveal:hover { color: var(--cream); }
+  .reveal:focus-visible { outline: 2px solid var(--violet); outline-offset: 0; }
+  .save {
+    width: 100%;
+    height: 48px;
+    margin-top: 8px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--button);
+    color: #000;
+    font: 500 16px/1 "Geist", sans-serif;
+    cursor: pointer;
+    transition: transform 120ms ease, opacity 160ms ease;
+  }
+  .save:active { transform: scale(.985); }
+  .save:disabled { opacity: .55; cursor: default; }
+  .save:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+  .msg { min-height: 22px; margin: 14px 0 0; font-size: 14px; color: var(--muted); }
+  .msg.bad { color: var(--coral); }
+
+  @media (max-width: 480px) {
+    body { font-size: 16px; }
+    .page { justify-content: flex-start; padding-top: 40px; }
+    .brand { margin-bottom: 40px; }
+    .wave { height: 56px; gap: 3px; margin-bottom: 32px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bar, .wave.settled .bar, .bar::after { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <a class="brand" href="./" aria-label="Soundflow">
+    <span class="brand-mark" aria-hidden="true">≋</span>
+    <span>Soundflow</span>
+  </a>
+
+  <div class="wave" id="wave" aria-hidden="true"></div>
+
+  <h1 id="title">Dictation that stays on your computer.</h1>
+  <p class="lede" id="detail">
+    Soundflow turns your voice into text with speech recognition that runs on your own
+    machine. This page finishes the links Soundflow sends by email.
+  </p>
+  <noscript>
+    <p class="note">Turn on JavaScript to finish confirming your email or resetting your password.</p>
+  </noscript>
+
+  <form id="reset" novalidate>
+    <div class="field">
+      <label for="pw1">New password</label>
+      <input id="pw1" type="password" autocomplete="new-password" minlength="8" required
+             aria-describedby="msg">
+      <button class="reveal" type="button" data-for="pw1" aria-pressed="false">Show</button>
+    </div>
+    <div class="field">
+      <label for="pw2">Type it again</label>
+      <input id="pw2" type="password" autocomplete="new-password" minlength="8" required
+             aria-describedby="msg">
+      <button class="reveal" type="button" data-for="pw2" aria-pressed="false">Show</button>
+    </div>
+    <button class="save" id="save" type="submit">Save password</button>
+    <p class="msg" id="msg" role="status" aria-live="polite"></p>
+  </form>
+
+  <p class="note" id="note" hidden>You can close this tab.</p>
+</main>
+
+<script>
+  // Public project URL and publishable key: safe in a browser, because
+  // row-level security protects the data. Used only to save a new password.
+  var SUPABASE_URL = "https://iuqahybtopiftsfhjbuy.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_p5Uw1dGj7fsO2riG7vdneA_oko4tQWL";
+
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---- waveform -----------------------------------------------------------
+  var wave = $("wave");
+  var bars = [];
+  var BAR_COUNT = window.innerWidth < 480 ? 36 : 52;
+  for (var i = 0; i < BAR_COUNT; i++) {
+    var bar = document.createElement("span");
+    bar.className = "bar";
+    wave.appendChild(bar);
+    bars.push(bar);
+  }
+  var talking = null;
+
+  function speak() {
+    // Speech-like envelope: louder in the middle, varied bar to bar.
+    bars.forEach(function (bar, index) {
+      var center = 1 - Math.abs(index / (bars.length - 1) - 0.5) * 1.4;
+      var level = 0.12 + Math.random() * 0.88 * Math.max(center, 0.25);
+      bar.style.transform = "scaleY(" + level.toFixed(3) + ")";
+    });
+  }
+  function startTalking(interval) {
+    stopTalking();
+    if (reduceMotion) { idleShape(); return; }
+    speak();
+    talking = setInterval(speak, interval);
+  }
+  function stopTalking() {
+    if (talking) { clearInterval(talking); talking = null; }
+  }
+  function idleShape() {
+    bars.forEach(function (bar, index) {
+      var level = 0.18 + 0.14 * Math.sin(index / 2.2);
+      bar.style.transform = "scaleY(" + level.toFixed(3) + ")";
+    });
+  }
+  function settle(state) {
+    stopTalking();
+    wave.classList.add("settled");
+    wave.classList.remove("success", "failed");
+    if (state) wave.classList.add(state);
+    bars.forEach(function (bar, index) {
+      // Success: a calm, even hum. Failure: a flatline.
+      var arc = Math.pow(Math.sin(((index + 0.5) / bars.length) * Math.PI), 1.6);
+      var level = state === "failed" ? 0.05 : 0.1 + 0.3 * arc;
+      bar.style.transform = "scaleY(" + level.toFixed(3) + ")";
+    });
+  }
+  function settleAfter(state, delay) {
+    startTalking(140);
+    setTimeout(function () { settle(state); }, reduceMotion ? 0 : delay);
+  }
+
+  // ---- outcome --------------------------------------------------------------
+  function show(title, detail, closable) {
+    $("title").textContent = title;
+    $("detail").textContent = detail;
+    $("note").hidden = !closable;
+  }
+
+  (function () {
+    // Supabase puts the session (or an error) in the URL fragment. Read the
+    // outcome, then wipe it so nothing sensitive stays in the address bar or
+    // history. The token stays in memory only to save a new password.
+    var hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+    var query = new URLSearchParams(location.search);
+    var error = hash.get("error_description") || query.get("error_description");
+    var errorCode = hash.get("error_code") || query.get("error_code") || "";
+    var type = hash.get("type") || query.get("type");
+    var token = hash.get("access_token");
+    var linked = !!token || query.has("code");
+    if (location.hash || location.search) {
+      history.replaceState(null, "", location.pathname);
+    }
+
+    if (error) {
+      var expired = /expired/i.test(errorCode + " " + error);
+      show(
+        expired ? "This link has expired." : "This link didn't work.",
+        "Links from Soundflow work once and only for a short time. In the Soundflow app, " +
+          "choose Resend email to confirm your account, or Forgot password? to reset it.",
+        false
+      );
+      settleAfter("failed", 900);
+    } else if (type === "recovery" && token) {
+      show(
+        "Choose a new password.",
+        "Use at least 8 characters. You'll sign in to Soundflow with it on every computer.",
+        false
+      );
+      startTalking(520);
+      showReset(token);
+    } else if (type === "recovery") {
+      show(
+        "This link didn't work.",
+        "In the Soundflow app, choose Forgot password? to get a new reset link.",
+        false
+      );
+      settleAfter("failed", 900);
+    } else if (linked || type === "signup" || type === "email") {
+      show(
+        "Your email is confirmed.",
+        "Go back to Soundflow and sign in with your email and password.",
+        true
+      );
+      settleAfter("success", 1300);
+    } else {
+      startTalking(520);
+    }
+  })();
+
+  // ---- password reset ---------------------------------------------------------
+  Array.prototype.forEach.call(document.querySelectorAll(".reveal"), function (button) {
+    button.addEventListener("click", function () {
+      var input = $(button.getAttribute("data-for"));
+      var hidden = input.type === "password";
+      input.type = hidden ? "text" : "password";
+      button.textContent = hidden ? "Hide" : "Show";
+      button.setAttribute("aria-pressed", String(hidden));
+    });
+  });
+
+  function showReset(token) {
+    var form = $("reset");
+    var msg = $("msg");
+    var save = $("save");
+    form.classList.add("shown");
+    $("pw1").focus();
+
+    function fail(text) {
+      msg.className = "msg bad";
+      msg.textContent = text;
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var pw1 = $("pw1").value;
+      var pw2 = $("pw2").value;
+      if (pw1.length < 8) { fail("Use at least 8 characters."); return; }
+      if (pw1 !== pw2) { fail("The two passwords don't match."); return; }
+      save.disabled = true;
+      save.textContent = "Saving password…";
+      msg.className = "msg";
+      msg.textContent = "";
+      startTalking(140);
+
+      fetch(SUPABASE_URL + "/auth/v1/user", {
+        method: "PUT",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ password: pw1 })
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (!res.ok) {
+            throw new Error(body.msg || body.message || body.error_description ||
+                            ("The server answered with error " + res.status + "."));
+          }
+        });
+      }).then(function () {
+        form.classList.remove("shown");
+        show(
+          "Your password is saved.",
+          "Go back to Soundflow and sign in with your new password.",
+          true
+        );
+        settle("success");
+      }).catch(function (err) {
+        save.disabled = false;
+        save.textContent = "Save password";
+        startTalking(520);
+        var text = err && err.message ? err.message : "Couldn't reach Soundflow.";
+        if (/fetch|network/i.test(text)) {
+          text = "Couldn't reach Soundflow. Check your internet connection and try again.";
+        } else if (/expired|invalid|jwt/i.test(text)) {
+          text = "This reset link has expired. In the Soundflow app, choose Forgot password? again.";
+        }
+        fail(text);
+      });
+    });
+  }
+</script>
+</body>
+</html>

@@ -143,7 +143,7 @@ class MessageTests(unittest.TestCase):
 
     def test_language_hint_included(self):
         messages = build_messages("hello", _settings(language="bn"))
-        self.assertIn("bn", messages[0]["content"])
+        self.assertIn("Bangla", messages[0]["content"])
 
     def test_custom_instruction_used(self):
         messages = build_messages(

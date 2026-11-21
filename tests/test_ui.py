@@ -5,9 +5,12 @@ from pathlib import Path
 
 try:
     from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
     from soundflow.core.settings import Settings, SettingsStore
+    from soundflow.core.state import DictationState
+    from soundflow.design import apply_stylesheet, stylesheet
     from soundflow.ui import (
         AppearanceSelector,
         MainWindow,
@@ -61,17 +64,95 @@ class UiTests(unittest.TestCase):
         self.assertEqual(selector.value(), "dark")
         self.assertEqual(changes, ["dark"])
 
-    def test_overlay_displays_three_key_chord(self):
+    def test_overlay_pill_follows_dictation_and_confirms(self):
         overlay = RecordingOverlay()
         overlay.show_recording("ctrl+alt+space")
-        self.assertEqual(overlay.keycap.text(), "CTRL + ALT + SPACE")
+        self.assertEqual(overlay.state, "recording")
+        self.assertTrue(overlay.isVisible())
         self.assertLessEqual(overlay.width(), 300)
-        self.assertLessEqual(overlay.height(), 52)
-        self.assertEqual(overlay.label.text(), "Listening")
+        self.assertLessEqual(overlay.height(), 72)
+        self.assertEqual(overlay.elapsed_text(), "0:00")
+        overlay.set_level(0.7)
         overlay.show_processing()
-        self.assertEqual(overlay.label.text(), "Transcribing")
-        overlay.hide()
+        self.assertEqual(overlay.state, "processing")
+        overlay.show_done()
+        self.assertEqual(overlay.state, "done")
+        # Idle arrives right after; the pill keeps its check, then hides itself.
+        overlay.hide_animated()
+        self.assertTrue(overlay.isVisible())
+        QTest.qWait(overlay.DONE_MS + 120)
+        self.assertFalse(overlay.isVisible())
+        self.assertEqual(overlay.state, "hidden")
         overlay.close()
+
+    def test_overlay_pill_hides_at_once_without_a_transcript(self):
+        overlay = RecordingOverlay()
+        overlay.show_recording("ctrl+alt+space")
+        overlay.show_processing()
+        overlay.hide_animated()
+        self.assertFalse(overlay.isVisible())
+        overlay.show_done()  # nothing to confirm once hidden
+        self.assertFalse(overlay.isVisible())
+        overlay.close()
+
+    def test_finished_dictation_never_stays_on_transcribing(self):
+        directory = tempfile.TemporaryDirectory()
+        self._temps.append(directory)
+        store = SettingsStore(Path(directory.name) / "settings.json")
+        settings = Settings(auto_save_transcripts=False, show_dictation_widget=True)
+        window = MainWindow(settings, store, demo_mode=True, no_hotkeys=True)
+        self._windows.append(window)
+        # The window must drive the new pill, which can confirm a transcript.
+        self.assertIsInstance(window.overlay, RecordingOverlay)
+        self.assertTrue(callable(getattr(window.overlay, "show_done", None)))
+
+        window.state.start()
+        window.state.stop()
+        self.assertIs(window.state.state, DictationState.DRAINING)
+
+        def broken() -> None:
+            raise RuntimeError("pill failed")
+
+        window.overlay.show_done = broken
+        with self.assertLogs("soundflow.ui.main_window", level="ERROR"):
+            window._finish_transcript("hello world", 1.0)
+        self.assertIs(window.state.state, DictationState.IDLE)
+        window.overlay.hide()
+
+    def test_appearance_click_switches_theme_without_waiting_for_save(self):
+        directory = tempfile.TemporaryDirectory()
+        self._temps.append(directory)
+        store = SettingsStore(Path(directory.name) / "settings.json")
+        window = MainWindow(Settings(), store, demo_mode=True, no_hotkeys=True)
+        self._windows.append(window)
+        self.assertEqual(self.application.styleSheet(), stylesheet(True))
+
+        window.preferences_page.general_tab._theme._buttons["light"].click()
+
+        # Applied before the debounced save fires, not 120 ms later.
+        self.assertTrue(window.preferences_page._save_timer.isActive())
+        self.assertFalse(window.property("darkAppearance"))
+        self.assertEqual(self.application.styleSheet(), stylesheet(False))
+        self.assertEqual(window.settings.appearance, "light")
+
+    def test_apply_stylesheet_clears_the_old_sheet_first(self):
+        calls: list[str] = []
+
+        class FakeApp:
+            sheet = stylesheet(True)
+
+            def styleSheet(self):
+                return self.sheet
+
+            def setStyleSheet(self, sheet):
+                calls.append(sheet)
+                self.sheet = sheet
+
+        fake = FakeApp()
+        apply_stylesheet(fake, False)
+        self.assertEqual(calls, ["", stylesheet(False)])
+        apply_stylesheet(fake, False)
+        self.assertEqual(len(calls), 2)
 
     def test_main_window_hosts_four_page_shell(self):
         directory = tempfile.TemporaryDirectory()

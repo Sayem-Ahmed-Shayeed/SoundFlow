@@ -42,9 +42,11 @@ def run_system_check(
         microphones = list_inputs()
     except Exception:
         microphones = []
-    effective = settings.inference_device
-    if effective == "cuda" and cuda_devices() < 1:
-        effective = "cpu"
+    # "auto" picks the GPU when one is present; an explicit "cuda" without a
+    # GPU falls back to the processor, as the transcriber does.
+    effective = "cpu"
+    if settings.inference_device in {"auto", "cuda"} and cuda_devices() >= 1:
+        effective = "cuda"
     return SystemCheckResult(
         model_ready=model.is_dir(),
         microphone_ready=bool(microphones),

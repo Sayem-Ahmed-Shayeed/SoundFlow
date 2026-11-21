@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -60,7 +61,7 @@ from soundflow.core.export import ExportError, export_transcript
 from soundflow.core.segmenter import SegmenterConfig
 from soundflow.core.settings import Settings, SettingsStore, default_model_path
 from soundflow.core.state import DictationState, DictationStateMachine, StateChange
-from soundflow.design import BODY_FONT, stylesheet as design_stylesheet
+from soundflow.design import BODY_FONT, apply_stylesheet, stylesheet as design_stylesheet
 from soundflow.design.theme import resolved_dark as _resolved_dark
 from soundflow.hotkeys import (
     HotkeyError,
@@ -83,6 +84,7 @@ class UiBridge(QObject):
     finished = Signal()
     error = Signal(str)
     level = Signal(float)
+    audio = Signal(bytes)
     ptt_down_requested = Signal()
     ptt_up_requested = Signal()
     restore_token_ready = Signal(str)
@@ -272,7 +274,9 @@ class WaveformWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#f1f3f5"))
+        from soundflow.design.theme import current_palette
+
+        painter.setBrush(QColor(current_palette()["record"]))
         bar_width = 3
         gap = 3
         center = self.height() / 2
@@ -303,7 +307,14 @@ class VoiceOrb(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(33)
         self._timer.timeout.connect(self._tick)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
         self._timer.start()
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        super().hideEvent(event)
+        self._timer.stop()
 
     def set_level(self, level: float) -> None:
         self._level = 0.72 * self._level + 0.28 * max(0.04, min(level, 1.0))
@@ -416,8 +427,10 @@ class RecordingOverlay(QWidget):
         self.keycap.setObjectName("overlayKeycap")
         self.keycap.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.keycap)
-        self._opacity = QGraphicsOpacityEffect(panel)
-        panel.setGraphicsEffect(self._opacity)
+        # Shown by a shortcut many times a day, so it appears and leaves
+        # instantly; no opacity effect (which would also force offscreen
+        # rendering of a translucent always-on-top window).
+        self._opacity = QGraphicsOpacityEffect(self)
         self._fade = QPropertyAnimation(self._opacity, b"opacity", self)
         self._fade.setDuration(150)
         self._fade.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -427,7 +440,10 @@ class RecordingOverlay(QWidget):
     def show_recording(self, shortcut: str) -> None:
         self.label.setText("Listening")
         self.hint.setText("Release to insert")
-        self.keycap.setText(shortcut.upper().replace("+", " + "))
+        try:
+            self.keycap.setText(display_hotkey(shortcut))
+        except ValueError:
+            self.keycap.setText(shortcut)
         self.waveform.start()
         self._show_near_cursor_screen()
 
@@ -442,10 +458,8 @@ class RecordingOverlay(QWidget):
     def hide_animated(self) -> None:
         self.waveform.stop()
         self._fade.stop()
-        self._hide_after_fade = True
-        self._fade.setStartValue(self._opacity.opacity())
-        self._fade.setEndValue(0.0)
-        self._fade.start()
+        self._hide_after_fade = False
+        self.hide()
 
     def _show_near_cursor_screen(self) -> None:
         screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
@@ -454,14 +468,10 @@ class RecordingOverlay(QWidget):
             area.x() + (area.width() - self.width()) // 2,
             area.y() + area.height() - self.height() - 48,
         )
-        self._opacity.setOpacity(0.0)
         self._hide_after_fade = False
+        self._fade.stop()
         self.show()
         self.raise_()
-        self._fade.stop()
-        self._fade.setStartValue(0.0)
-        self._fade.setEndValue(1.0)
-        self._fade.start()
 
     def _fade_finished(self) -> None:
         if self._hide_after_fade:
@@ -726,7 +736,11 @@ class MainWindow(QMainWindow):
         self.no_hotkeys = no_hotkeys
         self.hotkeys = None
         self._hotkey_is_ready = False
-        self._hotkey_setup_requested = False
+        # Ask the desktop for the shortcut at launch instead of waiting for a
+        # click; the desktop shows its own one-time approval prompt.
+        self._hotkey_setup_requested = bool(
+            settings.global_hotkeys and not no_hotkeys and not demo_mode
+        )
         self._injector_started = False
         self._injector_is_ready = False
         self._setup_retry_target = "hotkey"
@@ -1289,7 +1303,7 @@ class MainWindow(QMainWindow):
             appearance if appearance in {"light", "dark"} else "dark"
         )
         dark = resolved_dark_appearance(self.settings.appearance)
-        QApplication.instance().setStyleSheet(macos_style_sheet(dark))
+        apply_stylesheet(QApplication.instance(), dark)
         self.setProperty("darkAppearance", dark)
         if hasattr(self, "overlay"):
             self.overlay.setProperty("darkAppearance", dark)
@@ -1345,13 +1359,27 @@ class MainWindow(QMainWindow):
         else:
             QApplication.instance().setQuitOnLastWindowClosed(True)
 
-    def _rebuild_runtime(self) -> None:
-        self._hotkey_is_ready = False
+    def _rebuild_runtime(self, *, force_hotkeys: bool = False) -> None:
+        # Keep a working global shortcut when only audio/model settings
+        # changed; restarting it re-runs the desktop's portal handshake.
+        hotkey_signature = (
+            self.settings.global_hotkeys,
+            self.settings.push_to_talk_hotkey,
+            self.no_hotkeys,
+        )
+        keep_hotkeys = (
+            not force_hotkeys
+            and self.hotkeys is not None
+            and self._hotkey_is_ready
+            and getattr(self, "_hotkey_signature", None) == hotkey_signature
+        )
         if self.pipeline:
             self.pipeline.close()
-        if self.hotkeys:
-            self.hotkeys.stop()
-            self.hotkeys = None
+        if not keep_hotkeys:
+            self._hotkey_is_ready = False
+            if self.hotkeys:
+                self.hotkeys.stop()
+                self.hotkeys = None
 
         transcriber = (
             DemoTranscriber()
@@ -1376,7 +1404,14 @@ class MainWindow(QMainWindow):
             self.bridge.finished.emit,
             self.bridge.error.emit,
             self.bridge.level.emit,
+            self.bridge.interim_ready.emit,
+            on_audio=self.bridge.audio.emit,
         )
+        self._preload_model(transcriber)
+        if keep_hotkeys:
+            self._refresh_shortcut_display()
+            return
+        self._hotkey_signature = hotkey_signature
         should_start_hotkey = (
             self.settings.hotkey_authorized or self._hotkey_setup_requested
         )
@@ -1413,6 +1448,20 @@ class MainWindow(QMainWindow):
             )
             self._start_injector()
         self._refresh_shortcut_display()
+
+    def _preload_model(self, transcriber) -> None:
+        """Load the speech model in the background so the first dictation is instant."""
+        preload = getattr(transcriber, "preload", None)
+        if not callable(preload):
+            return
+
+        def run() -> None:
+            try:
+                preload()
+            except Exception:
+                pass  # Reported with a clear message when dictation starts.
+
+        threading.Thread(target=run, name="soundflow-model-preload", daemon=True).start()
 
     @Slot()
     def toggle_dictation(self) -> None:
@@ -1631,7 +1680,7 @@ class MainWindow(QMainWindow):
         self._set_hotkey_indicator(
             "connecting", "●  WAITING FOR DESKTOP APPROVAL…"
         )
-        self._rebuild_runtime()
+        self._rebuild_runtime(force_hotkeys=True)
 
     def _start_injector(self, *, force: bool = False) -> None:
         if self.no_hotkeys:

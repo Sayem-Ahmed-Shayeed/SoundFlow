@@ -10,6 +10,7 @@ from pathlib import Path
 
 from PySide6.QtCore import (
     QEasingCurve,
+    QEvent,
     QEventLoop,
     QObject,
     QPropertyAnimation,
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -32,11 +34,9 @@ from PySide6.QtWidgets import (
 from soundflow.core.settings import Settings, default_model_path
 from soundflow.design import (
     ANIMATION_CONTROL,
-    SPACE_1,
     SPACE_2,
-    SPACE_3,
-    SPACE_4,
 )
+from soundflow.design.icons import icon
 from soundflow.models.catalog import MODEL_CATALOG, managed_model_path
 from soundflow.models.service import (
     ModelDownloadCancelled,
@@ -253,10 +253,11 @@ class _ModelRow:
     progress_animation: QPropertyAnimation
     phase: QLabel
     error: QLabel
+    size: QLabel
 
 
 class ModelManagerWidget(QWidget):
-    """Show and manage the five supported local Whisper models."""
+    """Lists the local Whisper models: one row each, with one action."""
 
     model_path_selected = Signal(str)
 
@@ -270,6 +271,7 @@ class ModelManagerWidget(QWidget):
         super().__init__(parent)
         self.setObjectName("modelManagerCard")
         self.setAccessibleName("Whisper model manager")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self._settings = settings
         self._service = service or ModelService()
         self._rows: dict[str, _ModelRow] = {}
@@ -277,20 +279,8 @@ class ModelManagerWidget(QWidget):
         self._worker_model_id: str | None = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(SPACE_4, SPACE_4, SPACE_4, SPACE_4)
-        layout.setSpacing(SPACE_2)
-
-        heading = QLabel("Speech recognition model")
-        heading.setObjectName("headingText")
-        layout.addWidget(heading)
-
-        description = QLabel(
-            "Choose a local Whisper model. Larger models download more data "
-            "and generally trade speed for accuracy."
-        )
-        description.setObjectName("mutedText")
-        description.setWordWrap(True)
-        layout.addWidget(description)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         for spec in MODEL_CATALOG:
             row = self._create_row(spec)
@@ -299,19 +289,36 @@ class ModelManagerWidget(QWidget):
 
         self._refresh_rows()
 
+    def _icon_color(self) -> str:
+        from soundflow.design.theme import palette
+
+        dark = bool(QApplication.instance().property("soundflowDark"))
+        return palette(dark)["text2"]
+
+    def _refresh_icons(self) -> None:
+        color = self._icon_color()
+        for row in self._rows.values():
+            row.delete.setIcon(icon("trash", color, 16))
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        restyled = event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange)
+        if restyled and self._rows:
+            self._refresh_icons()
+
     def _create_row(self, spec) -> _ModelRow:
         container = QWidget()
         container.setObjectName(f"modelRow:{spec.model_id}")
         container.setAccessibleName(f"{spec.display_name} model")
         outer = QVBoxLayout(container)
-        outer.setContentsMargins(SPACE_3, SPACE_2, SPACE_3, SPACE_2)
-        outer.setSpacing(SPACE_1)
+        outer.setContentsMargins(16, 12, 16, 12)
+        outer.setSpacing(8)
 
         main = QHBoxLayout()
-        main.setSpacing(SPACE_2)
+        main.setSpacing(16)
 
         copy = QVBoxLayout()
-        copy.setSpacing(SPACE_1)
+        copy.setSpacing(2)
         title_row = QHBoxLayout()
         title_row.setSpacing(SPACE_2)
         title = QLabel(spec.display_name)
@@ -325,37 +332,51 @@ class ModelManagerWidget(QWidget):
         title_row.addStretch(1)
         copy.addLayout(title_row)
 
-        guidance = QLabel(f"{spec.guidance} · approximately {spec.download_size}")
+        guidance = QLabel(spec.guidance)
         guidance.setObjectName(f"modelGuidance:{spec.model_id}")
         guidance.setWordWrap(True)
         copy.addWidget(guidance)
         main.addLayout(copy, 1)
 
-        status = QLabel()
+        size = QLabel(spec.download_size)
+        size.setObjectName(f"modelSize:{spec.model_id}")
+        size.setAccessibleName(f"{spec.display_name} size")
+        size.setMinimumWidth(72)
+        size.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        main.addWidget(size)
+
+        act = QHBoxLayout()
+        act.setSpacing(8)
+        act.setContentsMargins(0, 0, 0, 0)
+        status = QLabel("In use")
         status.setObjectName(f"modelStatus:{spec.model_id}")
         status.setAccessibleName(f"{spec.display_name} model status")
-        status.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        main.addWidget(status)
-
-        delete = QPushButton("Delete")
-        delete.setObjectName(f"modelDelete:{spec.model_id}")
-        delete.setAccessibleName(f"Delete {spec.display_name} model")
-        delete.setCursor(Qt.CursorShape.PointingHandCursor)
-        delete.clicked.connect(
-            lambda _checked=False, model_id=spec.model_id: self._delete(model_id)
-        )
-        main.addWidget(delete)
+        status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        act.addWidget(status)
 
         action = QPushButton()
         action.setObjectName(f"modelAction:{spec.model_id}")
         action.setAccessibleName(f"{spec.display_name} model action")
         action.setCursor(Qt.CursorShape.PointingHandCursor)
+        action.setMinimumWidth(96)
         action.clicked.connect(
             lambda _checked=False, model_id=spec.model_id: self._act(model_id)
         )
-        main.addWidget(action)
+        act.addWidget(action)
+
+        delete = QPushButton()
+        delete.setObjectName(f"modelDelete:{spec.model_id}")
+        delete.setAccessibleName(f"Delete {spec.display_name} model")
+        delete.setToolTip(f"Delete {spec.display_name} from this computer")
+        delete.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete.setFixedSize(32, 32)
+        delete.clicked.connect(
+            lambda _checked=False, model_id=spec.model_id: self._delete(model_id)
+        )
+        act.addWidget(delete)
+        act_holder = QWidget()
+        act_holder.setLayout(act)
+        main.addWidget(act_holder, 0, Qt.AlignmentFlag.AlignVCenter)
         outer.addLayout(main)
 
         progress_row = QHBoxLayout()
@@ -390,7 +411,7 @@ class ModelManagerWidget(QWidget):
         error.hide()
         outer.addWidget(error)
 
-        return _ModelRow(
+        row = _ModelRow(
             container,
             status,
             action,
@@ -399,7 +420,10 @@ class ModelManagerWidget(QWidget):
             progress_animation,
             phase,
             error,
+            size,
         )
+        delete.setIcon(icon("trash", self._icon_color(), 16))
+        return row
 
     def _active_path(self) -> str:
         return str(Path(self._settings.model_path or default_model_path()).expanduser())
@@ -452,16 +476,14 @@ class ModelManagerWidget(QWidget):
                 and self._contains_path(installed, active_path)
             )
 
+            row.status.setVisible(active)
+            row.action.setVisible(not active)
             if active:
-                row.status.setText("Active")
-                row.action.setText("Active")
                 row.action.setEnabled(False)
             elif installed is not None:
-                row.status.setText("Installed")
                 row.action.setText("Use")
                 row.action.setEnabled(not busy)
             else:
-                row.status.setText("Not downloaded")
                 row.action.setText("Download")
                 row.action.setEnabled(not busy)
 
@@ -469,6 +491,7 @@ class ModelManagerWidget(QWidget):
             row.delete.setEnabled(not busy)
             if busy and self._worker_model_id == spec.model_id:
                 row.action.setText("Cancel")
+                row.action.setVisible(True)
                 row.action.setEnabled(True)
 
     def _act(self, model_id: str) -> None:
@@ -500,6 +523,7 @@ class ModelManagerWidget(QWidget):
         row = self._rows[model_id]
         row.error.clear()
         row.error.hide()
+        row.action.setVisible(True)
         self._show_progress(model_id, "Preparing", 0)
 
         worker = ModelDownloadThread(

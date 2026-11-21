@@ -1,49 +1,19 @@
-"""Preferences dialog — 5-tab redesign."""
+"""Preferences in a dialog: the same page as the main window, with Save and Cancel."""
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QTabWidget,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QWidget
 
-from soundflow.design import (
-    BODY_FONT,
-    DISPLAY_FONT,
-    FONT_BODY,
-    FONT_HEADING,
-    FONT_SMALL,
-    FONT_TITLE,
-    SPACE_3,
-    SPACE_4,
-    SPACE_6,
-)
-from soundflow.preferences.tabs import (
-    DictationTab,
-    GeneralTab,
-    PlaybackTab,
-    ShortcutsTab,
-    SystemTab,
-)
+from soundflow.preferences.page import PreferencesPage
 
 
-_TABS = (
-    ("general", "General", GeneralTab),
-    ("dictation", "Dictation", DictationTab),
-    ("playback", "Playback", PlaybackTab),
-    ("shortcuts", "Shortcuts", ShortcutsTab),
-    ("system", "System", SystemTab),
-)
+class _NullStore:
+    """Stands in for a settings store when the dialog is given none."""
+
+    def save(self, settings) -> None:
+        del settings
 
 
 class PreferencesDialog(QDialog):
@@ -61,41 +31,14 @@ class PreferencesDialog(QDialog):
         self.setWindowTitle("Preferences")
         self.setMinimumSize(900, 600)
         self._settings = settings
-        self._store = store
         self._on_save = on_save
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
+        self._page = PreferencesPage(settings, store or _NullStore(), self)
+        outer.addWidget(self._page, 1)
 
-        # Top bar with title
-        top = QHBoxLayout()
-        top.setContentsMargins(SPACE_6, SPACE_6, SPACE_6, 0)
-        title = QLabel("Preferences")
-        title.setFont(QFont(DISPLAY_FONT, FONT_TITLE))
-        title.setObjectName("displayText")
-        top.addWidget(title)
-        top.addStretch(1)
-        outer.addLayout(top)
-
-        # Body
-        body = QHBoxLayout()
-        body.setContentsMargins(SPACE_6, SPACE_4, SPACE_6, SPACE_4)
-        body.setSpacing(SPACE_6)
-
-        self._tabs = QTabWidget()
-        self._tabs.setObjectName("preferencesTabs")
-        self._tab_widgets: list[tuple[str, QWidget]] = []
-        for key, label, factory in _TABS:
-            w = factory(settings)
-            self._tab_widgets.append((key, w))
-            self._tabs.addTab(w, label)
-
-        body.addWidget(self._tabs, 1)
-
-        outer.addLayout(body, 1)
-
-        # Buttons
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -103,18 +46,19 @@ class PreferencesDialog(QDialog):
         button_box.rejected.connect(self.reject)
         outer.addWidget(button_box)
 
-    # ------------------------------------------------------------------
+    @property
+    def page(self) -> PreferencesPage:
+        return self._page
+
     def _save(self) -> None:
-        for _, widget in self._tab_widgets:
-            write = getattr(widget, "write_back", None)
-            if callable(write):
-                write(self._settings)
-        self._settings.normalized()
-        if self._store is not None:
-            self._store.save(self._settings)
+        self._page.save()
         if self._on_save is not None:
             self._on_save(self._settings)
         self.accept()
+
+    def reject(self) -> None:
+        self._page.shutdown()
+        super().reject()
 
 
 __all__ = ["PreferencesDialog"]

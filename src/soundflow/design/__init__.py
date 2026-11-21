@@ -19,7 +19,7 @@ from .fonts import (
     register_application_fonts,
     serif_font,
 )
-from .motion import ButtonMotionFilter, install_button_motion
+from .motion import ButtonMotionFilter, ease_out, install_button_motion, reduced_motion
 from .spacing import (
     ANIMATION_CONTROL,
     ANIMATION_FAST,
@@ -66,11 +66,21 @@ from .theme import (
     SKY,
     SUCCESS,
     TEAL,
+    apply_stylesheet,
+    current_palette,
+    palette,
     resolved_dark,
     stylesheet,
 )
+from .icons import icon, icon_pixmap, icon_size
 
 __all__ = [
+    "icon",
+    "icon_pixmap",
+    "icon_size",
+    "apply_stylesheet",
+    "current_palette",
+    "palette",
     "ANIMATION_CONTROL",
     "ANIMATION_FAST",
     "ANIMATION_NORMAL",
@@ -85,6 +95,8 @@ __all__ = [
     "register_application_fonts",
     "serif_font",
     "install_button_motion",
+    "ease_out",
+    "reduced_motion",
     "BORDER_FOCUS",
     "BORDER_THIN",
     "CONTROL_HEIGHT_LG",

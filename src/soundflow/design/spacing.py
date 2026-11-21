@@ -28,7 +28,7 @@ BORDER_THIN = 1
 BORDER_FOCUS = 2
 
 # --- Standard control heights ----------------------------------------------
-CONTROL_HEIGHT_SM = 28
+CONTROL_HEIGHT_SM = 36
 CONTROL_HEIGHT_MD = 36
 CONTROL_HEIGHT_LG = 44
 
@@ -43,7 +43,7 @@ FONT_TINY = 11
 # --- Window sizing ---------------------------------------------------------
 WINDOW_MIN_WIDTH = 960
 WINDOW_MIN_HEIGHT = 640
-SIDEBAR_WIDTH = 216  # retained for any future use; current design drops the sidebar
+SIDEBAR_WIDTH = 220
 
 # --- Common durations (ms) -------------------------------------------------
 ANIMATION_FAST = 120

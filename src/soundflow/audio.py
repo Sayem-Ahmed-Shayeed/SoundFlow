@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import gc
 import importlib
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from threading import Event, RLock, Thread
 from typing import Any
+
+from soundflow.core.segmenter import pcm16_rms
+
+
+# PortAudio is not safe to initialise from two threads at once; a second
+# device scan waits for the first instead of racing it (that crashed).
+_DEVICE_SCAN_LOCK = RLock()
 
 
 class AudioCaptureError(RuntimeError):
@@ -53,15 +61,22 @@ class AudioCapture:
 
         def enumerate_devices() -> None:
             try:
-                sd = _import_sounddevice()
-                for index, device in enumerate(sd.query_devices()):
-                    if int(device.get("max_input_channels", 0)) > 0:
-                        devices.append((index, str(device.get("name", f"Input {index}"))))
+                with _DEVICE_SCAN_LOCK:
+                    sd = _import_sounddevice()
+                    for index, device in enumerate(sd.query_devices()):
+                        if int(device.get("max_input_channels", 0)) > 0:
+                            devices.append(
+                                (index, str(device.get("name", f"Input {index}")))
+                            )
             except Exception:
                 pass
             finally:
                 finished.set()
 
+        # Collect garbage here, on the calling (UI) thread. Otherwise the scan
+        # thread's allocations can trigger a collection there, and Shiboken
+        # crashes deleting Qt widgets off the main thread.
+        gc.collect()
         Thread(target=enumerate_devices, name="soundflow-device-scan", daemon=True).start()
         finished.wait(1.5)
         return list(devices)
@@ -87,8 +102,6 @@ class AudioCapture:
                 payload = bytes(indata)
                 self.on_frame(payload)
                 try:
-                    from soundflow.core.segmenter import pcm16_rms
-
                     self.on_level(min(pcm16_rms(payload) * 7.0, 1.0))
                 except Exception:
                     pass

@@ -14,6 +14,8 @@ class WhisperModelSpec:
     repo_id: str
     download_size: str
     recommended: bool = False
+    # Set for single-language models: dictation always uses this language.
+    language: str | None = None
 
     @property
     def directory_name(self) -> str:
@@ -56,6 +58,17 @@ MODEL_CATALOG = (
         "Best quality, highest resource use",
         "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
         "1.62 GB",
+    ),
+    # Bengali.AI's Whisper-medium fine-tuned on Bangla speech (1st place in
+    # the Bengali.AI Speech Recognition competition), converted for
+    # faster-whisper. Apache-2.0.
+    WhisperModelSpec(
+        "bangla-medium",
+        "Bangla (Bengali.AI)",
+        "Best for Bangla speech; Bangla only",
+        "bytx/tugstugi-medium-bn-ct2",
+        "1.53 GB",
+        language="bn",
     ),
 )
 

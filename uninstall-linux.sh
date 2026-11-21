@@ -3,7 +3,8 @@ set -eu
 
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 APP_ID="io.github.SayemAhmedShayeed.Soundflow"
-INSTALL_DIR="$DATA_HOME/soundflow"
+# Keep the program apart from $DATA_HOME/soundflow, which holds history.db and models.
+INSTALL_DIR="$DATA_HOME/soundflow-app"
 BIN_PATH="$HOME/.local/bin/soundflow"
 DESKTOP_FILE="$DATA_HOME/applications/$APP_ID.desktop"
 LEGACY_DESKTOP_FILE="$DATA_HOME/applications/soundflow.desktop"

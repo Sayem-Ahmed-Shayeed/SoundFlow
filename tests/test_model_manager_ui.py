@@ -1,3 +1,4 @@
+import gc
 import os
 import subprocess
 import sys
@@ -60,6 +61,15 @@ class ModelManagerUiTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def tearDown(self):
+        # Delete this test's widgets on the main thread before the interpreter
+        # exits; left alive, Qt destroys them during shutdown and segfaults.
+        for widget in QApplication.topLevelWidgets():
+            widget.close()
+            widget.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        gc.collect()
+
     def test_five_rows_map_active_installed_and_missing_actions(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -70,7 +80,7 @@ class ModelManagerUiTests(unittest.TestCase):
             )
 
             self.assertEqual(
-                widget.findChild(QLabel, "modelStatus:small").text(), "Active"
+                widget.findChild(QLabel, "modelStatus:small").text(), "In use"
             )
             self.assertEqual(
                 widget.findChild(QPushButton, "modelAction:base").text(), "Use"
@@ -79,11 +89,12 @@ class ModelManagerUiTests(unittest.TestCase):
                 widget.findChild(QPushButton, "modelAction:tiny").text(),
                 "Download",
             )
-            self.assertEqual(len(widget.findChildren(QProgressBar)), 5)
+            self.assertEqual(len(widget.findChildren(QProgressBar)), 6)
             for spec in MODEL_CATALOG:
                 row = widget.findChild(QLabel, f"modelGuidance:{spec.model_id}")
                 self.assertIn(spec.guidance, row.text())
-                self.assertIn(spec.download_size, row.text())
+                size = widget.findChild(QLabel, f"modelSize:{spec.model_id}")
+                self.assertEqual(size.text(), spec.download_size)
             self.assertEqual(
                 widget.findChild(QLabel, "modelRecommended:small").text(),
                 "Recommended",
@@ -104,7 +115,7 @@ class ModelManagerUiTests(unittest.TestCase):
             self.assertEqual(selected, [expected])
             self.assertEqual(settings.model_path, expected)
             self.assertEqual(
-                widget.findChild(QLabel, "modelStatus:base").text(), "Active"
+                widget.findChild(QLabel, "modelStatus:base").text(), "In use"
             )
             self.assertFalse(
                 widget.findChild(QPushButton, "modelDelete:base").isVisibleTo(
@@ -238,9 +249,12 @@ class ModelManagerUiTests(unittest.TestCase):
             self.assertEqual(
                 service.deleted[0][1], Path(widget._active_path())
             )
+            self.assertFalse(
+                widget.findChild(QLabel, "modelStatus:base").isVisibleTo(widget)
+            )
             self.assertEqual(
-                widget.findChild(QLabel, "modelStatus:base").text(),
-                "Not downloaded",
+                widget.findChild(QPushButton, "modelAction:base").text(),
+                "Download",
             )
 
     def test_delete_failure_is_rendered_inline(self):
@@ -277,8 +291,8 @@ class ModelManagerUiTests(unittest.TestCase):
             )
 
             self.assertEqual(
-                widget.findChild(QLabel, "modelStatus:base").text(),
-                "Installed",
+                widget.findChild(QPushButton, "modelAction:base").text(),
+                "Use",
             )
             self.assertFalse(
                 widget.findChild(QPushButton, "modelDelete:base").isVisibleTo(
@@ -752,6 +766,15 @@ class ModelDownloadThreadTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+
+    def tearDown(self):
+        # Delete this test's widgets on the main thread before the interpreter
+        # exits; left alive, Qt destroys them during shutdown and segfaults.
+        for widget in QApplication.topLevelWidgets():
+            widget.close()
+            widget.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        gc.collect()
 
     def _run(self, service):
         thread = ModelDownloadThread(service, "tiny")

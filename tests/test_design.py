@@ -69,7 +69,7 @@ class DesignTokenTests(unittest.TestCase):
             self.assertIn("max-height: 16px;", progress_rule)
             self.assertIn("color: #FFFFFF;", progress_rule)
             self.assertIn("text-align: center;", progress_rule)
-            self.assertIn('font-family: "Geist Mono";', progress_rule)
+            self.assertIn('font-family: "Inter";', progress_rule)
             self.assertIn('QPushButton[objectName^="modelAction:"]:focus', sheet)
             self.assertIn('QPushButton[objectName^="modelDelete:"]', sheet)
             self.assertIn("min-height: 20px", sheet)
@@ -98,8 +98,8 @@ class DesignTokenTests(unittest.TestCase):
 
         selector = 'QPushButton[objectName^="modelDelete:"]:disabled'
         themes = (
-            (stylesheet(True), "#A9A9B2", "#29292F", "#0A0A0C", "#F0787F"),
-            (stylesheet(False), "#647089", "#D7DEEA", "#FFFFFF", "#C4515B"),
+            (stylesheet(True), "#A6A7AD", "#1F2025", "#0D0E10", "#FF6B66"),
+            (stylesheet(False), "#4E4F55", "#E0E0D9", "#FFFFFF", "#C4322D"),
         )
         for sheet, muted, border, panel, destructive in themes:
             block = sheet.split(selector, 1)[1].split("}", 1)[0]

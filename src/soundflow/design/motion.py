@@ -122,3 +122,73 @@ def install_button_motion(
 
 
 __all__ = ["ButtonMotionFilter", "install_button_motion"]
+
+
+_REDUCED_MOTION: bool | None = None
+
+
+def reduced_motion() -> bool:
+    """True when the desktop asks for fewer animations (GNOME 'Animations' off).
+
+    Set SOUNDFLOW_REDUCED_MOTION=1 to force it. The answer is read once.
+    """
+    global _REDUCED_MOTION
+    if _REDUCED_MOTION is not None:
+        return _REDUCED_MOTION
+    import os
+    import shutil
+    import subprocess
+
+    forced = os.environ.get("SOUNDFLOW_REDUCED_MOTION")
+    if forced is not None:
+        _REDUCED_MOTION = forced.strip() not in {"", "0", "false", "no"}
+        return _REDUCED_MOTION
+    _REDUCED_MOTION = False
+    if shutil.which("gsettings"):
+        try:
+            result = subprocess.run(
+                ["gsettings", "get", "org.gnome.desktop.interface", "enable-animations"],
+                capture_output=True, text=True, timeout=0.5,
+            )
+            _REDUCED_MOTION = result.stdout.strip() == "false"
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return _REDUCED_MOTION
+
+
+# Strong ease-out for UI state changes: cubic-bezier(0.23, 1, 0.32, 1).
+def ease_out(t: float) -> float:
+    """Evaluate cubic-bezier(0.23, 1, 0.32, 1) at time fraction ``t``."""
+    t = min(max(t, 0.0), 1.0)
+    x1, y1, x2, y2 = 0.23, 1.0, 0.32, 1.0
+    # Solve x(u) = t for the curve parameter u with Newton steps.
+    u = t
+    for _ in range(6):
+        x = 3 * (1 - u) ** 2 * u * x1 + 3 * (1 - u) * u * u * x2 + u ** 3 - t
+        dx = 3 * (1 - u) ** 2 * x1 + 6 * (1 - u) * u * (x2 - x1) + 3 * u * u * (1 - x2)
+        if abs(dx) < 1e-6:
+            break
+        u = min(max(u - x / dx, 0.0), 1.0)
+    return 3 * (1 - u) ** 2 * u * y1 + 3 * (1 - u) * u * u * y2 + u ** 3
+
+
+def ease_out_curve():
+    """The strong ease-out token as a QEasingCurve, for QPropertyAnimation."""
+    from PySide6.QtCore import QPointF
+
+    curve = QEasingCurve(QEasingCurve.Type.BezierSpline)
+    curve.addCubicBezierSegment(QPointF(0.23, 1.0), QPointF(0.32, 1.0), QPointF(1.0, 1.0))
+    return curve
+
+
+def follow(current: float, target: float, dt_ms: float, tau_ms: float) -> float:
+    """Move ``current`` toward ``target`` with time constant ``tau_ms``.
+
+    Frame-rate independent, and it retargets mid-flight, so hover, press and
+    audio levels can change direction at any moment without a jump.
+    """
+    import math
+
+    if tau_ms <= 0.0:
+        return target
+    return target + (current - target) * math.exp(-max(0.0, dt_ms) / tau_ms)

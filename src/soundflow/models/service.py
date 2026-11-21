@@ -198,8 +198,11 @@ class ModelService:
         final = managed_model_path(item, self.root)
         partial = final.with_name(final.name + ".partial")
         completed = False
+        keep_partial = False
         try:
-            if _path_exists(partial):
+            # A real directory left by an interrupted download is resumed;
+            # anything else in its place is cleared.
+            if _path_exists(partial) and (partial.is_symlink() or not partial.is_dir()):
                 _remove_path(partial)
             self.root.mkdir(parents=True, exist_ok=True)
             progress("Preparing", 0, 0, 0)
@@ -208,7 +211,14 @@ class ModelService:
                 completed = True
                 progress("Ready", 100, 0, 0)
                 return final
-            self._downloader(item, partial, progress, cancel)
+            try:
+                self._downloader(item, partial, progress, cancel)
+            except (ModelDownloadCancelled, ModelManagerError):
+                raise
+            except Exception:
+                # Network drop: keep what arrived so the next try resumes.
+                keep_partial = True
+                raise
             _raise_if_cancelled(cancel)
             progress("Verifying", 100, 0, 0)
             _raise_if_cancelled(cancel)
@@ -244,7 +254,7 @@ class ModelService:
         except Exception as exc:
             raise ModelManagerError("Could not download the model.") from exc
         finally:
-            if not completed and _path_exists(partial):
+            if not completed and not keep_partial and _path_exists(partial):
                 if partial.is_symlink() or partial.is_file():
                     partial.unlink(missing_ok=True)
                 else:

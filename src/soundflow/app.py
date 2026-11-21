@@ -10,7 +10,9 @@ from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Private, offline desktop dictation")
+    parser = argparse.ArgumentParser(
+        description="Desktop dictation with on-device speech recognition"
+    )
     parser.add_argument(
         "--demo",
         action="store_true",
@@ -27,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Start ready for push-to-talk without opening the main window",
     )
     parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--wait-for-pid", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument(
         "--self-test-audio",
         type=Path,
@@ -69,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    if args.wait_for_pid:
+        _wait_for_exit(args.wait_for_pid)
+
     from soundflow.core.settings import SettingsStore
     from soundflow.portal import APP_ID
     from PySide6.QtCore import QTimer
@@ -80,13 +86,11 @@ def main(argv: list[str] | None = None) -> int:
     application.setDesktopFileName(APP_ID)
     application.setQuitOnLastWindowClosed(False)
 
-    from soundflow.design import (
-        install_button_motion,
-        register_application_fonts,
-    )
+    from soundflow.design import register_application_fonts
 
+    # Buttons get instant feedback from their :pressed style; no post-click
+    # opacity animation is installed.
     register_application_fonts()
-    install_button_motion(application)
 
     from soundflow.ui import MainWindow
     from soundflow.preferences.model_manager import (
@@ -119,7 +123,19 @@ def main(argv: list[str] | None = None) -> int:
 
     store = SettingsStore()
     settings = store.load()
-    window = MainWindow(settings, store, demo_mode=args.demo, no_hotkeys=args.no_hotkeys)
+
+    account = None
+    if not args.smoke_test:
+        account = _require_account(settings.appearance)
+        if account is None:
+            return 0
+    window = MainWindow(
+        settings,
+        store,
+        demo_mode=args.demo,
+        no_hotkeys=args.no_hotkeys,
+        account=account,
+    )
 
     def handle_instance_request() -> None:
         client = instance_server.nextPendingConnection()
@@ -146,6 +162,61 @@ def main(argv: list[str] | None = None) -> int:
     if args.smoke_test:
         QTimer.singleShot(300, request_application_quit)
     return application.exec()
+
+def _require_account(appearance: str):
+    """Return a signed-in Account, or None if the person closed the sign-in window."""
+    from PySide6.QtWidgets import QDialog
+
+    from soundflow.auth import AuthDialog
+    from soundflow.cloud import Account
+
+    account = Account()
+    # Start from the stored session without a network round trip; the sync
+    # service refreshes the token in the background and signs out if the
+    # server rejects it.
+    if account.session is None and (
+        AuthDialog(account, appearance).exec() != QDialog.DialogCode.Accepted
+    ):
+        return None
+    return account
+
+
+def relaunch_after_exit() -> None:
+    """Start a fresh Soundflow that waits for this process to quit first."""
+    from PySide6.QtCore import QProcess
+
+    if getattr(sys, "frozen", False):
+        program, arguments = sys.executable, []
+    else:
+        program, arguments = sys.executable, ["-m", "soundflow"]
+    arguments += ["--wait-for-pid", str(os.getpid())]
+    QProcess.startDetached(program, arguments)
+
+
+def _wait_for_exit(pid: int, timeout_s: float = 15.0) -> None:
+    import time
+
+    if sys.platform == "win32":  # os.kill(pid, 0) would terminate it on Windows
+        import ctypes
+
+        synchronize = 0x00100000
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(synchronize, False, pid)
+        if handle:
+            kernel32.WaitForSingleObject(handle, int(timeout_s * 1000))
+            kernel32.CloseHandle(handle)
+        return
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        except PermissionError:
+            return
+        time.sleep(0.1)
+
 
 def _run_inference_self_test(path: Path, device: str = "cpu") -> int:
     import wave

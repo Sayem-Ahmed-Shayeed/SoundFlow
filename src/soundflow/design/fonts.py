@@ -30,15 +30,32 @@ def preferred_font(candidates: tuple[str, ...]) -> str:
     return next((family for family in candidates if family in installed), "Sans Serif")
 
 
+_FONT_FILES = (
+    "Figtree-Regular.ttf",
+    "Figtree-Medium.ttf",
+    "Figtree-SemiBold.ttf",
+    "Figtree-Bold.ttf",
+    "EBGaramond-Regular.ttf",
+    "EBGaramond-Medium.ttf",
+    "EBGaramond-Italic.ttf",
+    "NotoSansBengali-Variable.ttf",
+)
+
+
 def register_application_fonts() -> tuple[int, ...]:
-    """Register Soundflow's bundled Geist and Outfit faces with the active Qt app."""
+    """Register the bundled Figtree, EB Garamond and Noto Sans Bengali faces.
+
+    Neither has Bangla letters, so Noto Sans Bengali is set as its
+    substitute: mixed text such as "English or বাংলা" draws each script from
+    the face designed for it.
+    """
 
     global _REGISTERED_FONT_IDS
     if _REGISTERED_FONT_IDS is not None:
         return _REGISTERED_FONT_IDS
 
     try:
-        from PySide6.QtGui import QFontDatabase
+        from PySide6.QtGui import QFont, QFontDatabase
         from PySide6.QtWidgets import QApplication
     except ImportError:
         return ()
@@ -50,26 +67,32 @@ def register_application_fonts() -> tuple[int, ...]:
         font_id
         for font_id in (
             QFontDatabase.addApplicationFont(str(font_directory / filename))
-            for filename in (
-                "Geist-Regular.ttf",
-                "Geist-Medium.ttf",
-                "Geist-SemiBold.ttf",
-                "Geist-Bold.ttf",
-                "GeistMono-Regular.ttf",
-                "GeistMono-Medium.ttf",
-                "Outfit-Variable.ttf",
-            )
+            for filename in _FONT_FILES
         )
         if font_id >= 0
     )
+    for family in (BODY_FONT, DISPLAY_FONT):
+        QFont.insertSubstitutions(family, [BANGLA_FONT])
     _REGISTERED_FONT_IDS = font_ids
     return font_ids
 
 
-DISPLAY_FONT = "Geist"
-HOME_DISPLAY_FONT = "Outfit"
-BODY_FONT = "Geist"
-MONO_FONT = "Geist Mono"
+def tabular(font):
+    """Return *font* with equal-width digits, for timers and counts."""
+    from PySide6.QtGui import QFont
+
+    font.setFeature(QFont.Tag("tnum"), 1)
+    return font
+
+
+# Figtree for every interface word; EB Garamond, a book serif, for page
+# titles, headings and big numbers. Digits use the tnum feature instead of a
+# monospace face.
+BODY_FONT = "Figtree"
+DISPLAY_FONT = "EB Garamond"
+HOME_DISPLAY_FONT = DISPLAY_FONT
+MONO_FONT = BODY_FONT
+BANGLA_FONT = "Noto Sans Bengali"
 
 SERIF_CANDIDATES = (
     "Iowan Old Style",

@@ -17,7 +17,17 @@ class SegmenterConfig:
     pre_roll_ms: int = 300
 
 
+try:
+    import numpy as _np
+except ImportError:  # pragma: no cover - numpy ships with faster-whisper
+    _np = None
+
+
 def pcm16_rms(frame: bytes) -> float:
+    if _np is not None and len(frame) >= 2:
+        samples = _np.frombuffer(frame, dtype=_np.int16, count=len(frame) // 2)
+        values = samples.astype(_np.float32)
+        return float(_np.sqrt(_np.dot(values, values) / len(values))) / 32768.0
     samples = array("h")
     samples.frombytes(frame)
     if not samples:

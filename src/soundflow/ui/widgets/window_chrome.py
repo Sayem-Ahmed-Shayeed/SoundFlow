@@ -10,13 +10,9 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QWidget
 
-from soundflow.design import (
-    BODY_FONT,
-    FONT_BODY,
-    FG_CREAM,
-    FG_MUTED,
-    SPACE_2,
-)
+from soundflow.design import SPACE_1, icon, icon_size
+
+_CHROME_ICON = "#8E8E99"  # mid-grey reads on both themes
 
 
 class WindowChrome(QWidget):
@@ -32,11 +28,11 @@ class WindowChrome(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(SPACE_2)
+        layout.setSpacing(SPACE_1)
 
-        self._min = self._make_button("\u2014", "minimize")  # em-dash
-        self._max = self._make_button("\u25A1", "maximize")  # square
-        self._close = self._make_button("\u00D7", "close")  # multiplication sign
+        self._min = self._make_button("minimize", "minimize")
+        self._max = self._make_button("maximize", "maximize")
+        self._close = self._make_button("close", "close")
         self._close.setObjectName("windowChrome:close")
 
         layout.addWidget(self._min)
@@ -44,12 +40,15 @@ class WindowChrome(QWidget):
         layout.addWidget(self._close)
 
     def _make_button(self, glyph: str, slot: str) -> QPushButton:
-        btn = QPushButton(glyph)
+        btn = QPushButton()
+        btn.setIcon(icon(glyph, _CHROME_ICON, 16))
+        btn.setIconSize(icon_size(16))
+        btn.setToolTip(slot.capitalize())
+        btn.setAccessibleName(slot.capitalize())
         btn.setObjectName(f"windowChrome:{slot}")
         btn.setProperty("chrome", True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedSize(28, 28)
-        btn.setFont(__import__("PySide6.QtGui", fromlist=["QFont"]).QFont(BODY_FONT, FONT_BODY))
+        btn.setFixedSize(30, 28)
         if slot == "minimize":
             btn.clicked.connect(self.minimize)
         elif slot == "maximize":

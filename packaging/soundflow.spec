@@ -43,6 +43,9 @@ for _mod in (
     "soundflow.preferences.tabs",
     "soundflow.utils",
     "soundflow._legacy",
+    "soundflow.auth",
+    "soundflow.cloud",
+    "soundflow.cloud.sync",
 ):
     hiddenimports.append(_mod)
 

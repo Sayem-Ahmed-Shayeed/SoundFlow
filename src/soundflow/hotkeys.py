@@ -71,7 +71,14 @@ def canonical_hotkey(value: str) -> str:
 
 def display_hotkey(value: str) -> str:
     labels = {"ctrl": "Ctrl", "alt": "Alt", "shift": "Shift", "cmd": "Super"}
-    return " + ".join(labels.get(part, part.upper()) for part in hotkey_parts(value))
+    def label(part: str) -> str:
+        if part in labels:
+            return labels[part]
+        if len(part) == 1 or (part[:1] == "f" and part[1:].isdigit()):
+            return part.upper()
+        return part.capitalize()
+
+    return " + ".join(label(part) for part in hotkey_parts(value))
 
 
 def parse_hotkey(value: str) -> frozenset[str]:
@@ -102,6 +109,21 @@ def portal_trigger(value: str) -> str:
         for part in hotkey_parts(value)
     ]
     return "+".join(result)
+
+
+def portal_shortcut_id(value: str) -> str:
+    """The name Soundflow registers its shortcut under with the desktop.
+
+    The desktop remembers the keys it approved for a name and ignores any
+    later "preferred" keys for that same name. So each key combination gets
+    its own name: changing the shortcut in Preferences asks the desktop to
+    approve the new keys instead of silently keeping the old ones. The
+    default keeps the original name so existing approvals still apply.
+    """
+    canonical = canonical_hotkey(value)
+    if canonical == canonical_hotkey("ctrl+alt+space"):
+        return "push_to_talk"
+    return "push_to_talk_" + canonical.replace("+", "_")
 
 
 class GlobalHotkeys:
@@ -206,6 +228,7 @@ class PortalGlobalHotkeys:
         parent_window: str = "",
     ) -> None:
         self.trigger = portal_trigger(push_to_talk)
+        self.shortcut_id = portal_shortcut_id(push_to_talk)
         self.on_ptt_down = on_ptt_down
         self.on_ptt_up = on_ptt_up
         self.on_error = on_error or (lambda message: None)
@@ -249,7 +272,7 @@ class PortalGlobalHotkeys:
     ) -> None:
         if (
             session_handle != self._session_handle
-            or shortcut_id != "push_to_talk"
+            or shortcut_id != self.shortcut_id
         ):
             return
 
@@ -379,7 +402,7 @@ class PortalGlobalHotkeys:
                     self._session_handle,
                     [
                         [
-                            "push_to_talk",
+                            self.shortcut_id,
                             {
                                 "description": Variant(
                                     "s", "Hold to dictate with Soundflow"
@@ -419,7 +442,7 @@ class PortalGlobalHotkeys:
                 and message.interface == "org.freedesktop.portal.GlobalShortcuts"
                 and len(message.body) >= 2
                 and message.body[0] == self._session_handle
-                and message.body[1] == "push_to_talk"
+                and message.body[1] == self.shortcut_id
             ):
                 self._handle_shortcut_event(
                     message.member,

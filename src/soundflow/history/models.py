@@ -28,7 +28,7 @@ class TranscriptEntry:
     def make_title(body: str, fallback: str = "Untitled") -> str:
         first = body.strip().splitlines()[0] if body.strip() else ""
         # Cap to a sentence-ish chunk for the card title.
-        for end in (". ", "! ", "? "):
+        for end in (". ", "! ", "? ", "। ", "।"):
             if end in first:
                 first = first.split(end, 1)[0]
                 break

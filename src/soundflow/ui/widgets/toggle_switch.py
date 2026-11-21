@@ -69,15 +69,12 @@ class ToggleSwitch(QCheckBox):
 
     @staticmethod
     def color_tokens(*, dark: bool, checked: bool) -> tuple[str, str, str]:
-        if checked:
-            return (
-                ("#9B72FF", "#A987FF", "#FFFFFF")
-                if dark else ("#7657F6", "#6848E8", "#FFFFFF")
-            )
-        return (
-            ("#242429", "#3A3A42", "#B7B7C0")
-            if dark else ("#D9DBE2", "#B9BCC6", "#FFFFFF")
-        )
+        """(track, border, thumb): the accent when on, a quiet grey when off."""
+        from soundflow.design.theme import palette
+
+        colors = palette(dark)
+        track = colors["accent"] if checked else colors["border_strong"]
+        return track, track, "#FFFFFF"
 
     def paintEvent(self, event) -> None:
         del event
