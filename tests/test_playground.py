@@ -24,5 +24,22 @@ class PlaygroundTransformTests(unittest.TestCase):
         self.assertEqual(smart_rewrite(""), "")
 
 
+
+class FormatRemovesHesitationsTests(unittest.TestCase):
+    def test_format_drops_um_uh_erm_hmm(self):
+        self.assertEqual(format_text("Um, the launch went great, uh."), "The launch went great.")
+        self.assertEqual(format_text("hmm let me think. erm, ok"), "Let me think. Ok.")
+        self.assertEqual(format_text("we shipped uhh today"), "We shipped today.")
+
+    def test_format_keeps_real_words(self):
+        self.assertEqual(format_text("uh-huh, that works"), "Uh-huh, that works.")
+        self.assertEqual(format_text("the drum umpire rule"), "The drum umpire rule.")
+        # "basically" is meaning-bearing enough to leave to Rewrite.
+        self.assertEqual(format_text("basically it works"), "Basically it works.")
+
+    def test_format_keeps_bangla(self):
+        self.assertEqual(format_text("আমি um ভালো আছি"), "আমি ভালো আছি")
+
+
 if __name__ == "__main__":
     unittest.main()

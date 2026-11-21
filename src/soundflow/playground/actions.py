@@ -14,9 +14,29 @@ import re
 from soundflow.injector import TextInjector
 
 
+# Sounds that are never words: "um", "uhh", "erm", "hmm". Hyphens and
+# apostrophes are excluded around them so "uh-huh" stays as written.
+_HESITATION = re.compile(r"(?i)(?<![\w'-])(?:u+m+|u+h+|e+r+m+|h+m+)(?![\w'-])\s*,?\s*")
+
+
+def remove_hesitations(text: str) -> str:
+    """Drop um/uh/erm/hmm and tidy the commas they leave behind."""
+    value = _HESITATION.sub("", text)
+    value = re.sub(r",\s*,+", ",", value)
+    value = re.sub(r",\s*([.!?।])", r"\1", value)
+    # A comma left at the start of the text or of a sentence.
+    value = re.sub(r"(^|[.!?।]\s+)[,;]\s*", r"\1", value)
+    return value
+
+
 def format_text(text: str) -> str:
-    """Conservatively normalize dictated prose without changing its meaning."""
-    value = text.strip()
+    """Normalize dictated prose without changing its meaning.
+
+    Fixes spacing, capitals and end punctuation, and removes hesitation
+    sounds (um, uh, erm, hmm). Words such as "basically" are left alone;
+    Rewrite handles those.
+    """
+    value = remove_hesitations(text.strip()).strip()
     if not value:
         return ""
     value = re.sub(r"[ \t]+", " ", value)
