@@ -44,7 +44,7 @@ from soundflow.core.settings import SettingsStore, default_model_path
 from soundflow.core.state import DictationState
 from soundflow.design import ANIMATION_NORMAL, BODY_FONT
 from soundflow.history import HistoryPage, HistoryStore
-from soundflow.hotkeys import display_hotkey
+from soundflow.hotkeys import display_hotkey, hotkey_from_trigger
 from soundflow.playground import PlaygroundPage
 from soundflow.preferences import PreferencesPage
 from soundflow.preferences.system_check import run_system_check
@@ -237,6 +237,7 @@ class MainWindow(LegacyMainWindow):
         self.dictation_page.dictation_toggled.connect(self.toggle_dictation)
         self.dictation_page.history_requested.connect(lambda: self.navigate("history"))
         self.dictation_page.cancel_requested.connect(self._cancel_dictation)
+        self.bridge.hotkey_rebound.connect(self._adopt_bound_shortcut)
         self.dictation_page.recent_copy_requested.connect(self._copy_entry)
         self.dictation_page.recent_open_requested.connect(self._open_entry)
         self.dictation_page.polish_requested.connect(self._polish_result)
@@ -589,6 +590,36 @@ class MainWindow(LegacyMainWindow):
             "recording" if state == "recording" else "ready"
         )
         self.persistent_status.set_status(message, status)
+
+    @Slot(str)
+    def _hotkey_ready(self, shortcut: str) -> None:
+        self._adopt_bound_shortcut(shortcut)
+        super()._hotkey_ready(shortcut)
+
+    @Slot(str)
+    def _adopt_bound_shortcut(self, description: str) -> None:
+        """Show the keys the desktop really bound, not the ones we asked for.
+
+        GNOME's approval dialog (and its keyboard settings) let people pick
+        other keys; the shortcut then works with those, so the home page and
+        Preferences must show them too.
+        """
+        bound = hotkey_from_trigger(description)
+        if bound is None or bound == self.settings.push_to_talk_hotkey:
+            return
+        _LOG.info("Adopting desktop-bound shortcut %s", bound)
+        self.settings.push_to_talk_hotkey = bound
+        shortcut_id = getattr(self.hotkeys, "shortcut_id", "")
+        self.settings.portal_bound_hotkey = bound if shortcut_id else ""
+        self.settings.portal_shortcut_id = shortcut_id or ""
+        self.store.save(self.settings)
+        # The desktop already has these keys; don't re-bind because of this.
+        self._hotkey_signature = (
+            self.settings.global_hotkeys, bound, self.no_hotkeys,
+        )
+        self._last_runtime_signature = self._runtime_settings_signature()
+        self.preferences_page.refresh_from_settings()
+        self._update_meta()
 
     def _refresh_shortcut_display(self) -> None:
         self._update_meta()

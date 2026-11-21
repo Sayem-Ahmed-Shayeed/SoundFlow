@@ -69,6 +69,40 @@ def canonical_hotkey(value: str) -> str:
     return "+".join(hotkey_parts(value))
 
 
+_TRIGGER_NAMES = {
+    "primary": "ctrl",
+    "mod1": "alt",
+    "meta": "cmd",
+    "logo": "cmd",
+    "mod4": "cmd",
+    "kp_enter": "enter",
+}
+
+
+def hotkey_from_trigger(text: str | None) -> str | None:
+    """Read the keys the desktop actually bound, e.g. "Ctrl+Space" or "<Control>z".
+
+    The desktop's approval dialog lets people pick other keys than the ones
+    Soundflow asked for; this turns its description back into a hotkey.
+    Returns None when the text cannot be understood.
+    """
+    if not text:
+        return None
+    value = text.strip()
+    # GTK accelerator form: <Control><Alt>space
+    value = value.replace("<", "").replace(">", "+")
+    parts = [part.strip() for part in value.split("+") if part.strip()]
+    if not parts:
+        return None
+    # Drop any words before the first key ("Press Ctrl").
+    parts[0] = parts[0].split()[-1]
+    parts = [_TRIGGER_NAMES.get(part.lower(), part) for part in parts]
+    try:
+        return canonical_hotkey("+".join(parts))
+    except ValueError:
+        return None
+
+
 def display_hotkey(value: str) -> str:
     labels = {"ctrl": "Ctrl", "alt": "Alt", "shift": "Shift", "cmd": "Super"}
     def label(part: str) -> str:
@@ -226,13 +260,17 @@ class PortalGlobalHotkeys:
         on_error: Callable[[str], None] | None = None,
         on_ready: Callable[[str], None] | None = None,
         parent_window: str = "",
+        shortcut_id: str = "",
     ) -> None:
         self.trigger = portal_trigger(push_to_talk)
-        self.shortcut_id = portal_shortcut_id(push_to_talk)
+        self.shortcut_id = shortcut_id or portal_shortcut_id(push_to_talk)
         self.on_ptt_down = on_ptt_down
         self.on_ptt_up = on_ptt_up
         self.on_error = on_error or (lambda message: None)
         self.on_ready = on_ready or (lambda shortcut: None)
+        # Called with the new trigger description when the person rebinds
+        # the shortcut in the desktop's own settings.
+        self.on_changed: Callable[[str], None] | None = None
         self.parent_window = parent_window
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -440,6 +478,22 @@ class PortalGlobalHotkeys:
             if (
                 message.message_type == MessageType.SIGNAL
                 and message.interface == "org.freedesktop.portal.GlobalShortcuts"
+                and message.member == "ShortcutsChanged"
+                and len(message.body) >= 2
+                and message.body[0] == self._session_handle
+            ):
+                for shortcut_id, props in message.body[1]:
+                    if shortcut_id != self.shortcut_id:
+                        continue
+                    changed = props.get("trigger_description")
+                    callback = self.on_changed
+                    if changed is not None and callback is not None:
+                        LOGGER.info("Global push-to-talk rebound: %s", changed.value)
+                        callback(changed.value)
+                return False
+            if (
+                message.message_type == MessageType.SIGNAL
+                and message.interface == "org.freedesktop.portal.GlobalShortcuts"
                 and len(message.body) >= 2
                 and message.body[0] == self._session_handle
                 and message.body[1] == self.shortcut_id
@@ -476,6 +530,7 @@ def create_global_hotkeys(
     on_error: Callable[[str], None] | None = None,
     on_ready: Callable[[str], None] | None = None,
     parent_window: str = "",
+    shortcut_id: str = "",
 ):
     if (
         sys.platform.startswith("linux")
@@ -488,6 +543,7 @@ def create_global_hotkeys(
             on_error,
             on_ready,
             parent_window,
+            shortcut_id,
         )
     return GlobalHotkeys(
         push_to_talk,

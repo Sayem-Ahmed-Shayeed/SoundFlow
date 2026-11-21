@@ -89,6 +89,7 @@ class UiBridge(QObject):
     ptt_up_requested = Signal()
     restore_token_ready = Signal(str)
     hotkey_ready = Signal(str)
+    hotkey_rebound = Signal(str)
     hotkey_error = Signal(str)
     injector_ready = Signal()
     injector_error = Signal(str)
@@ -1431,7 +1432,15 @@ class MainWindow(QMainWindow):
                     self.bridge.hotkey_error.emit,
                     self.bridge.hotkey_ready.emit,
                     self.portal_parent_window,
+                    shortcut_id=(
+                        self.settings.portal_shortcut_id
+                        if self.settings.portal_bound_hotkey
+                        == self.settings.push_to_talk_hotkey
+                        else ""
+                    ),
                 )
+                if hasattr(self.hotkeys, "on_changed"):
+                    self.hotkeys.on_changed = self.bridge.hotkey_rebound.emit
                 self.hotkeys.start()
             except HotkeyError as exc:
                 self.hotkeys = None

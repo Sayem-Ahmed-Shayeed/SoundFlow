@@ -43,6 +43,10 @@ class Settings:
     global_hotkeys: bool = True
     push_to_talk_hotkey: str = DEFAULT_PUSH_TO_TALK
     hotkey_authorized: bool = False
+    # The desktop name whose approved keys are push_to_talk_hotkey, when the
+    # person picked other keys in the desktop's dialog than Soundflow asked for.
+    portal_bound_hotkey: str = ""
+    portal_shortcut_id: str = ""
     silence_threshold: float = 0.012
     silence_duration_ms: int = 700
     min_speech_ms: int = 250
