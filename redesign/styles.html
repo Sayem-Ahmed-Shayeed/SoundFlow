@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soundflow sign-in styles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;1,6..96,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Caveat:wght@500;700&family=Figtree:wght@300;400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;1,9..144,300&family=Galada&family=Instrument+Serif:ital@0;1&family=Silkscreen&family=Space+Mono:wght@400;700&family=Syne:wght@600;800&family=Tiro+Bangla&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #FFFFEB; --ink: #1A1A1A; --green: #034F46; --night: #06100D;
+    --mint: #7FD6BE; --mint2: #B9D8CF; --lav: #F0D7FF; --lav2: #E6C2FF; --paper: #F7F7E2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #EDEDD7; color: var(--ink); font-family: "Figtree", sans-serif; padding: 40px 16px 80px; }
+  .intro { max-width: 1100px; margin: 0 auto 28px; }
+  .intro h1 { font-size: 22px; font-weight: 600; margin: 0 0 6px; }
+  .intro p { margin: 0; color: #55554C; font-size: 14px; max-width: 72ch; }
+  .grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 28px 24px; }
+  figure { margin: 0; }
+  .panel { position: relative; aspect-ratio: 4 / 5; border-radius: 18px; overflow: hidden; }
+  figcaption { padding: 12px 4px 0; }
+  figcaption b { display: block; font-size: 15px; font-weight: 600; }
+  figcaption span { font-size: 13px; color: #6F6F65; }
+  .photo { background: var(--night) url(auth-flowers.jpg) center / cover; }
+  .scrim::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6,16,13,0) 30%, rgba(6,16,13,.65) 68%, rgba(6,16,13,.92)); }
+  .layer { position: absolute; z-index: 1; }
+  .small { font-size: 13px; line-height: 1.45; }
+
+  /* 1 Editorial */
+  .s1 .layer { left: 26px; right: 22px; bottom: 26px; color: var(--cream); }
+  .s1 h2 { margin: 0; font: 400 50px/0.95 "Instrument Serif", serif; letter-spacing: -1px; }
+  .s1 h2 em { font-style: italic; color: var(--lav); }
+  .s1 p { margin: 14px 0 0; color: var(--mint2); }
+
+  /* 2 Poster */
+  .s2 { background: var(--green); color: var(--cream); }
+  .s2 h2 { position: absolute; left: 18px; right: 14px; top: 10px; margin: 0;
+           font: 800 124px/0.82 "Bricolage Grotesque", sans-serif; font-variation-settings: "opsz" 96; letter-spacing: -6px; }
+  .s2 h2 span { color: var(--lav); }
+  .s2 p { position: absolute; right: 20px; bottom: 20px; margin: 0; max-width: 17ch; text-align: right; color: var(--mint2); }
+
+  /* 3 Outline stack */
+  .s3 { background: var(--lav); }
+  .s3 .lines { position: absolute; left: 18px; right: 18px; top: 22px; font: 900 76px/0.86 "Big Shoulders Display", sans-serif; text-transform: uppercase; letter-spacing: -1px; }
+  .s3 .out { color: transparent; -webkit-text-stroke: 2px var(--ink); }
+  .s3 .solid { color: var(--green); }
+  .s3 p { position: absolute; left: 20px; bottom: 20px; margin: 0; font-weight: 600; }
+  .s3 .badge { position: absolute; right: 18px; bottom: 16px; width: 74px; height: 74px; border-radius: 50%; background: var(--ink); color: var(--lav);
+               display: grid; place-items: center; text-align: center; font: 800 12px/1.1 "Bricolage Grotesque", sans-serif; transform: rotate(-12deg); }
+
+  /* 4 Terminal */
+  .s4 { background: var(--night); color: var(--mint); font-family: "Space Mono", monospace; }
+  .s4 .layer { left: 22px; right: 20px; top: 24px; }
+  .s4 .bar { display: flex; gap: 6px; margin-bottom: 26px; }
+  .s4 .bar i { width: 10px; height: 10px; border-radius: 50%; background: #1E3A33; }
+  .s4 .line { font-size: 13px; color: #4E8A7B; margin: 0 0 10px; }
+  .s4 h2 { margin: 18px 0 18px; font: 700 31px/1.15 "Space Mono", monospace; color: var(--cream); letter-spacing: -1px; }
+  .s4 .caret { display: inline-block; width: 14px; height: 30px; background: var(--mint); vertical-align: -5px; }
+  .s4 .stat { font-size: 13px; color: var(--mint); }
+  .s4 .stat b { color: var(--cream); }
+
+  /* 5 Bangla lettering */
+  .s5 .layer { left: 24px; right: 20px; bottom: 26px; color: var(--cream); }
+  .s5 h2 { margin: 0; font: 400 74px/1.05 "Galada", cursive; }
+  .s5 p { margin: 10px 0 0; color: var(--mint2); }
+  .s5 .tag { position: absolute; top: 18px; left: 18px; z-index: 1; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,235,.92); color: var(--green);
+             font: 400 15px "Tiro Bangla", serif; }
+
+  /* 6 Scrapbook */
+  .s6 { background: var(--paper); }
+  .s6 .snap { position: absolute; right: 18px; top: 22px; width: 54%; aspect-ratio: 4 / 5; transform: rotate(4deg); border: 8px solid #fff; box-shadow: 0 8px 20px rgba(20,20,10,.15); }
+  .s6 .tape { position: absolute; right: 30%; top: 14px; width: 74px; height: 22px; background: rgba(230,194,255,.75); transform: rotate(-8deg); z-index: 2; }
+  .s6 h2 { position: absolute; left: 22px; bottom: 74px; margin: 0; z-index: 2; font: 300 60px/0.95 "Fraunces", serif; font-variation-settings: "opsz" 144, "SOFT" 100; letter-spacing: -2px; color: var(--green); }
+  .s6 h2 em { font-style: italic; }
+  .s6 .note { position: absolute; left: 26px; top: 40%; z-index: 2; font: 700 22px/1.1 "Caveat", cursive; color: #C4322D; transform: rotate(-6deg); }
+  .s6 .stickers { position: absolute; left: 20px; right: 16px; bottom: 20px; display: flex; flex-wrap: wrap; gap: 6px; z-index: 2; }
+  .s6 .stickers span { font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: var(--ink); color: var(--cream); }
+  .s6 .stickers span:nth-child(2) { background: var(--mint); color: var(--ink); transform: rotate(-3deg); }
+  .s6 .stickers span:nth-child(3) { background: var(--lav); color: var(--ink); transform: rotate(2deg); }
+
+  /* 7 Pixel Y2K */
+  .s7 { background: var(--mint); color: var(--ink); }
+  .s7 .layer { left: 22px; right: 22px; top: 26px; }
+  .s7 h2 { margin: 0; font: 400 52px/1 "Silkscreen", monospace; letter-spacing: -1px; }
+  .s7 .win { position: absolute; left: 22px; right: 22px; bottom: 22px; border: 2px solid var(--ink); background: var(--cream); box-shadow: 5px 5px 0 var(--ink); }
+  .s7 .win .t { background: var(--ink); color: var(--cream); font: 400 11px "Silkscreen", monospace; padding: 5px 8px; display: flex; justify-content: space-between; }
+  .s7 .win .b { padding: 12px; font-size: 13px; }
+  .s7 .prog { margin-top: 10px; height: 14px; border: 2px solid var(--ink); display: flex; gap: 2px; padding: 2px; }
+  .s7 .prog i { flex: 1; background: var(--green); }
+  .s7 .prog i.e { background: transparent; }
+
+  /* 8 Magazine cover */
+  .s8 .mast { position: absolute; z-index: 1; left: 0; right: 0; top: 14px; text-align: center; color: var(--cream);
+              font: 500 66px/1 "Bodoni Moda", serif; font-variation-settings: "opsz" 96; letter-spacing: -2px; }
+  .s8 .issue { position: absolute; z-index: 1; left: 0; right: 0; top: 88px; text-align: center; color: var(--mint2); font-size: 11px; letter-spacing: .08em; }
+  .s8 .lines { position: absolute; z-index: 1; left: 22px; right: 22px; bottom: 22px; color: var(--cream); }
+  .s8 .lines h2 { margin: 0 0 10px; font: italic 400 34px/1.02 "Bodoni Moda", serif; letter-spacing: -0.5px; }
+  .s8 .lines p { margin: 0 0 5px; font-size: 13px; color: var(--mint2); }
+  .s8 .lines p b { color: var(--lav); font-weight: 600; }
+
+  /* 9 Quiet luxury */
+  .s9 { background: var(--cream); border: 1px solid #E4E4D0; }
+  .s9 .zero { position: absolute; left: 14px; top: -34px; font: 400 300px/1 "Instrument Serif", serif; color: var(--green); letter-spacing: -10px; }
+  .s9 .layer { left: 26px; right: 24px; bottom: 26px; }
+  .s9 h2 { margin: 0 0 8px; font: 300 26px/1.2 "Figtree", sans-serif; letter-spacing: -0.5px; }
+  .s9 p { margin: 0; color: #6F6F65; }
+  .s9 .thumb { position: absolute; right: 24px; top: 34px; width: 34%; aspect-ratio: 3 / 4; border-radius: 999px 999px 12px 12px; }
+
+  /* 10 Circular */
+  .s10 { background: var(--green); color: var(--cream); }
+  .s10 .ring { position: absolute; left: 50%; top: 38%; width: 250px; height: 250px; transform: translate(-50%, -50%); }
+  .s10 .ring svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .s10 .ring text { font: 800 15px "Syne", sans-serif; letter-spacing: 3px; fill: var(--lav); }
+  .s10 .disc { position: absolute; inset: 42px; border-radius: 50%; }
+  .s10 h2 { position: absolute; left: 22px; right: 22px; bottom: 22px; margin: 0; text-align: center; font: 800 32px/1 "Syne", sans-serif; letter-spacing: -1px; }
+  .s10 h2 span { display: block; margin-top: 8px; font: 400 13px "Figtree", sans-serif; letter-spacing: 0; color: var(--mint2); }
+</style>
+</head>
+<body>
+  <div class="intro">
+    <h1>Ten styles for the sign-in panel</h1>
+    <p>Each one is a different direction for the left side of the sign-in window, in Soundflow's greens, cream and lavender. Pick a number, or mix them: the look of one with the words of another.</p>
+  </div>
+
+  <div class="grid">
+    <figure>
+      <div class="panel photo scrim s1"><div class="layer">
+        <h2>Speak like a CEO.<br><em>Type like you're on vacation.</em></h2>
+        <p class="small">Say it in English or বাংলা. Soundflow types it wherever your cursor is.</p>
+      </div></div>
+      <figcaption><b>1 · Editorial</b><span>Instrument Serif over the flowers, fashion-magazine calm</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel s2">
+        <h2>Don't type.<br><span>Yap.</span></h2>
+        <p class="small">Hold the shortcut, say it, it's written. Any app.</p>
+      </div>
+      <figcaption><b>2 · Poster</b><span>Bricolage Grotesque, huge and tight, like a gig poster</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel s3">
+        <div class="lines"><div class="out">Hands off</div><div class="solid">the keyboard.</div><div class="out">Mouth on.</div></div>
+        <p class="small">Main character energy only.</p>
+        <div class="badge">ZERO<br>TYPING<br>REQUIRED</div>
+      </div>
+      <figcaption><b>3 · Outline stack</b><span>Big Shoulders Display, solid and outlined lines, a sticker badge</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel s4"><div class="layer">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <p class="line">$ soundflow --listen</p>
+        <p class="line">● recording … 0:42</p>
+        <h2>brain dump,<br>but make it<br>typed.<span class="caret"></span></h2>
+        <p class="stat"><b>1,284</b> words today · <b>0</b> keys pressed</p>
+      </div></div>
+      <figcaption><b>4 · Terminal</b><span>Space Mono, for the Linux crowd</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel photo scrim s5">
+        <div class="tag">বাংলায় বলুন</div>
+        <div class="layer">
+          <h2>বলো,<br>লেখা হয়ে যাবে।</h2>
+          <p class="small">Say it, and it's written. English or Bangla, your call.</p>
+        </div>
+      </div>
+      <figcaption><b>5 · Bangla lettering</b><span>Galada, a Bangla display face, leading the line</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel s6">
+        <div class="snap photo"></div><div class="tape"></div>
+        <div class="note">certified yapper →</div>
+        <h2>Lazy?<br><em>No. Efficient.</em></h2>
+        <div class="stickers"><span>no typing</span><span>বাংলা ✓</span><span>typos? never heard of her</span></div>
+      </div>
+      <figcaption><b>6 · Scrapbook</b><span>Fraunces with Caveat handwriting, tape and stickers</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel s7">
+        <div class="layer"><h2>Typing is so 2019.</h2></div>
+        <div class="win">
+          <div class="t"><span>soundflow.exe</span><span>_ □ ×</span></div>
+          <div class="b">Your voice is the new keyboard. Talking… <div class="prog"><i></i><i></i><i></i><i></i><i></i><i></i><i class="e"></i><i class="e"></i></div></div>
+        </div>
+      </div>
+      <figcaption><b>7 · Y2K pixel</b><span>Silkscreen and an old-school window, playful</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel photo scrim s8">
+        <div class="mast">Soundflow</div>
+        <div class="issue">VOL. 01 · THE LAZY GENIUS ISSUE</div>
+        <div class="lines">
+          <h2>How to answer forty emails from bed</h2>
+          <p><b>No cap:</b> it types exactly what you say</p>
+          <p><b>Finally:</b> an app that gets your বাংলা</p>
+        </div>
+      </div>
+      <figcaption><b>8 · Magazine cover</b><span>Bodoni Moda masthead and cover lines</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel s9">
+        <div class="zero">0</div>
+        <div class="thumb photo"></div>
+        <div class="layer">
+          <h2>keys pressed today.<br>Still wrote 2,400 words.</h2>
+          <p class="small">Quiet luxury is speaking and letting the app do the rest.</p>
+        </div>
+      </div>
+      <figcaption><b>9 · Quiet luxury</b><span>A giant serif number, lots of space, an arched photo</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="panel s10">
+        <div class="ring">
+          <div class="disc photo"></div>
+          <svg viewBox="0 0 250 250" aria-hidden="true">
+            <defs><path id="circle" d="M125,125 m-112,0 a112,112 0 1,1 224,0 a112,112 0 1,1 -224,0"/></defs>
+            <text><textPath href="#circle">SAY IT · IT'S TYPED · SAY IT · IT'S TYPED · SAY IT · IT'S TYPED ·</textPath></text>
+          </svg>
+        </div>
+        <h2>Delulu ideas,<br>perfectly spelled.<span>Talk it out. Soundflow writes it down.</span></h2>
+      </div>
+      <figcaption><b>10 · Circle badge</b><span>Syne around a round photo, like a record label</span></figcaption>
+    </figure>
+  </div>
+</body>
+</html>

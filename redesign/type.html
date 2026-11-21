@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soundflow type options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond&family=Figtree:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Instrument+Serif&family=Newsreader:opsz,wght@6..72,300;6..72,400&family=Noto+Serif+Bengali:wght@400&family=Tiro+Bangla&display=swap" rel="stylesheet">
+<style>
+  :root { --canvas: #FFFFEB; --text: #1A1A1A; --text2: #55554C; --text3: #6F6F65; --border: #E4E4D0; --accent: #0B6B5E; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #EDEDD7; color: var(--text); font-family: "Figtree", sans-serif; padding: 40px 16px 80px; }
+  .intro { max-width: 1060px; margin: 0 auto 32px; }
+  .intro h1 { font-size: 22px; font-weight: 600; margin: 0 0 6px; }
+  .intro p { margin: 0; color: var(--text2); font-size: 14px; max-width: 70ch; }
+  .grid { max-width: 1060px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 24px; }
+  .option { background: var(--canvas); border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(20,20,10,.08); }
+  .stage { display: grid; grid-template-columns: 1fr 1fr; min-height: 340px; }
+  .art { position: relative; margin: 10px 0 10px 10px; border-radius: 14px; overflow: hidden; background: #06100D url(auth-flowers.jpg) center / cover; }
+  .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6,16,13,0) 35%, rgba(6,16,13,.6) 70%, rgba(6,16,13,.9)); }
+  .words { position: absolute; left: 22px; right: 18px; bottom: 22px; z-index: 1; color: #FFFFEB; }
+  .words .head { margin: 0; font-weight: 400; }
+  .words .sub { margin: 10px 0 0; font-size: 12.5px; color: #B9D8CF; }
+  .form { padding: 30px 24px; display: flex; flex-direction: column; justify-content: center; }
+  .form .title { margin: 0 0 6px; font-weight: 400; }
+  .form .note { margin: 0 0 18px; font-size: 12.5px; color: var(--text2); line-height: 1.45; }
+  .fake { height: 34px; border: 1px solid #D2D2BC; border-radius: 8px; background: #fff; margin-bottom: 10px; }
+  .btn { height: 36px; border-radius: 8px; background: #F0D7FF; display: grid; place-items: center; font-size: 13px; font-weight: 600; }
+  .meta { padding: 16px 22px 20px; border-top: 1px solid var(--border); }
+  .meta h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+  .meta p { margin: 0 0 8px; font-size: 13px; color: var(--text2); line-height: 1.5; }
+  .meta .fonts { font-size: 12px; color: var(--text3); }
+  .meta a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .meta a:hover { text-decoration: underline; }
+  .refs { max-width: 1060px; margin: 40px auto 0; }
+  .refs h2 { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+  .refs ul { margin: 0; padding-left: 18px; color: var(--text2); font-size: 14px; line-height: 1.8; }
+
+  /* A: Instrument Serif */
+  .a .head { font-family: "Instrument Serif", "Tiro Bangla", serif; font-size: 44px; line-height: 42px; letter-spacing: -0.5px; }
+  .a .bn { font-family: "Tiro Bangla", serif; font-size: 38px; }
+  .a .title { font-family: "Instrument Serif", serif; font-size: 34px; line-height: 1; letter-spacing: -0.3px; }
+  /* B: Fraunces */
+  .b .head { font-family: "Fraunces", "Tiro Bangla", serif; font-variation-settings: "opsz" 144, "SOFT" 100; font-weight: 300; font-size: 38px; line-height: 40px; letter-spacing: -1px; }
+  .b .bn { font-family: "Tiro Bangla", serif; font-size: 34px; }
+  .b .title { font-family: "Fraunces", serif; font-variation-settings: "opsz" 72; font-weight: 300; font-size: 29px; line-height: 1.05; letter-spacing: -0.6px; }
+  /* C: Newsreader */
+  .c .head { font-family: "Newsreader", "Noto Serif Bengali", serif; font-variation-settings: "opsz" 72; font-weight: 300; font-size: 40px; line-height: 42px; letter-spacing: -0.8px; }
+  .c .bn { font-family: "Noto Serif Bengali", serif; font-size: 33px; }
+  .c .title { font-family: "Newsreader", serif; font-variation-settings: "opsz" 48; font-weight: 300; font-size: 30px; line-height: 1.05; letter-spacing: -0.5px; }
+  /* D: current */
+  .d .head { font-family: "EB Garamond", "Noto Serif Bengali", serif; font-size: 38px; line-height: 40px; letter-spacing: -0.5px; }
+  .d .bn { font-family: "Noto Serif Bengali", serif; font-size: 33px; }
+  .d .title { font-family: "EB Garamond", serif; font-size: 30px; line-height: 1.05; }
+
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } .stage { grid-template-columns: 1fr; } .art { height: 260px; margin: 10px 10px 0; } }
+</style>
+</head>
+<body>
+  <div class="intro">
+    <h1>Headline type for the sign-in screen</h1>
+    <p>Each option shows the same screen with a different serif for the headline and title. The small text stays Figtree, the app's interface font. All fonts here are free to ship inside the app (SIL Open Font License).</p>
+  </div>
+
+  <div class="grid">
+    <section class="option a">
+      <div class="stage">
+        <div class="art"><div class="words"><p class="head">Speak in English<br>or <span class="bn">বাংলা</span>.</p><p class="sub">Soundflow types it wherever your cursor is.</p></div></div>
+        <div class="form"><p class="title">Sign in to Soundflow</p><p class="note">Your transcripts sync to every computer you sign in on.</p><div class="fake"></div><div class="fake"></div><div class="btn">Sign in</div></div>
+      </div>
+      <div class="meta">
+        <h2>A · Instrument Serif with Tiro Bangla (recommended)</h2>
+        <p>Tall, narrow and editorial, the look of current design-studio and fashion sites. It is set big and tight, and it suits a short headline like this one. Tiro Bangla is a serif Bangla built for pairing with Latin serifs, so বাংলা sits on the same line naturally.</p>
+        <p class="fonts">Instrument Serif by Instrument · Tiro Bangla by Tiro Typeworks · <a href="https://fonts.google.com/specimen/Instrument+Serif" target="_blank" rel="noopener">specimen</a></p>
+      </div>
+    </section>
+
+    <section class="option b">
+      <div class="stage">
+        <div class="art"><div class="words"><p class="head">Speak in English<br>or <span class="bn">বাংলা</span>.</p><p class="sub">Soundflow types it wherever your cursor is.</p></div></div>
+        <div class="form"><p class="title">Sign in to Soundflow</p><p class="note">Your transcripts sync to every computer you sign in on.</p><div class="fake"></div><div class="fake"></div><div class="btn">Sign in</div></div>
+      </div>
+      <div class="meta">
+        <h2>B · Fraunces (soft) with Tiro Bangla</h2>
+        <p>Warm and a little playful: rounded, soft serifs at large sizes. It goes well with the dreamy flower picture and feels friendlier than A.</p>
+        <p class="fonts">Fraunces by Undercase Type · <a href="https://fonts.google.com/specimen/Fraunces" target="_blank" rel="noopener">specimen</a></p>
+      </div>
+    </section>
+
+    <section class="option c">
+      <div class="stage">
+        <div class="art"><div class="words"><p class="head">Speak in English<br>or <span class="bn">বাংলা</span>.</p><p class="sub">Soundflow types it wherever your cursor is.</p></div></div>
+        <div class="form"><p class="title">Sign in to Soundflow</p><p class="note">Your transcripts sync to every computer you sign in on.</p><div class="fake"></div><div class="fake"></div><div class="btn">Sign in</div></div>
+      </div>
+      <div class="meta">
+        <h2>C · Newsreader Light with Noto Serif Bengali</h2>
+        <p>Calm and literary, like a well-set magazine. A light weight at display size gives a quiet, expensive feel without drawing attention to itself.</p>
+        <p class="fonts">Newsreader by Production Type · <a href="https://fonts.google.com/specimen/Newsreader" target="_blank" rel="noopener">specimen</a></p>
+      </div>
+    </section>
+
+    <section class="option d">
+      <div class="stage">
+        <div class="art"><div class="words"><p class="head">Speak in English<br>or <span class="bn">বাংলা</span>.</p><p class="sub">Soundflow types it wherever your cursor is.</p></div></div>
+        <div class="form"><p class="title">Sign in to Soundflow</p><p class="note">Your transcripts sync to every computer you sign in on.</p><div class="fake"></div><div class="fake"></div><div class="btn">Sign in</div></div>
+      </div>
+      <div class="meta">
+        <h2>D · EB Garamond with Noto Serif Bengali (what the app uses now)</h2>
+        <p>Classic book type. Elegant, but it reads older and smaller than the others at the same size.</p>
+        <p class="fonts">EB Garamond by Georg Duffner and Octavio Pardo</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="refs">
+    <h2>Where to see good typography on real websites</h2>
+    <ul>
+      <li><a href="https://www.typewolf.com" target="_blank" rel="noopener">Typewolf</a>: a new well-typeset site every day, with the fonts named</li>
+      <li><a href="https://fontsinuse.com" target="_blank" rel="noopener">Fonts In Use</a>: an archive of type in real products, searchable by typeface</li>
+      <li><a href="https://www.cosmos.so/search/elements/editorial%20serif%20website" target="_blank" rel="noopener">Cosmos: editorial serif websites</a>: the same kind of board you've been using</li>
+      <li><a href="https://fonts.google.com/specimen/Instrument+Serif" target="_blank" rel="noopener">Google Fonts specimens</a>: each option above, with its full character set</li>
+    </ul>
+  </div>
+</body>
+</html>

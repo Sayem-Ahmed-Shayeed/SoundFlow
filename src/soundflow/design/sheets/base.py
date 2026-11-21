@@ -187,6 +187,20 @@ QPushButton#destructiveButton {
 }
 QPushButton#destructiveButton:hover { border-color: ${text}; }
 QPushButton#deleteDialogCancel { background: ${surface}; }
+QDialog#messageDialog { background: transparent; }
+QFrame#messageDialogSurface {
+    background: ${surface};
+    border: 1px solid ${border_strong};
+    border-radius: 14px;
+}
+QLabel#messageDialogTitle {
+    font-family: "${display}";
+    font-size: 25px;
+    font-weight: 500;
+    color: ${text};
+}
+QLabel#messageDialogCopy { font-size: 13px; color: ${text2}; }
+QPushButton#messageDialogCancel { background: ${surface}; }
 
 /* Segmented controls: a raised track; the chosen option is a lifted tab */
 QFrame#segmentedControl {

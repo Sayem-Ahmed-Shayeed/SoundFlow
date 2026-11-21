@@ -136,7 +136,7 @@ class PreferencesPage(QWidget):
             button.style().polish(button)
 
     def _open_section(self, name: str) -> None:
-        index = {"dictation": 1, "speech_model": 2}.get(name)
+        index = {"dictation": 1, "speech_model": 2, "ai_polish": 3}.get(name)
         if index is not None:
             self._select_section(index)
 

@@ -1330,7 +1330,9 @@ class MainWindow(QMainWindow):
         self.bridge.injector_error.connect(self._injector_failed)
 
     def _build_tray(self) -> None:
-        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+        from soundflow.design import app_icon
+
+        icon = app_icon()
         self.setWindowIcon(icon)
         self.tray = QSystemTrayIcon(icon, self)
         menu = self.tray.contextMenu()

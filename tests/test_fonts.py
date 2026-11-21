@@ -4,11 +4,12 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtGui import QFont, QFontDatabase, QFontInfo
 from PySide6.QtWidgets import QApplication
 
 from soundflow.design.fonts import (
     BODY_FONT,
+    COVER_FONT,
     DISPLAY_FONT,
     HOME_DISPLAY_FONT,
     MONO_FONT,
@@ -29,7 +30,7 @@ class FontTests(unittest.TestCase):
         self.assertEqual(DISPLAY_FONT, "EB Garamond")
         self.assertEqual(HOME_DISPLAY_FONT, "EB Garamond")
         self.assertEqual(MONO_FONT, "Figtree")
-        self.assertEqual(len(font_ids), 8)
+        self.assertEqual(len(font_ids), 12)
         families = QFontDatabase.families()
         for family in ("Figtree", "EB Garamond", "Noto Sans Bengali"):
             self.assertIn(family, families)
@@ -39,11 +40,23 @@ class FontTests(unittest.TestCase):
         )
         self.assertTrue({"Regular", "Medium", "Italic"} <= set(QFontDatabase.styles("EB Garamond")))
 
+    def test_bodoni_moda_is_registered_for_the_sign_in_cover(self):
+        register_application_fonts()
+        self.assertEqual(COVER_FONT, "Bodoni Moda")
+        self.assertIn("Bodoni Moda", QFontDatabase.families())
+        italic = QFont(COVER_FONT)
+        italic.setItalic(True)
+        self.assertEqual(QFontInfo(italic).family(), "Bodoni Moda")
+        self.assertTrue(QFontInfo(italic).italic())
+
     def test_bangla_falls_back_to_noto_sans_bengali(self):
         register_application_fonts()
-        for family in (BODY_FONT, DISPLAY_FONT):
-            substitutes = [name.lower() for name in QFont.substitutes(family)]
-            self.assertIn("noto sans bengali", substitutes)
+        body = [name.lower() for name in QFont.substitutes(BODY_FONT)]
+        self.assertEqual(body[0], "noto sans bengali")
+        # Headings pair Bangla with a serif so it matches EB Garamond.
+        display = [name.lower() for name in QFont.substitutes(DISPLAY_FONT)]
+        self.assertEqual(display[0], "noto serif bengali")
+        self.assertIn("Noto Serif Bengali", QFontDatabase.families())
 
     def test_tabular_turns_on_equal_width_digits(self):
         font = tabular(QFont(BODY_FONT))
@@ -73,6 +86,12 @@ class FontTests(unittest.TestCase):
                 "EBGaramond-Italic.ttf",
                 "NOTO-SANS-BENGALI-OFL.txt",
                 "NotoSansBengali-Variable.ttf",
+                "NOTO-SERIF-BENGALI-OFL.txt",
+                "NotoSerifBengali-Regular.ttf",
+                "NotoSerifBengali-Medium.ttf",
+                "BODONI-MODA-OFL.txt",
+                "BodoniModa-Medium.ttf",
+                "BodoniModa-Italic.ttf",
             },
         )
 

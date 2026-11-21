@@ -14,7 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from string import Template
 
-from .fonts import BODY_FONT, DISPLAY_FONT, MONO_FONT
+from .fonts import BODY_FONT, COVER_FONT, DISPLAY_FONT, MONO_FONT
 from .sheets import SHEETS
 
 # --- Tokens ----------------------------------------------------------------
@@ -173,6 +173,7 @@ def stylesheet(dark: bool) -> str:
     tokens.update(
         body=BODY_FONT,
         display=DISPLAY_FONT,
+        cover=COVER_FONT,
         mono=MONO_FONT,
         chevron=_chevron(dark),
         model_delete_disabled_text=tokens["text2"],

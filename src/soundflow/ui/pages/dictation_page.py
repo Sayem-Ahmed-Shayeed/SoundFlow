@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from soundflow.design import icon, icon_size
+from soundflow.design import icon, icon_pixmap, icon_size
 from soundflow.design.fonts import BODY_FONT, DISPLAY_FONT, tabular
 from soundflow.design.motion import ease_out_curve, reduced_motion
 from soundflow.design.spacing import ANIMATION_NORMAL
@@ -253,14 +253,14 @@ class VoiceBars(QWidget):
     """Your voice as level bars scrolling right to left, on the green card.
 
     ``state`` is ``idle`` (nothing recorded), ``live``, ``scanning`` (the
-    recording is being transcribed: dimmed, with a light sweeping across) or
-    ``frozen`` (the last recording, still).
+    recording is being transcribed: dimmed while the activity indicator
+    beside it turns) or ``frozen`` (the last recording, still). Only live
+    audio repaints it; it has no timer of its own.
     """
 
     BAR = 3
     GAP = 3
     CHUNK = 480  # 30 ms of 16 kHz audio per bar
-    SWEEP_MS = 1400
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -269,11 +269,6 @@ class VoiceBars(QWidget):
         self._levels: deque[float] = deque(maxlen=480)
         self._pending = np.zeros(0, dtype=np.float32)
         self._state = "idle"
-        self._sweep = 0.0
-        self._timer = QTimer(self)
-        self._timer.setInterval(33)
-        self._timer.timeout.connect(self._step)
-        self._clock = 0
 
     @property
     def state(self) -> str:
@@ -314,28 +309,7 @@ class VoiceBars(QWidget):
 
     def _set_state(self, state: str) -> None:
         self._state = state
-        if state == "scanning" and not reduced_motion():
-            self._clock = 0
-            self._timer.start()
-        else:
-            self._timer.stop()
         self.update()
-
-    def _step(self) -> None:
-        if not self.isVisible():
-            return
-        self._clock += self._timer.interval()
-        self._sweep = (self._clock % self.SWEEP_MS) / self.SWEEP_MS
-        self.update()
-
-    def hideEvent(self, event) -> None:
-        super().hideEvent(event)
-        self._timer.stop()
-
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        if self._state == "scanning" and not reduced_motion():
-            self._timer.start()
 
     def paintEvent(self, event) -> None:
         del event
@@ -355,14 +329,7 @@ class VoiceBars(QWidget):
         for index, level in enumerate(levels):
             x = left + index * step
             bar = max(3.0, level * (height - 4))
-            alpha = 0.92
-            if self._state in {"frozen", "scanning"}:
-                alpha = 0.4
-            if self._state == "scanning":
-                position = index / max(1, count - 1)
-                distance = abs(position - self._sweep)
-                alpha += max(0.0, 0.5 * (1 - distance / 0.12))
-            ink.setAlphaF(min(1.0, alpha))
+            ink.setAlphaF(0.4 if self._state in {"frozen", "scanning"} else 0.92)
             painter.setBrush(ink)
             painter.drawRoundedRect(QRectF(x, middle - bar / 2, self.BAR, bar), 1.5, 1.5)
 
@@ -521,7 +488,7 @@ class _Swatches(QWidget):
 class _StatTile(QFrame):
     """One number with its name and a line of context."""
 
-    def __init__(self, emoji: str, name: str, parent: QWidget | None = None) -> None:
+    def __init__(self, icon_name: str, name: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("statTile")
         layout = QVBoxLayout(self)
@@ -529,11 +496,13 @@ class _StatTile(QFrame):
         layout.setSpacing(4)
         head = QHBoxLayout()
         head.setSpacing(8)
-        badge = QLabel(emoji)
-        badge.setObjectName("statBadge")
-        badge.setFixedSize(26, 26)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        head.addWidget(badge)
+        self.icon_name = icon_name
+        self.badge = QLabel()
+        self.badge.setObjectName("statBadge")
+        self.badge.setFixedSize(28, 28)
+        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.paint_icon()
+        head.addWidget(self.badge)
         title = QLabel(name)
         title.setObjectName("statName")
         head.addWidget(title, 1)
@@ -556,6 +525,9 @@ class _StatTile(QFrame):
         self.note.setWordWrap(True)
         self.note.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(self.note)
+
+    def paint_icon(self) -> None:
+        self.badge.setPixmap(icon_pixmap(self.icon_name, current_palette()["accent_text"], 16))
 
     def set(self, value: str, unit: str = "", note: str = "") -> None:
         self.value.setText(value)
@@ -892,10 +864,10 @@ class DictationPage(QWidget):
         tiles = QGridLayout()
         tiles.setHorizontalSpacing(14)
         tiles.setVerticalSpacing(14)
-        self._week_tile = _StatTile("✍️", "Words this week")
-        self._speed_tile = _StatTile("⚡", "Speaking speed")
-        self._saved_tile = _StatTile("⏱️", "Time saved")
-        self._streak_tile = _StatTile("🔥", "Day streak")
+        self._week_tile = _StatTile("pen", "Words this week")
+        self._speed_tile = _StatTile("gauge", "Speaking speed")
+        self._saved_tile = _StatTile("clock", "Time saved")
+        self._streak_tile = _StatTile("flame", "Day streak")
         self._tiles = [self._week_tile, self._speed_tile, self._saved_tile, self._streak_tile]
         for index, tile in enumerate(self._tiles):
             tiles.addWidget(tile, 0, index)
@@ -1005,6 +977,8 @@ class DictationPage(QWidget):
         self.polish_button.setIcon(icon("sparkle", colors["text2"], 16))
         for row in self._recent_rows:
             row._paint_icon("copy")
+        for tile in self._tiles:
+            tile.paint_icon()
         self.update()
 
     def changeEvent(self, event) -> None:

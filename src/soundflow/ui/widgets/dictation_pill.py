@@ -7,16 +7,16 @@ themes so it reads on any app behind it::
 
 * ``recording`` - a red dot, your voice as cream bars scrolling right to
   left, and the elapsed time.
-* ``processing`` - a turning mint arc; the bars stop and dim while a light
-  sweeps across them, and the time stops.
+* ``processing`` - a mint Cupertino activity indicator; the bars stop and
+  dim, and the time stops.
 * ``done`` - a mint check and "Pasted" (or "Copied"), then it hides itself.
 
 It is summoned by a shortcut many times a day, so it appears and leaves
 instantly. It paints everything itself (no child widgets or opacity effects
 on a translucent always-on-top window), and draws no shadow: a soft shadow
 on a translucent window shows as a grey halo on desktops that don't blend
-it. It repaints when audio arrives; its timer runs only to turn the spinner,
-move the sweep and tick the clock.
+it. It repaints when audio arrives; its timer runs only to step the
+indicator (8 times a second) and tick the clock (4 times a second).
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from soundflow.design.fonts import BODY_FONT, tabular
 from soundflow.design.motion import reduced_motion
+from soundflow.ui.widgets.spinner import STEP_MS, activity_step, paint_activity
 
 PILL_BG = "#141414"
 PILL_BORDER = "#3A3A36"
@@ -52,10 +53,7 @@ class DictationPill(QWidget):
     BARS_W = 104
     BARS_H = 20
     CHUNK = 480  # 30 ms of 16 kHz audio per bar
-    SPIN_MS = 33
     CLOCK_MS = 250
-    TURN_MS = 800
-    SWEEP_MS = 1400
     DONE_MS = 900
 
     def __init__(self) -> None:
@@ -75,6 +73,7 @@ class DictationPill(QWidget):
         self._done_text = "Pasted"
         self._started_at = 0.0
         self._frozen_ms = 0.0
+        self._processing_since = 0.0
         self._heard_audio = False
         self._levels: deque[float] = deque(maxlen=self._bar_count())
         self._pending = np.zeros(0, dtype=np.float32)
@@ -119,7 +118,8 @@ class DictationPill(QWidget):
         if reduced_motion():
             self._timer.stop()
         else:
-            self._run_timer(self.SPIN_MS)
+            self._processing_since = self._now()
+            self._run_timer(STEP_MS)
         self.update()
 
     def show_done(self, text: str = "Pasted") -> None:
@@ -253,17 +253,11 @@ class DictationPill(QWidget):
         levels = list(self._levels)[-count:]
         levels = [0.0] * (count - len(levels)) + levels
         step = self.BAR + self.GAP
-        sweep = (self._now() % self.SWEEP_MS) / self.SWEEP_MS
-        sweeping = self._state == "processing" and not reduced_motion()
         ink = QColor(PILL_TEXT)
+        ink.setAlphaF(0.95 if self._state == "recording" else 0.35)
         painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(ink)
         for index, level in enumerate(levels):
-            alpha = 0.95 if self._state == "recording" else 0.35
-            if sweeping:
-                distance = abs(index / max(1, count - 1) - sweep)
-                alpha += max(0.0, 0.55 * (1 - distance / 0.14))
-            ink.setAlphaF(min(1.0, alpha))
-            painter.setBrush(ink)
             height = max(2.5, level * area.height())
             painter.drawRoundedRect(
                 QRectF(area.left() + index * step, area.center().y() - height / 2, self.BAR, height),
@@ -279,16 +273,8 @@ class DictationPill(QWidget):
             painter.setBrush(QColor(PILL_RECORD))
             painter.drawEllipse(center, 4.5, 4.5)
         elif self._state == "processing":
-            angle = 0.0 if reduced_motion() else (self._now() / self.TURN_MS * 360.0) % 360.0
-            ring = QRectF(center.x() - 6, center.y() - 6, 12, 12)
-            pen = QPen(QColor(127, 214, 190, 64), 2)
-            painter.setPen(pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawEllipse(ring)
-            pen.setColor(QColor(PILL_OK))
-            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            painter.setPen(pen)
-            painter.drawArc(ring, int((90 - angle) * 16), -90 * 16)
+            step = 0 if reduced_motion() else activity_step(self._now() - self._processing_since)
+            paint_activity(painter, center, 7.5, QColor(PILL_OK), step)
         elif self._state == "done":
             painter.setBrush(QColor(PILL_OK))
             painter.drawEllipse(center, 8.5, 8.5)

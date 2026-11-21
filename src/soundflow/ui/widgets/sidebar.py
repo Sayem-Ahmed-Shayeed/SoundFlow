@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from soundflow.design import icon, icon_size, palette
 from soundflow.design.spacing import SIDEBAR_WIDTH
+from soundflow.ui.widgets.spinner import Spinner
 
 _PAGES = (
     ("dictation", "home", "Home"),
@@ -145,6 +146,10 @@ class AppSidebar(QFrame):
         self.sync_dot.setProperty("state", "busy")
         self.sync_dot.setStyleSheet("font-size: 8px;")
         sync_row.addWidget(self.sync_dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        # While syncing, a small activity indicator takes the dot's place.
+        self.sync_spinner = Spinner(10)
+        self.sync_spinner.hide()
+        sync_row.addWidget(self.sync_spinner, 0, Qt.AlignmentFlag.AlignVCenter)
         self.sync_status = QLabel("")
         self.sync_status.setObjectName("accountMeta")
         sync_row.addWidget(self.sync_status, 1)
@@ -201,7 +206,10 @@ class AppSidebar(QFrame):
     def set_sync_status(self, text: str) -> None:
         self.sync_status.setText(_SYNC_LABELS.get(text, text))
         self.sync_status.setToolTip(_SYNC_TIPS.get(text, ""))
-        self.sync_dot.setProperty("state", _SYNC_STATES.get(text, "busy"))
+        state = _SYNC_STATES.get(text, "busy")
+        self.sync_dot.setProperty("state", state)
+        self.sync_dot.setVisible(state != "busy")
+        self.sync_spinner.setVisible(state == "busy")
         self.sync_dot.style().unpolish(self.sync_dot)
         self.sync_dot.style().polish(self.sync_dot)
 

@@ -6,21 +6,23 @@ import html
 import re
 import threading
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QByteArray, QObject, QRectF, Qt, Signal, Slot
+from PySide6.QtCore import QByteArray, QObject, QPointF, QRectF, Qt, Signal, Slot
 from PySide6.QtGui import (
-    QBrush,
+    QAction,
     QColor,
     QFont,
+    QFontMetricsF,
     QLinearGradient,
     QPainter,
     QPainterPath,
     QPixmap,
-    QRegion,
 )
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -38,6 +40,7 @@ from soundflow.design import (
     BODY_FONT,
     CONTROL_HEIGHT_LG,
     CONTROL_HEIGHT_MD,
+    COVER_FONT,
     FONT_BODY,
     FONT_SMALL,
     SPACE_2,
@@ -45,21 +48,24 @@ from soundflow.design import (
     SPACE_5,
     SPACE_6,
     SPACE_10,
+    icon,
     icon_pixmap,
     palette,
     resolved_dark,
     stylesheet,
 )
 from soundflow.ui.widgets.segmented import SegmentedControl
-from soundflow.ui.widgets.spectrogram import SpectrogramView
+from soundflow.ui.widgets.spinner import Spinner
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MIN_PASSWORD = 8
 
-ART_RADIUS = 12
-ART_SPECTROGRAM_SHARE = 0.58
+ART_IMAGE = Path(__file__).resolve().parents[1] / "assets" / "art" / "auth-flowers.jpg"
+ART_RADIUS = 18
 ART_PADDING = 32
-HEADLINE_WIDTH = 480
+MASTHEAD = "Soundflow"
+COVER_LINE = ("Delulu ideas,", "perfectly spelled.")
+EYE_COLOR = "#8A8A80"  # reads on the white field in light and the dark field in dark
 FORM_WIDTH = 470
 FORM_SIDE_MARGIN = 52
 MAIL_TILE = 52
@@ -123,6 +129,27 @@ def _label(text: str, name: str, size: int, family: str = BODY_FONT) -> QLabel:
     return label
 
 
+def _password_field() -> QLineEdit:
+    """A password field with an eye at its end that shows or hides what you typed."""
+    field = _field("", password=True)
+    field.setObjectName("passwordField")
+    toggle = QAction(icon("eye", EYE_COLOR), "Show password", field)
+    toggle.setCheckable(True)
+    toggle.setToolTip("Show password")
+
+    def flip(shown: bool) -> None:
+        field.setEchoMode(QLineEdit.EchoMode.Normal if shown else QLineEdit.EchoMode.Password)
+        label = "Hide password" if shown else "Show password"
+        toggle.setIcon(icon("eye-off" if shown else "eye", EYE_COLOR))
+        toggle.setText(label)
+        toggle.setToolTip(label)
+
+    toggle.toggled.connect(flip)
+    field.addAction(toggle, QLineEdit.ActionPosition.TrailingPosition)
+    field.reveal_action = toggle
+    return field
+
+
 def _field(placeholder: str, password: bool = False) -> QLineEdit:
     field = QLineEdit()
     field.setPlaceholderText(placeholder)
@@ -174,61 +201,78 @@ def _mail_mark(color: str) -> QLabel:
     return mark
 
 
-class _Fade(QWidget):
-    """Paints the art background over the lower part of the spectrogram."""
+class _ArtPanel(QFrame):
+    """A magazine cover: the flower picture, "Soundflow" as the masthead and
+    one cover line. Painted, not animated, and the same in both themes."""
 
-    def __init__(self, color: str, parent: QWidget) -> None:
+    def __init__(self, dark: bool, parent: QWidget | None = None) -> None:
+        del dark  # the picture is the same in both themes
         super().__init__(parent)
-        self._color = QColor(color)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setObjectName("authArt")
+        self.picture = QPixmap(str(ART_IMAGE))
+        self.masthead = MASTHEAD
+        self.cover_line = COVER_LINE
+        self._mast_font = QFont(COVER_FONT)
+        self._mast_font.setWeight(QFont.Weight.Medium)
+        self._line_font = QFont(COVER_FONT)
+        self._line_font.setItalic(True)
+
+    def _cover_rect(self) -> QRectF:
+        """Where the picture lands: it fills the panel, cropped from the centre."""
+        if self.picture.isNull():
+            return QRectF(self.rect())
+        scale = max(self.width() / self.picture.width(), self.height() / self.picture.height())
+        width, height = self.picture.width() * scale, self.picture.height() * scale
+        return QRectF((self.width() - width) / 2, (self.height() - height) / 2, width, height)
 
     def paintEvent(self, event) -> None:
         del event
-        gradient = QLinearGradient(0, 0, 0, self.height())
-        clear = QColor(self._color)
-        clear.setAlpha(0)
-        gradient.setColorAt(0.55, clear)
-        gradient.setColorAt(1.0, self._color)
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QBrush(gradient))
-        painter.end()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        width, height = float(self.width()), float(self.height())
+        clip = QPainterPath()
+        clip.addRoundedRect(QRectF(0, 0, width, height), ART_RADIUS, ART_RADIUS)
+        painter.setClipPath(clip)
+        painter.fillRect(self.rect(), QColor("#06100D"))
+        if not self.picture.isNull():
+            painter.drawPixmap(self._cover_rect(), self.picture, QRectF(self.picture.rect()))
 
+        # Shade the top and the bottom so cream type reads on any part of it.
+        top = QLinearGradient(0, 0, 0, height * 0.34)
+        top.setColorAt(0.0, QColor(6, 16, 13, 140))
+        top.setColorAt(1.0, QColor(6, 16, 13, 0))
+        painter.fillRect(QRectF(0, 0, width, height * 0.34), top)
+        bottom = QLinearGradient(0, height * 0.4, 0, height)
+        bottom.setColorAt(0.0, QColor(6, 16, 13, 0))
+        bottom.setColorAt(0.47, QColor(6, 16, 13, 166))
+        bottom.setColorAt(1.0, QColor(6, 16, 13, 230))
+        painter.fillRect(QRectF(0, height * 0.4, width, height * 0.6), bottom)
 
-def _rounded_region(width: int, height: int, radius: float) -> QRegion:
-    path = QPainterPath()
-    path.addRoundedRect(QRectF(0, 0, width, height), radius, radius)
-    return QRegion(path.toFillPolygon().toPolygon())
-
-
-class _ArtPanel(QFrame):
-    """Spectrogram of a made-up sentence fading out, with the headline below it."""
-
-    def __init__(self, dark: bool, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("authArt")
-        # About three pixels per column, as in the prototype, so syllables read
-        # as shapes rather than thin stripes.
-        self.spectrogram = SpectrogramView(self, columns=240, compact=True)
-        self.spectrogram.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.spectrogram.fill_synthetic(29)
-        self._fade = _Fade(palette(dark)["spectrum_bg"], self)
-        self.headline = QLabel(
-            "Speak in English or বাংলা. Soundflow types it wherever your cursor is.", self
+        painter.setPen(QColor("#FFFFEB"))
+        # Masthead across the top, sized to the panel like a magazine title.
+        mast_px = max(40, min(76, round(width * 0.135)))
+        self._mast_font.setPixelSize(mast_px)
+        self._mast_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, -mast_px * 0.033)
+        painter.setFont(self._mast_font)
+        mast_metrics = QFontMetricsF(self._mast_font)
+        painter.drawText(
+            QRectF(0, 22, width, mast_metrics.height()),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+            self.masthead,
         )
-        self.headline.setObjectName("authHeadline")
-        self.headline.setWordWrap(True)
 
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        width, height = self.width(), self.height()
-        top = round(height * ART_SPECTROGRAM_SHARE)
-        self.spectrogram.setGeometry(0, 0, width, top)
-        self.spectrogram.setMask(_rounded_region(width, top, ART_RADIUS))
-        self._fade.setGeometry(0, 0, width, top)
-        text_width = max(0, min(HEADLINE_WIDTH, width - 2 * ART_PADDING))
-        text_height = self.headline.heightForWidth(text_width)
-        self.headline.setFixedSize(text_width, text_height)
-        self.headline.move(ART_PADDING, height - ART_PADDING - text_height)
+        # The cover line, bottom left, two italic lines set tight.
+        line_px = max(30, min(46, round(width * 0.078)))
+        self._line_font.setPixelSize(line_px)
+        self._line_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, -line_px * 0.018)
+        painter.setFont(self._line_font)
+        metrics = QFontMetricsF(self._line_font)
+        leading = line_px * 1.04
+        baseline = height - ART_PADDING - metrics.descent()
+        for index, text in enumerate(reversed(self.cover_line)):
+            painter.drawText(QPointF(ART_PADDING, baseline - index * leading), text)
+        painter.end()
 
 
 class GenderPicker(SegmentedControl):
@@ -330,6 +374,10 @@ class AuthDialog(QDialog):
         self.setMinimumSize(880, 580)
         self.resize(1000, 640)
         self.setStyleSheet(stylesheet(dark))
+        # Painted widgets (the activity indicator) read the theme from here.
+        app = QApplication.instance()
+        if app is not None and app.property("soundflowDark") is None:
+            app.setProperty("soundflowDark", dark)
 
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -337,7 +385,7 @@ class AuthDialog(QDialog):
 
         art_column = QWidget()
         art_layout = QVBoxLayout(art_column)
-        art_layout.setContentsMargins(SPACE_3 + 2, 0, 0, SPACE_3 + 2)
+        art_layout.setContentsMargins(SPACE_3 + 2, SPACE_3 + 2, 0, SPACE_3 + 2)
         self.art = _ArtPanel(dark)
         art_layout.addWidget(self.art)
         root.addWidget(art_column, 1)
@@ -366,9 +414,16 @@ class AuthDialog(QDialog):
         self._build_check_email()
         self._build_reset()
 
+        status_row = QHBoxLayout()
+        status_row.setContentsMargins(0, 0, 0, 0)
+        status_row.setSpacing(SPACE_2)
+        self.spinner = Spinner(14)
+        self.spinner.hide()
+        status_row.addWidget(self.spinner, 0, Qt.AlignmentFlag.AlignVCenter)
         self.status = _label("", "captionText", FONT_SMALL)
         self.status.setMinimumHeight(18)
-        column.addWidget(self.status)
+        status_row.addWidget(self.status, 1)
+        column.addLayout(status_row)
         root.addWidget(form)
         self._show(self.sign_in_page)
 
@@ -378,7 +433,7 @@ class AuthDialog(QDialog):
         self.in_email = page.labelled("Email", _field("you@example.com"))
         forgot = page.label_line("Password", "Forgot password?")
         forgot.clicked.connect(self._forgot_password)
-        self.in_password = page.add(_field("", password=True), gap=SPACE_5)
+        self.in_password = page.add(_password_field(), gap=SPACE_5)
         self.in_password.returnPressed.connect(self._sign_in)
         self.in_submit = page.add(_button("Sign in", "primaryButton"), gap=SPACE_5)
         self.in_submit.clicked.connect(self._sign_in)
@@ -397,8 +452,8 @@ class AuthDialog(QDialog):
         self.up_email = page.labelled("Email", _field("you@example.com"))
         self.up_gender = page.labelled("Gender", GenderPicker())
 
-        self.up_password = _field("", True)
-        self.up_confirm = _field("", password=True)
+        self.up_password = _password_field()
+        self.up_confirm = _password_field()
         split = QHBoxLayout()
         split.setContentsMargins(0, 0, 0, 0)
         split.setSpacing(SPACE_3)
@@ -458,6 +513,7 @@ class AuthDialog(QDialog):
 
     def _busy(self, busy: bool, text: str = "") -> None:
         self.pages.setEnabled(not busy)
+        self.spinner.setVisible(busy)
         if text:
             self._set_status(text)
 

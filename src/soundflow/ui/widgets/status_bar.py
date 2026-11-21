@@ -2,7 +2,7 @@
 
 Reference layout:
 
-    ● System Ready · ✦ Offline Mode · English (US) · ⚙
+    status dot, "System Ready", "Offline Mode", language, settings
 
 Uses the design tokens from :mod:`soundflow.design`. Exposes a small API
 to update each segment; segments with no updater stay at their default

@@ -417,6 +417,34 @@ class AuthDialogTests(unittest.TestCase):
         self.assertEqual(client.calls, [("sign_up", "ada@example.com", "Ada", "female")])
         self.assertIn("ada@example.com", dialog.check_email_label.text())
 
+    def test_password_eye_shows_and_hides_the_password(self):
+        from PySide6.QtWidgets import QLineEdit
+
+        dialog = self._dialog(_AuthStub())
+        for field in (dialog.in_password, dialog.up_password, dialog.up_confirm):
+            self.assertEqual(field.echoMode(), QLineEdit.EchoMode.Password)
+            field.reveal_action.trigger()
+            self.assertEqual(field.echoMode(), QLineEdit.EchoMode.Normal)
+            self.assertEqual(field.reveal_action.text(), "Hide password")
+            field.reveal_action.trigger()
+            self.assertEqual(field.echoMode(), QLineEdit.EchoMode.Password)
+            self.assertEqual(field.reveal_action.text(), "Show password")
+
+    def test_art_panel_is_a_still_magazine_cover(self):
+        dialog = self._dialog(_AuthStub())
+        art = dialog.art
+        self.assertFalse(art.picture.isNull())
+        self.assertEqual(art.masthead, "Soundflow")
+        self.assertEqual(art.cover_line, ("Delulu ideas,", "perfectly spelled."))
+        dialog.resize(1000, 640)
+        dialog.show()
+        self.app.processEvents()
+        image = art.grab().toImage()
+        self.assertGreater(image.width(), 300)
+        # Painted, not black: the photo shows through behind the type.
+        centre = image.pixelColor(image.width() // 2, image.height() // 2)
+        self.assertGreater(centre.red() + centre.green() + centre.blue(), 60)
+
     def test_forgot_password_shows_reset_screen(self):
         client = _AuthStub()
         dialog = self._dialog(client)

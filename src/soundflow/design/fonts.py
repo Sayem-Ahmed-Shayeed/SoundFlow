@@ -39,13 +39,17 @@ _FONT_FILES = (
     "EBGaramond-Medium.ttf",
     "EBGaramond-Italic.ttf",
     "NotoSansBengali-Variable.ttf",
+    "NotoSerifBengali-Regular.ttf",
+    "NotoSerifBengali-Medium.ttf",
+    "BodoniModa-Medium.ttf",
+    "BodoniModa-Italic.ttf",
 )
 
 
 def register_application_fonts() -> tuple[int, ...]:
-    """Register the bundled Figtree, EB Garamond and Noto Sans Bengali faces.
+    """Register the bundled Figtree, EB Garamond, Bodoni Moda and Noto Bengali faces.
 
-    Neither has Bangla letters, so Noto Sans Bengali is set as its
+    Neither Latin face has Bangla letters, so Noto Sans Bengali is set as its
     substitute: mixed text such as "English or বাংলা" draws each script from
     the face designed for it.
     """
@@ -71,8 +75,9 @@ def register_application_fonts() -> tuple[int, ...]:
         )
         if font_id >= 0
     )
-    for family in (BODY_FONT, DISPLAY_FONT):
-        QFont.insertSubstitutions(family, [BANGLA_FONT])
+    # Bangla in headings uses the serif cut, so it sits with EB Garamond.
+    QFont.insertSubstitutions(BODY_FONT, [BANGLA_FONT])
+    QFont.insertSubstitutions(DISPLAY_FONT, [BANGLA_SERIF_FONT, BANGLA_FONT])
     _REGISTERED_FONT_IDS = font_ids
     return font_ids
 
@@ -93,6 +98,9 @@ DISPLAY_FONT = "EB Garamond"
 HOME_DISPLAY_FONT = DISPLAY_FONT
 MONO_FONT = BODY_FONT
 BANGLA_FONT = "Noto Sans Bengali"
+BANGLA_SERIF_FONT = "Noto Serif Bengali"
+# A high-contrast fashion serif, only for the sign-in window's magazine cover.
+COVER_FONT = "Bodoni Moda"
 
 SERIF_CANDIDATES = (
     "Iowan Old Style",

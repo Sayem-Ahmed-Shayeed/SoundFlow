@@ -11,20 +11,32 @@ from PySide6.QtCore import (
     QElapsedTimer,
     QPoint,
     QPropertyAnimation,
-    QTimer,
     Qt,
+    QTimer,
     Slot,
 )
 from PySide6.QtGui import QFont, QMouseEvent
 from PySide6.QtWidgets import (
-    QApplication, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QMessageBox,
-    QProgressBar, QPushButton, QStackedWidget, QStyle, QSystemTrayIcon,
-    QTextEdit, QVBoxLayout, QWidget,
+    QApplication,
+    QGraphicsOpacityEffect,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QStackedWidget,
+    QSystemTrayIcon,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
+from soundflow.design import app_icon
 from soundflow._legacy.ui_module import (
-    AnimatedRecordButton, MainWindow as LegacyMainWindow,
+    AnimatedRecordButton,
     VoiceOrb,
+)
+from soundflow._legacy.ui_module import (
+    MainWindow as LegacyMainWindow,
 )
 from soundflow.cloud.account import Account
 from soundflow.cloud.sync import SyncService
@@ -38,6 +50,7 @@ from soundflow.preferences import PreferencesPage
 from soundflow.preferences.system_check import run_system_check
 from soundflow.ui.pages import DictationPage
 from soundflow.ui.widgets import AppSidebar, RecordingOverlay, StatusBar, WindowChrome
+from soundflow.ui.widgets.message_dialog import ask, inform
 
 _LOG = logging.getLogger(__name__)
 
@@ -51,7 +64,9 @@ class MainWindow(LegacyMainWindow):
         store = args[1] if len(args) > 1 else kwargs.get("store")
         settings = args[0] if args else kwargs.get("settings")
         if settings is not None:
-            result = run_system_check(settings)
+            # Only the GPU answer is needed here; skip the microphone scan,
+            # which can take over a second while PortAudio probes devices.
+            result = run_system_check(settings, list_inputs=list)
             # A GPU choice with no usable GPU would stop the model loading;
             # Automatic uses the GPU when there is one and the processor otherwise.
             if settings.inference_device == "cuda" and result.effective_device == "cpu":
@@ -112,20 +127,26 @@ class MainWindow(LegacyMainWindow):
     @Slot(str)
     def _cloud_auth_lost(self, message: str) -> None:
         self._show_window()
-        QMessageBox.information(
-            self, "Signed out", f"{message}\n\nSoundflow will restart so you can sign in."
+        inform(
+            self,
+            "You've been signed out",
+            f"{message}\n\nSoundflow will restart so you can sign in again.",
+            kind="warning",
         )
         self._restart_for_sign_in()
 
     @Slot()
     def _confirm_sign_out(self) -> None:
-        answer = QMessageBox.question(
+        if not ask(
             self,
-            "Sign out",
-            "Sign out of Soundflow? Transcripts not yet synced stay on this "
-            "computer and upload when you sign back in to this account.",
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+            "Sign out of Soundflow?",
+            "Transcripts that haven't synced yet stay on this computer and "
+            "upload when you sign back in to this account.",
+            accept_text="Sign out",
+            reject_text="Stay signed in",
+            kind="sign-out",
+            destructive=True,
+        ):
             return
         if self._sync is not None:
             self._sync.stop(timeout=1.0)
@@ -186,6 +207,7 @@ class MainWindow(LegacyMainWindow):
         self.pages = QStackedWidget()
         self.dictation_page = DictationPage()
         self.history_page = HistoryPage(self._history_store)
+        self.history_page.ai_polish_settings_requested.connect(self._open_ai_polish_settings)
         self.playground_page = PlaygroundPage()
         self.preferences_page = PreferencesPage(self.settings, self.store)
         self.preferences_page.settings_saved.connect(self._preferences_saved)
@@ -402,13 +424,13 @@ class MainWindow(LegacyMainWindow):
         if state is DictationState.RECORDING:
             if self.settings.show_dictation_widget:
                 self.overlay.show_recording(self.settings.push_to_talk_hotkey)
-            self.tray.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop))
+            self.tray.setIcon(app_icon(recording=True))
         elif state is DictationState.DRAINING:
             if self.settings.show_dictation_widget:
                 self.overlay.show_processing()
         else:
             self.overlay.hide_animated()
-            self.tray.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+            self.tray.setIcon(app_icon())
 
     @Slot(float)
     def _set_level(self, level: float) -> None:
@@ -583,6 +605,10 @@ class MainWindow(LegacyMainWindow):
 
     def open_settings(self) -> None:
         self.navigate("preferences")
+
+    def _open_ai_polish_settings(self) -> None:
+        self.navigate("preferences")
+        self.preferences_page._open_section("ai_polish")
 
     def _save_preferences(self) -> None:
         self.preferences_page.save()

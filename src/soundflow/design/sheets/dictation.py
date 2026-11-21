@@ -92,9 +92,8 @@ QFrame#statTile, QFrame#dashCard {
 }
 QFrame#statTile QLabel, QFrame#dashCard QLabel { background: transparent; }
 #statBadge {
-    font-size: 13px;
-    background: ${raised};
-    border-radius: 8px;
+    background: ${accent_soft};
+    border-radius: 9px;
 }
 #statName { font-size: 14px; font-weight: 500; color: ${text2}; }
 #statValue {

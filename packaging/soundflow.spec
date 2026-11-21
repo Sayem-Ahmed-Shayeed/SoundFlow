@@ -57,6 +57,10 @@ bundled_fonts = ROOT / "src" / "soundflow" / "assets" / "fonts"
 if bundled_fonts.is_dir():
     datas.append((str(bundled_fonts), "soundflow/assets/fonts"))
 
+bundled_art = ROOT / "src" / "soundflow" / "assets" / "art"
+if bundled_art.is_dir():
+    datas.append((str(bundled_art), "soundflow/assets/art"))
+
 bundled_icons = ROOT / "src" / "soundflow" / "assets" / "icons"
 if bundled_icons.is_dir():
     datas.append((str(bundled_icons), "soundflow/assets/icons"))

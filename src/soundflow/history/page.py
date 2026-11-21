@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QDialog,
@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -34,6 +33,7 @@ from soundflow.history.widgets import (
     day_label,
     fit_lines,
 )
+from soundflow.ui.widgets.message_dialog import ask, inform
 from soundflow.ui.widgets.segmented import SegmentedControl
 
 FILTERS: tuple[tuple[str, str], ...] = (
@@ -115,6 +115,8 @@ class DeleteTranscriptDialog(QDialog):
 
 class HistoryPage(QWidget):
     """Searchable, date-grouped, full-text transcript history with a detail pane."""
+
+    ai_polish_settings_requested = Signal()
 
     def __init__(self, store: HistoryStore, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -406,11 +408,15 @@ class HistoryPage(QWidget):
 
         settings = SettingsStore().load()
         if not settings.ai_cleanup_enabled:
-            QMessageBox.information(
+            if ask(
                 self,
                 "AI Polish is off",
-                "Turn on AI Polish in Preferences, under AI Polish.",
-            )
+                "Turn it on and add a model in Preferences, then polish this transcript again.",
+                accept_text="Open AI Polish",
+                reject_text="Not now",
+                kind="info",
+            ):
+                self.ai_polish_settings_requested.emit()
             return
         entry = self._store.get(entry_id)
         if entry is None:
@@ -433,7 +439,7 @@ class HistoryPage(QWidget):
             if self.detail.entry_id() == entry_id:
                 self.detail.show_error(message)
             else:
-                QMessageBox.warning(self, "AI Polish failed", message)
+                inform(self, "AI Polish failed", message, kind="error")
 
         polish_in_background(entry.body, settings, done, failed, parent=self)
 
@@ -452,7 +458,7 @@ class HistoryPage(QWidget):
         try:
             export_transcript(Path(path), entry.body)
         except (ExportError, OSError) as exc:
-            QMessageBox.warning(self, "Export failed", str(exc))
+            inform(self, "Export failed", str(exc), kind="error")
 
 
 def _safe_filename(title: str) -> str:

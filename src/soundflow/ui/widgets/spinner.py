@@ -1,70 +1,101 @@
-"""A small turning arc for "working" states (Transcribing, Polishing)."""
+"""The Cupertino activity indicator, for "working" states.
+
+Eight rounded spokes around a centre. The brightest spoke steps one place
+clockwise eight times a second with the next ones trailing off behind it,
+the way iOS shows loading. Because it moves in steps, it repaints only
+eight times a second, not sixty: cheap enough to leave on while the app
+transcribes.
+"""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QRectF, Qt, QVariantAnimation
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QWidget
 
 from soundflow.design.motion import reduced_motion
 from soundflow.design.theme import current_palette
 
+SPOKES = 8
+STEP_MS = 125  # one turn a second
+# Opacity of each spoke, from the brightest backwards (as iOS draws it).
+SPOKE_ALPHA = (1.0, 0.86, 0.72, 0.58, 0.44, 0.32, 0.32, 0.32)
+
+
+def paint_activity(
+    painter: QPainter, center: QPointF, radius: float, color: QColor, step: int
+) -> None:
+    """Draw the indicator at ``center``; ``step`` is which spoke is brightest."""
+    width = max(1.4, radius / 4.5)
+    inner = radius * 0.42
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.translate(center)
+    spoke = QRectF(-width / 2, -radius, width, radius - inner)
+    ink = QColor(color)
+    for index in range(SPOKES):
+        behind = (step - index) % SPOKES
+        ink.setAlphaF(color.alphaF() * SPOKE_ALPHA[behind])
+        painter.setBrush(ink)
+        painter.save()
+        painter.rotate(index * 360.0 / SPOKES)
+        painter.drawRoundedRect(spoke, width / 2, width / 2)
+        painter.restore()
+    painter.restore()
+
+
+def activity_step(elapsed_ms: float) -> int:
+    """Which spoke is brightest after ``elapsed_ms``."""
+    return int(elapsed_ms // STEP_MS) % SPOKES
+
 
 class Spinner(QWidget):
-    """Accent arc on a faint ring; turns only while visible.
+    """A Cupertino activity indicator that runs only while it is visible.
 
-    With reduced motion it stays still: the label beside it already says
+    With reduced motion it holds still: the label beside it already says
     that work is happening.
     """
-
-    TURN_MS = 800
 
     def __init__(self, size: int = 14, parent: QWidget | None = None, *, color: str = "") -> None:
         super().__init__(parent)
         self.setFixedSize(size, size)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self._color = color
-        self._angle = 0.0
-        self._turn = QVariantAnimation(self)
-        self._turn.setStartValue(0.0)
-        self._turn.setEndValue(360.0)
-        self._turn.setDuration(self.TURN_MS)
-        self._turn.setEasingCurve(QEasingCurve.Type.Linear)
-        self._turn.setLoopCount(-1)
-        self._turn.valueChanged.connect(self._set_angle)
+        self._step = 0
+        self._timer = QTimer(self)
+        self._timer.setInterval(STEP_MS)
+        self._timer.setTimerType(Qt.TimerType.CoarseTimer)
+        self._timer.timeout.connect(self._advance)
+
+    def set_color(self, color: str) -> None:
+        self._color = color
+        self.update()
 
     def is_turning(self) -> bool:
-        return self._turn.state() == QVariantAnimation.State.Running
+        return self._timer.isActive()
 
-    def _set_angle(self, value) -> None:
-        self._angle = float(value)
+    def _advance(self) -> None:
+        self._step = (self._step + 1) % SPOKES
         self.update()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         if not reduced_motion():
-            self._turn.start()
+            self._timer.start()
 
     def hideEvent(self, event) -> None:
         super().hideEvent(event)
-        self._turn.stop()
+        self._timer.stop()
 
     def paintEvent(self, event) -> None:
         del event
-        color = QColor(self._color or current_palette()["accent"])
-        faint = QColor(color)
-        faint.setAlphaF(0.25)
+        color = QColor(self._color or current_palette()["text2"])
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        width = max(1.5, self.width() / 7)
-        rect = QRectF(self.rect()).adjusted(width / 2, width / 2, -width / 2, -width / 2)
-        pen = QPen(faint, width)
-        painter.setPen(pen)
-        painter.drawEllipse(rect)
-        pen.setColor(color)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        painter.drawArc(rect, int((90 - self._angle) * 16), -90 * 16)
+        side = min(self.width(), self.height())
+        paint_activity(painter, QPointF(self.width() / 2, self.height() / 2), side / 2, color, self._step)
+        painter.end()
 
 
-__all__ = ["Spinner"]
+ActivityIndicator = Spinner
+__all__ = ["SPOKES", "STEP_MS", "ActivityIndicator", "Spinner", "activity_step", "paint_activity"]

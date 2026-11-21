@@ -11,6 +11,7 @@ No magic numbers should appear in widget code. Import from this package.
 
 from .fonts import (
     BODY_FONT,
+    COVER_FONT,
     DISPLAY_FONT,
     HOME_DISPLAY_FONT,
     MONO_FONT,
@@ -72,9 +73,11 @@ from .theme import (
     resolved_dark,
     stylesheet,
 )
-from .icons import icon, icon_pixmap, icon_size
+from .icons import app_icon, app_icon_svg, icon, icon_pixmap, icon_size
 
 __all__ = [
+    "app_icon",
+    "app_icon_svg",
     "icon",
     "icon_pixmap",
     "icon_size",
@@ -86,6 +89,7 @@ __all__ = [
     "ANIMATION_NORMAL",
     "ANIMATION_SLOW",
     "BODY_FONT",
+    "COVER_FONT",
     "ButtonMotionFilter",
     "DISPLAY_FONT",
     "HOME_DISPLAY_FONT",

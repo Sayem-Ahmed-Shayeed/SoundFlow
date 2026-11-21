@@ -20,6 +20,15 @@ _PATHS: dict[str, str] = {
         '<rect x="9" y="3" width="6" height="11" rx="3"/>'
         '<path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>'
     ),
+    "eye": (
+        '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/>'
+        '<circle cx="12" cy="12" r="3"/>'
+    ),
+    "eye-off": (
+        '<path d="M10.6 5.6A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-2.4 3.2'
+        'M6.6 6.6C3.9 8.3 2.5 12 2.5 12S6 18.5 12 18.5a9.3 9.3 0 0 0 5-1.5"/>'
+        '<path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3.5 3.5l17 17"/>'
+    ),
     "home": (
         '<path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/>'
     ),
@@ -69,6 +78,23 @@ _PATHS: dict[str, str] = {
     "close": '<path d="M7 7l10 10M17 7 7 17"/>',
     "minimize": '<path d="M6.5 12h11"/>',
     "maximize": '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/>',
+    # Home stat tiles
+    "pen": '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    "gauge": (
+        '<path d="M4.5 17a8.5 8.5 0 1 1 15 0"/>'
+        '<path d="M12 13.5 15.5 9"/><circle cx="12" cy="13.5" r="1.25"/>'
+    ),
+    "clock": '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    "flame": (
+        '<path d="M12 21c3.6 0 6.5-2.6 6.5-6.2 0-3.9-3.1-6.3-4.3-9.8-2.3 1.7-3.4 3.9-3.2 6.4'
+        '-1-.6-1.6-1.6-1.8-2.9C7.4 10.2 5.5 12.4 5.5 14.8 5.5 18.4 8.4 21 12 21z"/>'
+    ),
+    # Dialogs
+    "info": '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.75h.01"/>',
+    "alert": (
+        '<path d="M10.3 4.6 3.2 17a2 2 0 0 0 1.7 3h14.2a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0z"/>'
+        '<path d="M12 9.5v4.25M12 16.75h.01"/>'
+    ),
 }
 
 
@@ -103,6 +129,50 @@ def icon_size(size: int = 18) -> QSize:
     return QSize(size, size)
 
 
+# The app mark: the brand's sound wave in cream on a brand-green tile.
+_APP_TILE = "#034F46"
+_APP_INK = "#FFFFEB"
+_APP_RECORDING = "#FF7A6E"
+
+
+def _app_svg(recording: bool) -> bytes:
+    dot = (
+        f'<circle cx="49" cy="15" r="9" fill="{_APP_RECORDING}" stroke="{_APP_TILE}" stroke-width="3"/>'
+        if recording
+        else ""
+    )
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        f'<rect x="2" y="2" width="60" height="60" rx="15" fill="{_APP_TILE}"/>'
+        f'<g fill="none" stroke="{_APP_INK}" stroke-width="4.5" stroke-linecap="round">'
+        '<path d="M16 28v8M24 20v24M32 13v38M40 22v20M48 29v6"/></g>'
+        f"{dot}</svg>"
+    ).encode()
+
+
+@lru_cache(maxsize=4)
+def app_icon(recording: bool = False) -> QIcon:
+    """Soundflow's own icon for the window, the tray and the launcher.
+
+    ``recording`` adds a coral dot so the tray shows when the mic is on."""
+    result = QIcon()
+    renderer = QSvgRenderer(QByteArray(_app_svg(recording)))
+    for side in (16, 22, 24, 32, 48, 64, 128, 256):
+        pixmap = QPixmap(side, side)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        renderer.render(painter, QRectF(0, 0, side, side))
+        painter.end()
+        result.addPixmap(pixmap)
+    return result
+
+
+def app_icon_svg() -> bytes:
+    """The app mark as an SVG file, for the desktop launcher."""
+    return _app_svg(False)
+
+
 ICON_NAMES = tuple(_PATHS)
 
-__all__ = ["ICON_NAMES", "icon", "icon_pixmap", "icon_size"]
+__all__ = ["ICON_NAMES", "app_icon", "app_icon_svg", "icon", "icon_pixmap", "icon_size"]
