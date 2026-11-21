@@ -88,27 +88,23 @@ the new version is running you can delete that `app` folder; leave the rest of
 
 ### Uninstall
 
-Remove the program but keep your models, settings and transcripts:
+Download `uninstall.sh` from the release, then run it. By default it removes the program
+and keeps your models, settings and transcripts:
 
 ```bash
-systemctl --user disable --now soundflow.service
-rm -rf ~/.local/share/soundflow-app
-rm -f ~/.local/bin/soundflow \
-      ~/.local/share/applications/io.github.SayemAhmedShayeed.Soundflow.desktop \
-      ~/.config/autostart/soundflow.desktop \
-      ~/.config/systemd/user/soundflow.service
-systemctl --user daemon-reload
+chmod +x uninstall.sh
+./uninstall.sh
 ```
 
-From a source checkout, `./uninstall-linux.sh` does the same.
-
-To remove everything as well, including downloaded models, local transcripts, settings and
-API keys, also run the command below. Transcripts that have synced to your account come
-back when you sign in again; anything not yet synced is lost.
+To remove everything, including downloaded models, local transcripts, settings and API
+keys:
 
 ```bash
-rm -rf ~/.local/share/soundflow ~/.config/soundflow
+./uninstall.sh --everything
 ```
+
+Transcripts that have synced to your account come back when you sign in again; anything
+not yet synced is lost. From a source checkout, `./uninstall-linux.sh` does the same.
 
 ## Build from source
 
@@ -170,7 +166,8 @@ does.
 3. Put `dist/Soundflow/`, `install-linux.sh`, `uninstall-linux.sh` and `README.md` in a
    folder named `soundflow-<version>/`, and pack it as
    `soundflow-<version>-linux-x64.tar.gz`.
-4. Upload that archive with `packaging/linux/release-install.sh` renamed to `install.sh`.
+4. Upload that archive, `packaging/linux/release-install.sh` renamed to `install.sh`, and
+   `uninstall-linux.sh` renamed to `uninstall.sh`.
 
 ### Use your own or an offline model
 
